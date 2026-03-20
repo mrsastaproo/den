@@ -9,22 +9,6 @@ import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 
-// Provider
-final timeBasedSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final hour = DateTime.now().hour;
-  String query;
-  if (hour >= 5 && hour < 12) {
-    query = 'morning fresh hindi songs';
-  } else if (hour >= 12 && hour < 17) {
-    query = 'afternoon energetic hindi songs';
-  } else if (hour >= 17 && hour < 21) {
-    query = 'evening romantic hindi songs';
-  } else {
-    query = 'night sad chill hindi songs';
-  }
-  return ref.read(apiServiceProvider).searchSongs(query, page: 1);
-});
-
 class TimeBasedSection extends ConsumerWidget {
   const TimeBasedSection({super.key});
 

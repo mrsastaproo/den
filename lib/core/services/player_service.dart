@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../services/api_service.dart';          // ADD THIS
 import '../providers/music_providers.dart';      // ADD THIS
+import 'audius_service.dart';
 
 class PlayerService {
   final AudioPlayer _player = AudioPlayer();
@@ -20,24 +21,25 @@ Future<void> playSong(Song song) async {
   try {
     print('=== PLAYING: ${song.title} ===');
 
-    final url = await _api.getStreamUrl(song.id);
+    String url = song.url;
+
+    // Check if Audius track
+    if (song.id.startsWith('audius_')) {
+      final audius = AudiusService();
+      url = await audius.getStreamUrl(song.id);
+    } else {
+      if (url.isEmpty) {
+        url = await _api.getStreamUrl(song.id);
+      }
+    }
+
     print('Stream URL: ${url.isNotEmpty ? "OK" : "EMPTY"}');
 
-    if (url.isEmpty) {
-      print('No stream URL found for ${song.id}');
-      return;
-    }
+    if (url.isEmpty) return;
 
     await _player.stop();
     await _player.setUrl(url);
     await _player.play();
-
-// Track history in Firestore
-try {
-  final container = ProviderContainer();
-  // We'll handle this via a callback instead
-} catch (e) {}
-
     print('Playing!');
   } catch (e) {
     print('Player error: $e');

@@ -10,15 +10,6 @@ import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 
-final selectedMoodProvider = StateProvider<String?>((ref) => null);
-
-final moodMixProvider = FutureProvider<List<Song>>((ref) async {
-  final mood = ref.watch(selectedMoodProvider);
-  if (mood == null) return [];
-  return ref.read(apiServiceProvider).searchSongs(
-    '$mood hindi songs 2025', page: 1);
-});
-
 class MoodMixSection extends ConsumerWidget {
   const MoodMixSection({super.key});
 

@@ -17,6 +17,7 @@ import '../../shared/widgets/recently_played_section.dart';
 import '../../shared/widgets/throwback_section.dart';
 import '../../shared/widgets/artist_spotlight_section.dart';
 import '../../shared/widgets/mood_mix_section.dart';
+import '../../core/services/api_service.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});

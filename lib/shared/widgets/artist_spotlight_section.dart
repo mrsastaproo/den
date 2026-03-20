@@ -19,14 +19,6 @@ const _spotlightArtists = [
     'emoji': '🌟'},
 ];
 
-final spotlightArtistIndexProvider = StateProvider<int>((ref) => 0);
-
-final spotlightSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final index = ref.watch(spotlightArtistIndexProvider);
-  final query = _spotlightArtists[index]['query']!;
-  return ref.read(apiServiceProvider).searchSongs(query, page: 1);
-});
-
 class ArtistSpotlightSection extends ConsumerWidget {
   const ArtistSpotlightSection({super.key});
 
@@ -34,7 +26,7 @@ class ArtistSpotlightSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final artistIndex = ref.watch(spotlightArtistIndexProvider);
     final songsAsync = ref.watch(spotlightSongsProvider);
-    final artist = _spotlightArtists[artistIndex];
+    final artist = spotlightArtists[artistIndex];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

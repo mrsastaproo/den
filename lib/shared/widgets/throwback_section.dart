@@ -9,22 +9,7 @@ import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
-
-final throwbackProvider = FutureProvider<List<Song>>((ref) async {
-  try {
-    final results = await Future.wait([
-      ref.read(apiServiceProvider).searchSongs(
-        'hindi classic songs 2000s', page: 1),
-      ref.read(apiServiceProvider).searchSongs(
-        'bollywood 90s hits', page: 1),
-    ]);
-    final songs = [...results[0], ...results[1]];
-    final seen = <String>{};
-    return songs.where((s) => seen.add(s.id)).take(10).toList();
-  } catch (e) {
-    return [];
-  }
-});
+import '../../core/providers/music_providers.dart';
 
 class ThrowbackSection extends ConsumerWidget {
   const ThrowbackSection({super.key});

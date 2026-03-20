@@ -1,47 +1,79 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
+import '../services/audius_service.dart';
 import '../models/song.dart';
 
-// API service provider
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+// ─── API PROVIDERS ────────────────────────────────────────────
 
-// Trending songs provider
+final audiusServiceProvider = Provider<AudiusService>(
+  (ref) => AudiusService());
+
+// ─── JIOSAAVN SECTIONS ────────────────────────────────────────
+
 final trendingProvider = FutureProvider<List<Song>>((ref) async {
   return ref.read(apiServiceProvider).getTrending();
 });
 
-// Search query state
+final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
+  return ref.read(apiServiceProvider).getNewReleases();
+});
+
+final topChartsProvider = FutureProvider<List<Song>>((ref) async {
+  return ref.read(apiServiceProvider).getTopCharts();
+});
+
+final throwbackProvider = FutureProvider<List<Song>>((ref) async {
+  return ref.read(apiServiceProvider).getThrowback();
+});
+
+final timeBasedSongsProvider = FutureProvider<List<Song>>((ref) async {
+  return ref.read(apiServiceProvider).getTimeBased();
+});
+
+// ─── AUDIUS SECTIONS ──────────────────────────────────────────
+
+final audiusTrendingProvider = FutureProvider<List<Song>>((ref) async {
+  return ref.read(audiusServiceProvider).getTrending(limit: 15);
+});
+
+// ─── ARTIST SPOTLIGHT ─────────────────────────────────────────
+
+const spotlightArtists = [
+  {'name': 'Arijit Singh', 'emoji': '🎤'},
+  {'name': 'AP Dhillon',   'emoji': '🎵'},
+  {'name': 'Shreya Ghoshal','emoji': '🌟'},
+];
+
+final spotlightArtistIndexProvider =
+  StateProvider<int>((ref) => 0);
+
+final spotlightSongsProvider = FutureProvider<List<Song>>((ref) async {
+  final index = ref.watch(spotlightArtistIndexProvider);
+  final name = spotlightArtists[index]['name']!;
+  return ref.read(apiServiceProvider).getArtistSongs(name);
+});
+
+// ─── MOOD MIX ─────────────────────────────────────────────────
+
+final selectedMoodProvider = StateProvider<String?>((ref) => null);
+
+final moodMixProvider = FutureProvider<List<Song>>((ref) async {
+  final mood = ref.watch(selectedMoodProvider);
+  if (mood == null) return [];
+  return ref.read(apiServiceProvider).getMoodMix(mood);
+});
+
+// ─── SEARCH ───────────────────────────────────────────────────
+
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-// Search results provider
 final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) return [];
   return ref.read(apiServiceProvider).searchSongs(query);
 });
 
-// Currently playing song
+// ─── PLAYER STATE ─────────────────────────────────────────────
+
 final currentSongProvider = StateProvider<Song?>((ref) => null);
-
-// Is playing state
 final isPlayingProvider = StateProvider<bool>((ref) => false);
-
-// New releases provider
-final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
-  return ref.read(apiServiceProvider).getNewReleases();
-});
-
-// Top charts provider
-final topChartsProvider = FutureProvider<List<Song>>((ref) async {
-  try {
-    final results = await Future.wait([
-      ref.read(apiServiceProvider).searchSongs('top charts hindi 2025', page: 1),
-      ref.read(apiServiceProvider).searchSongs('bollywood hits 2025', page: 1),
-    ]);
-    final songs = [...results[0], ...results[1]];
-    final seen = <String>{};
-    return songs.where((s) => seen.add(s.id)).take(15).toList();
-  } catch (e) {
-    return [];
-  }
-});
