@@ -24,4 +24,14 @@ class ApiService {
     final res = await _dio.get('/charts');
     return res.data;
   }
+
+  // Get stream URL for a song
+Future<String> getStreamUrl(String songId) async {
+  try {
+    final res = await _dio.get('/stream/$songId');
+    return res.data['url'] ?? '';
+  } catch (e) {
+    return '';
+  }
+}
 }

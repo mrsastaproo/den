@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/models/song.dart';
+import '../../core/services/player_service.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -115,13 +116,14 @@ class _SongTile extends ConsumerWidget {
       subtitle: Text(song.artist,
         style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
         maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: IconButton(
-        icon: const Icon(Icons.play_circle_filled_rounded,
-          color: Color(0xFFE8383D), size: 36),
-        onPressed: () {
-          ref.read(currentSongProvider.notifier).state = song;
-        },
-      ),
+trailing: IconButton(
+  icon: const Icon(Icons.play_circle_filled_rounded,
+    color: Color(0xFFE8383D), size: 36),
+  onPressed: () {
+    ref.read(currentSongProvider.notifier).state = song;
+    ref.read(playerServiceProvider).playSong(song); // ADD THIS
+  },
+),
     );
   }
 }
