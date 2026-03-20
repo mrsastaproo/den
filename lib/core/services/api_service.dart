@@ -58,4 +58,39 @@ class ApiService {
       return '';
     }
   }
+
+  // New Releases — uses jiosaavn-api
+Future<List<Song>> getNewReleases() async {
+  try {
+    // Fetch multiple queries in parallel for more variety
+    final results = await Future.wait([
+      _dio.get('/search/songs', queryParameters: {
+        'query': 'new hindi songs 2025',
+        'limit': 5,
+        'page': 1,
+      }),
+      _dio.get('/search/songs', queryParameters: {
+        'query': 'latest bollywood 2025',
+        'limit': 5,
+        'page': 1,
+      }),
+    ]);
+
+    final songs = <Song>[];
+
+    for (final res in results) {
+      final list = res.data['data']['results'] as List? ?? [];
+      songs.addAll(list.map((e) => Song.fromSumitApi(e)));
+    }
+
+    // Remove duplicates by ID
+    final seen = <String>{};
+    final unique = songs.where((s) => seen.add(s.id)).toList();
+
+    return unique.take(10).toList();
+  } catch (e) {
+    print('New releases error: $e');
+    return [];
+  }
+}
 }

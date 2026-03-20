@@ -25,3 +25,8 @@ final currentSongProvider = StateProvider<Song?>((ref) => null);
 
 // Is playing state
 final isPlayingProvider = StateProvider<bool>((ref) => false);
+
+// New releases provider
+final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
+  return ref.read(apiServiceProvider).getNewReleases();
+});

@@ -8,6 +8,7 @@ import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ambient_background.dart';
 import '../../shared/widgets/glass_container.dart';
+import '../../shared/widgets/featured_banner.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,8 @@ class HomeScreen extends ConsumerWidget {
         body: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
+
+              const SliverToBoxAdapter(child: FeaturedBanner()),
 
             SliverToBoxAdapter(
               child: trendingAsync.when(
