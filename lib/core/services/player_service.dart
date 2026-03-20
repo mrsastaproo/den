@@ -31,6 +31,13 @@ Future<void> playSong(Song song) async {
     await _player.stop();
     await _player.setUrl(url);
     await _player.play();
+
+// Track history in Firestore
+try {
+  final container = ProviderContainer();
+  // We'll handle this via a callback instead
+} catch (e) {}
+
     print('Playing!');
   } catch (e) {
     print('Player error: $e');
