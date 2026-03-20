@@ -16,25 +16,26 @@ class PlayerService {
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<Duration> get positionStream => _player.positionStream;
 
-  Future<void> playSong(Song song) async {
-    try {
-      // First try the URL we already have
-      String url = song.url;
-      
-      // If empty, fetch from backend
-      if (url.isEmpty) {
-        url = await _api.getStreamUrl(song.id);
-      }
-      
-      if (url.isEmpty) return;
+Future<void> playSong(Song song) async {
+  try {
+    print('=== PLAYING: ${song.title} ===');
 
-      await _player.stop();
-      await _player.setUrl(url);
-      await _player.play();
-    } catch (e) {
-      print('Player error: $e');
+    final url = await _api.getStreamUrl(song.id);
+    print('Stream URL: ${url.isNotEmpty ? "OK" : "EMPTY"}');
+
+    if (url.isEmpty) {
+      print('No stream URL found for ${song.id}');
+      return;
     }
+
+    await _player.stop();
+    await _player.setUrl(url);
+    await _player.play();
+    print('Playing!');
+  } catch (e) {
+    print('Player error: $e');
   }
+}
 
   Future<void> togglePlayPause() async {
     if (_player.playing) {

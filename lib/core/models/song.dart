@@ -35,6 +35,32 @@ class Song {
     );
   }
 
+  factory Song.fromSumitApi(Map<String, dynamic> json) {
+  // Get highest quality image
+  final images = json['image'] as List?;
+  final image = images != null && images.isNotEmpty
+      ? (images.last['url'] ?? '')
+      : '';
+
+  // Get primary artists
+  final primaryArtists = json['artists']?['primary'] as List?;
+  final artistName = primaryArtists != null && primaryArtists.isNotEmpty
+      ? primaryArtists.map((a) => a['name']).join(', ')
+      : '';
+
+  return Song(
+    id: json['id'] ?? '',
+    title: json['name'] ?? '',
+    artist: artistName,
+    album: json['album']?['name'] ?? '',
+    image: image,
+    url: '',
+    duration: json['duration']?.toString() ?? '0',
+    year: json['year']?.toString() ?? '',
+    language: json['language'] ?? '',
+  );
+}
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
