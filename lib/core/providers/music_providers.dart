@@ -76,4 +76,6 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
 // ─── PLAYER STATE ─────────────────────────────────────────────
 
 final currentSongProvider = StateProvider<Song?>((ref) => null);
+final currentPlaylistProvider = StateProvider<List<Song>>((ref) => []);
+final currentSongIndexProvider = StateProvider<int>((ref) => -1);
 final isPlayingProvider = StateProvider<bool>((ref) => false);

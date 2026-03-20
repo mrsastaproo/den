@@ -4,8 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
-import 'glass_bottom_nav.dart';
-import 'mini_player.dart';
+import 'integrated_bottom_shell.dart';
 import 'ambient_background.dart';
 
 class MainScaffold extends ConsumerWidget {
@@ -44,8 +43,7 @@ class MainScaffold extends ConsumerWidget {
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const MiniPlayer(),
-            GlassBottomNav(
+            IntegratedBottomShell(
               currentIndex: currentIndex,
               onTap: (i) {
                 switch (i) {

@@ -21,6 +21,10 @@ Future<void> playSong(Song song) async {
   try {
     print('=== PLAYING: ${song.title} ===');
 
+    // Stop and reset player completely first
+    await _player.stop();
+    await _player.seek(Duration.zero);
+
     String url = song.url;
 
     // Check if Audius track
@@ -28,21 +32,28 @@ Future<void> playSong(Song song) async {
       final audius = AudiusService();
       url = await audius.getStreamUrl(song.id);
     } else {
-      if (url.isEmpty) {
-        url = await _api.getStreamUrl(song.id);
-      }
+      // Always fetch fresh URL — never use cached
+      url = await _api.getStreamUrl(song.id);
     }
 
     print('Stream URL: ${url.isNotEmpty ? "OK" : "EMPTY"}');
 
-    if (url.isEmpty) return;
+    if (url.isEmpty) {
+      print('No stream URL found for ${song.id}');
+      return;
+    }
 
-    await _player.stop();
-    await _player.setUrl(url);
+    // Set new URL and play
+    await _player.setUrl(url, preload: true);
     await _player.play();
-    print('Playing!');
+    print('Now playing: ${song.title}');
+
   } catch (e) {
     print('Player error: $e');
+    // Try to recover
+    try {
+      await _player.stop();
+    } catch (_) {}
   }
 }
 
