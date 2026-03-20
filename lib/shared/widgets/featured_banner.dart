@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
@@ -79,12 +80,18 @@ class _FeaturedBannerState extends ConsumerState<FeaturedBanner>
                   const Text('New Releases',
                     style: TextStyle(color: Colors.white,
                       fontSize: 20, fontWeight: FontWeight.w700)),
-                  ShaderMask(
-                    shaderCallback: (b) =>
-                      AppTheme.primaryGradient.createShader(b),
-                    child: const Text('See all',
-                      style: TextStyle(color: Colors.white,
-                        fontSize: 13, fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    child: ShaderMask(
+                      shaderCallback: (b) =>
+                        AppTheme.primaryGradient.createShader(b),
+                      child: const Text('See all',
+                        style: TextStyle(color: Colors.white,
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                    onTap: () {
+                      ref.read(searchQueryProvider.notifier).state = 'new releases hindi 2025';
+                      context.push('/search');
+                    },
                   ),
                 ],
               ),
