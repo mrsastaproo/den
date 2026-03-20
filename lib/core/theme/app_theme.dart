@@ -1,53 +1,49 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Brand colors
-  static const Color primary = Color(0xFFE8383D);      // Rich red
-  static const Color accent = Color(0xFFFF6B6B);       // Soft red
-  static const Color bgDark = Color(0xFF0A0A0A);       // Near black
-  static const Color bgCard = Color(0xFF141414);       // Card bg
-  static const Color bgElevated = Color(0xFF1E1E1E);   // Elevated surface
+  // Purple gradient palette (exact from image)
+  static const Color bgPurpleDark = Color(0xFF2D1B69);
+  static const Color bgPurpleMid = Color(0xFF6B35B8);
+  static const Color bgPurpleLight = Color(0xFF9B59D4);
+  static const Color bgWhiteCard = Color(0xFFFFFFFF);
+  static const Color accent = Color(0xFFB44FE8);
+
   static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFFB3B3B3);
-  static const Color textMuted = Color(0xFF6B6B6B);
+  static const Color textDark = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF8B8BAD);
+  static const Color textMuted = Color(0xFFB0B0C8);
+
+  static const LinearGradient bgGradient = LinearGradient(
+    colors: [Color(0xFF1A0533), Color(0xFF6B35B8), Color(0xFFAB5FE8)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+
+  static const LinearGradient cardGradient = LinearGradient(
+    colors: [Color(0xFF7B3FD4), Color(0xFFAB5FE8)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: bgDark,
-      primaryColor: primary,
+      scaffoldBackgroundColor: bgPurpleDark,
+      primaryColor: bgPurpleMid,
       colorScheme: const ColorScheme.dark(
-        primary: primary,
+        primary: bgPurpleMid,
         secondary: accent,
-        surface: bgCard,
-        background: bgDark,
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: false,
-        titleTextStyle: TextStyle(
-          color: textPrimary,
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
-        ),
+        surface: bgWhiteCard,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: bgCard,
-        selectedItemColor: primary,
-        unselectedItemColor: textMuted,
+        backgroundColor: Color(0xFF1A0533),
+        selectedItemColor: Color(0xFFE040FB),
+        unselectedItemColor: Color(0xFF7B6B9B),
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-      ),
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.w800),
-        headlineMedium: TextStyle(color: textPrimary, fontWeight: FontWeight.w700),
-        titleLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.w600),
-        bodyLarge: TextStyle(color: textPrimary),
-        bodyMedium: TextStyle(color: textSecondary),
-        bodySmall: TextStyle(color: textMuted),
+        selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 11),
       ),
     );
   }

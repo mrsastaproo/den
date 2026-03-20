@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1060749102477",
+    "project_id": "den-music",
+    "storage_bucket": "den-music.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1060749102477:android:ac04891eb66b9e116201c4",
+        "android_client_info": {
+          "package_name": "com.mrsastaproo.den"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1060749102477-2d1ph0aurrndk38nfar54d1kpmmmjnui.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mrsastaproo.den",
+            "certificate_hash": "e6d51b59ba578fb6ba67ed300993b99da5687101"
+          }
+        },
+        {
+          "client_id": "1060749102477-0kljsdjfqsjqk643c9m7lhhieacjnhoq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQL0xDlsbGovQSTthjQ02BKWeiSsv7ucQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1060749102477-0kljsdjfqsjqk643c9m7lhhieacjnhoq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

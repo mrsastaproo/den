@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Lock to portrait
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
 
-  // Status bar style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -21,14 +21,18 @@ void main() async {
     ),
   );
 
-  // Init Hive
   await Hive.initFlutter();
 
-  runApp(
-    const ProviderScope(
-      child: DenApp(),
-    ),
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    // Already initialized, ignore
+    print('Firebase already initialized: $e');
+  }
+
+  runApp(const ProviderScope(child: DenApp()));
 }
 
 class DenApp extends ConsumerWidget {
@@ -37,7 +41,6 @@ class DenApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
-    
     return MaterialApp.router(
       title: 'DEN',
       debugShowCheckedModeBanner: false,
