@@ -35,9 +35,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
+return Scaffold(
+  backgroundColor: Colors.transparent,
+  extendBodyBehindAppBar: true,
+  body: Container(
+    color: Colors.transparent,
         child: SafeArea(
           child: Column(
             children: [

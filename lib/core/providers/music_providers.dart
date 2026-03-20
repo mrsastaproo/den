@@ -30,3 +30,18 @@ final isPlayingProvider = StateProvider<bool>((ref) => false);
 final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
   return ref.read(apiServiceProvider).getNewReleases();
 });
+
+// Top charts provider
+final topChartsProvider = FutureProvider<List<Song>>((ref) async {
+  try {
+    final results = await Future.wait([
+      ref.read(apiServiceProvider).searchSongs('top charts hindi 2025', page: 1),
+      ref.read(apiServiceProvider).searchSongs('bollywood hits 2025', page: 1),
+    ]);
+    final songs = [...results[0], ...results[1]];
+    final seen = <String>{};
+    return songs.where((s) => seen.add(s.id)).take(15).toList();
+  } catch (e) {
+    return [];
+  }
+});

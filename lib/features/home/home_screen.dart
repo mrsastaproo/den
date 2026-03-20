@@ -6,9 +6,10 @@ import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
-import '../../shared/widgets/ambient_background.dart';
 import '../../shared/widgets/glass_container.dart';
 import '../../shared/widgets/featured_banner.dart';
+import '../../shared/widgets/trending_section.dart';
+import '../../shared/widgets/top_charts_section.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -17,38 +18,24 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final trendingAsync = ref.watch(trendingProvider);
 
-    return AmbientBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeader()),
-
-              const SliverToBoxAdapter(child: FeaturedBanner()),
-
-            SliverToBoxAdapter(
-              child: trendingAsync.when(
-                loading: () => const SizedBox(height: 200,
-                  child: Center(child: CircularProgressIndicator(
-                    color: AppTheme.pink, strokeWidth: 2))),
-                error: (e, _) => Center(
-                  child: Text('$e', style: const TextStyle(
-                    color: Colors.red))),
-                data: (songs) => _buildPlaylistSection(songs),
-              ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildHeader()),
+          const SliverToBoxAdapter(child: FeaturedBanner()),
+          const SliverToBoxAdapter(child: TrendingSection()),
+          const SliverToBoxAdapter(child: TopChartsSection()),
+          SliverToBoxAdapter(
+            child: trendingAsync.when(
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
+              data: (songs) => _buildRecentlyPlayed(songs, ref),
             ),
-
-            SliverToBoxAdapter(
-              child: trendingAsync.when(
-                loading: () => const SizedBox(),
-                error: (_, __) => const SizedBox(),
-                data: (songs) => _buildRecentlyPlayed(songs, ref),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 200)),
-          ],
-        ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 200)),
+        ],
       ),
     );
   }
@@ -89,42 +76,6 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPlaylistSection(List<Song> songs) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 28, 20, 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Trending Now',
-                style: TextStyle(color: Colors.white,
-                  fontSize: 20, fontWeight: FontWeight.w700)),
-              ShaderMask(
-                shaderCallback: (b) =>
-                  AppTheme.primaryGradient.createShader(b),
-                child: const Text('See all',
-                  style: TextStyle(color: Colors.white,
-                    fontSize: 13, fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 170,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: songs.take(8).length,
-            itemBuilder: (context, index) =>
-              _PlaylistCard(song: songs[index], index: index),
-          ),
-        ),
-      ],
     );
   }
 
@@ -171,115 +122,6 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _PlaylistCard extends StatelessWidget {
-  final Song song;
-  final int index;
-
-  const _PlaylistCard({required this.song, required this.index});
-
-  static const List<List<Color>> _gradients = [
-    [Color(0xFFFFB3C6), Color(0xFFD4B8FF)],
-    [Color(0xFFB794FF), Color(0xFFFFB3C6)],
-    [Color(0xFFFF85A1), Color(0xFFB794FF)],
-    [Color(0xFFD4B8FF), Color(0xFFFF85A1)],
-    [Color(0xFFFFB3C6), Color(0xFFB794FF)],
-    [Color(0xFFB794FF), Color(0xFFFF85A1)],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final gradient = _gradients[index % _gradients.length];
-
-    return Container(
-      width: 130,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.3),
-            blurRadius: 20,
-            spreadRadius: -5,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            CachedNetworkImage(
-              imageUrl: song.image,
-              width: 130, height: 170,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-              ),
-            ),
-            // Gradient overlay
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-            // Top shimmer
-            Positioned(
-              top: 0, left: 0, right: 0,
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      gradient[0].withOpacity(0.3),
-                      Colors.transparent,
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
-            ),
-            // Song info
-            Positioned(
-              bottom: 10, left: 10, right: 10,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(song.title,
-                    style: const TextStyle(color: Colors.white,
-                      fontSize: 11, fontWeight: FontWeight.w700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(song.artist,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 10),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SongTile extends StatelessWidget {
   final Song song;
   final WidgetRef ref;
@@ -312,8 +154,7 @@ class _SongTile extends StatelessWidget {
               width: 48, height: 48,
               decoration: BoxDecoration(
                 gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(12),
-              ),
+                borderRadius: BorderRadius.circular(12)),
               child: const Icon(Icons.music_note,
                 color: Colors.white, size: 20),
             ),
