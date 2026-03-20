@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class SearchScreen extends StatelessWidget {
+  const SearchScreen({super.key});
   @override
   Widget build(BuildContext context) =>
-    const Scaffold(body: Center(child: Text('Home', style: TextStyle(color: Colors.white))));
+    const Scaffold(body: Center(child: Text('Search', style: TextStyle(color: Colors.white))));
 }
