@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum QueueContext {
   general,
+  search,      // Search results
   mood,        // e.g. Love, Chill, Hype
   artist,      // Artist Spotlight
   trending,

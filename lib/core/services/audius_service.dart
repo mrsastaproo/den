@@ -16,6 +16,10 @@ class AudiusService {
     final artwork = track['artwork'] as Map<String, dynamic>?;
     final user = track['user'] as Map<String, dynamic>?;
 
+    // Store the real Audius genre in the language field so PlayerService
+    // can use it for genre-based autoplay after a search song finishes.
+    final genre = (track['genre'] as String?)?.toLowerCase().trim() ?? 'all';
+
     return Song(
       id: 'audius_${track['id']}',
       title: track['title'] ?? '',
@@ -25,7 +29,7 @@ class AudiusService {
       url: '',
       duration: (track['duration'] ?? 0).toString(),
       year: '',
-      language: 'english',
+      language: genre, // genre stored here — used by smart queue
     );
   }
 
@@ -41,6 +45,29 @@ class AudiusService {
       return tracks.map((t) => _trackToSong(t)).toList();
     } catch (e) {
       print('Audius trending error: $e');
+      return [];
+    }
+  }
+
+  // Fetch tracks by genre — used for genre-based autoplay after a search song ends.
+  // genre should be the raw Audius genre string e.g. 'electronic', 'hip-hop', 'pop'.
+  Future<List<Song>> fetchByGenre(String genre, {int limit = 30, String? excludeId}) async {
+    try {
+      final res = await _dio.get('/tracks',
+        queryParameters: {
+          'genre': genre,
+          'sort_by': 'plays',
+          'order': 'desc',
+          'limit': limit,
+          'app_name': 'DEN',
+        });
+      final tracks = res.data['data'] as List? ?? [];
+      return tracks
+          .map((t) => _trackToSong(t))
+          .where((s) => excludeId == null || s.id != excludeId)
+          .toList();
+    } catch (e) {
+      print('Audius fetchByGenre error: $e');
       return [];
     }
   }

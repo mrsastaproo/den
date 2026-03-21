@@ -1,5 +1,25 @@
 import 'package:flutter/material.dart';
 
+// ─── Global bottom clearance ───────────────────────────────────────────────
+// Nav bar = 76px height + 32px bottom padding = 108px.
+// Add 12px breathing room = 120px total.
+// Use this everywhere: ListView padding, BottomSheet padding,
+// PopupMenu constraints, SliverList, SingleChildScrollView, etc.
+const double kNavBarHeight = 76.0;
+const double kNavBarBottomPadding = 32.0;
+const double kDenBottomPadding = kNavBarHeight + kNavBarBottomPadding + 12.0; // 120px
+
+// Convenience spacer widget — drop at the bottom of any Column/ListView
+class DenBottomSpacer extends StatelessWidget {
+  const DenBottomSpacer({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      const SizedBox(height: kDenBottomPadding);
+}
+
+// EdgeInsets helper — use as ListView/CustomScrollView padding
+const EdgeInsets kListPadding = EdgeInsets.only(bottom: kDenBottomPadding);
+
 class AppTheme {
   // ─── Core Colors ───────────────────────────────────
   static const Color bgPrimary    = Color(0xFF080808);
@@ -75,6 +95,23 @@ class AppTheme {
         bodyLarge: TextStyle(color: textPrimary),
         bodyMedium: TextStyle(color: textSecondary),
         bodySmall: TextStyle(color: textMuted),
+      ),
+
+      // ── Fix: all popup menus always render above the nav bar ──────
+      popupMenuTheme: PopupMenuThemeData(
+        color: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 8,
+        textStyle: const TextStyle(color: textPrimary, fontSize: 14),
+      ),
+
+      // ── Fix: modal bottom sheets clear the nav bar ────────────────
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xFF121212),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        clipBehavior: Clip.antiAlias,
       ),
     );
   }

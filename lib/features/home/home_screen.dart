@@ -821,28 +821,59 @@ class _GreetingHero extends StatelessWidget {
 class _QuickAccessGrid extends ConsumerWidget {
   const _QuickAccessGrid();
 
+  // Each tile has a real Unsplash photo + dominant color wash
   static const _items = [
-    _QItem('Trending', Icons.local_fire_department_rounded,
-        [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
-        'trending hindi songs 2025', QueueContext.trending),
-    _QItem('Party Mix', Icons.nightlife_rounded,
-        [Color(0xFF9B59B6), Color(0xFF6C3483)],
-        'party dance hindi songs', QueueContext.mood,
-        mood: 'Hype'),
-    _QItem('Chill Out', Icons.waves_rounded,
-        [Color(0xFF2193B0), Color(0xFF6DD5FA)],
-        'chill lofi hindi', QueueContext.mood,
-        mood: 'Chill'),
-    _QItem('Love Songs', Icons.favorite_rounded,
-        [Color(0xFFE91E8C), Color(0xFFFF6B9D)],
-        'romantic love songs hindi', QueueContext.mood,
-        mood: 'Love'),
-    _QItem('Top Charts', Icons.leaderboard_rounded,
-        [Color(0xFFF7971E), Color(0xFFFFD200)],
-        'top charts bollywood 2025', QueueContext.topCharts),
-    _QItem('Throwback', Icons.history_rounded,
-        [Color(0xFF667EEA), Color(0xFF764BA2)],
-        'hindi classic 90s 2000s', QueueContext.throwback),
+    _QItem(
+      label: 'Trending',
+      icon: Icons.local_fire_department_rounded,
+      colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
+      query: 'trending hindi songs 2025',
+      queueContext: QueueContext.trending,
+      imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
+    ),
+    _QItem(
+      label: 'Party Mix',
+      icon: Icons.nightlife_rounded,
+      colors: [Color(0xFF9B59B6), Color(0xFF6C3483)],
+      query: 'party dance hindi songs',
+      queueContext: QueueContext.mood,
+      mood: 'Hype',
+      imageUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&q=80',
+    ),
+    _QItem(
+      label: 'Chill Out',
+      icon: Icons.waves_rounded,
+      colors: [Color(0xFF2193B0), Color(0xFF6DD5FA)],
+      query: 'chill lofi hindi',
+      queueContext: QueueContext.mood,
+      mood: 'Chill',
+      imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80',
+    ),
+    _QItem(
+      label: 'Love Songs',
+      icon: Icons.favorite_rounded,
+      colors: [Color(0xFFE91E8C), Color(0xFFFF6B9D)],
+      query: 'romantic love songs hindi',
+      queueContext: QueueContext.mood,
+      mood: 'Love',
+      imageUrl: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=400&q=80',
+    ),
+    _QItem(
+      label: 'Top Charts',
+      icon: Icons.leaderboard_rounded,
+      colors: [Color(0xFFF7971E), Color(0xFFFFD200)],
+      query: 'top charts bollywood 2025',
+      queueContext: QueueContext.topCharts,
+      imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
+    ),
+    _QItem(
+      label: 'Throwback',
+      icon: Icons.history_rounded,
+      colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+      query: 'hindi classic 90s 2000s',
+      queueContext: QueueContext.throwback,
+      imageUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
+    ),
   ];
 
   @override
@@ -854,7 +885,7 @@ class _QuickAccessGrid extends ConsumerWidget {
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 3.2,
+          childAspectRatio: 3.0,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
@@ -873,12 +904,19 @@ class _QItem {
   final IconData icon;
   final List<Color> colors;
   final String query;
+  final String imageUrl;
   final QueueContext queueContext;
   final String? mood;
 
-  const _QItem(this.label, this.icon, this.colors, this.query,
-      this.queueContext,
-      {this.mood});
+  const _QItem({
+    required this.label,
+    required this.icon,
+    required this.colors,
+    required this.query,
+    required this.imageUrl,
+    required this.queueContext,
+    this.mood,
+  });
 }
 
 class _QuickTile extends ConsumerStatefulWidget {
@@ -897,6 +935,7 @@ class _QuickTileState extends ConsumerState<_QuickTile> {
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => _pressed = true),
@@ -908,70 +947,123 @@ class _QuickTileState extends ConsumerState<_QuickTile> {
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOutCubic,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    widget.item.colors[0].withOpacity(0.22),
-                    widget.item.colors[1].withOpacity(0.10),
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ── Real background photo ──────────────────
+              CachedNetworkImage(
+                imageUrl: item.imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: item.colors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: widget.item.colors[0].withOpacity(0.25),
-                  width: 0.8,
+                errorWidget: (_, __, ___) => Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: item.colors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
                 ),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          colors: widget.item.colors,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(14),
-                        bottomLeft: Radius.circular(14),
+
+              // ── Color wash overlay ─────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      item.colors[0].withOpacity(0.72),
+                      item.colors[1].withOpacity(0.55),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+              ),
+
+              // ── Dark scrim for text legibility ─────────
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.25),
+                      Colors.black.withOpacity(0.05),
+                    ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                  ),
+                ),
+              ),
+
+              // ── Press highlight ────────────────────────
+              if (_pressed)
+                Container(color: Colors.white.withOpacity(0.08)),
+
+              // ── Content row ───────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 0),
+                child: Row(
+                  children: [
+                    // Icon badge
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 0.8,
+                        ),
                       ),
-                    ),
-                    child: _loading
-                        ? const Center(
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                      child: _loading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               ),
-                            ),
-                          )
-                        : Icon(widget.item.icon,
-                            color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.item.label,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                            )
+                          : Icon(item.icon,
+                              color: Colors.white, size: 18),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        item.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black54,
+                              blurRadius: 8,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

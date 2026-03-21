@@ -111,19 +111,39 @@ class ApiService {
     List<String> queries;
 
     if (hour >= 5 && hour < 12) {
-      queries = ['morning fresh hindi songs',
-        'happy energetic bollywood morning'];
+      // Morning — upbeat, fresh, happy
+      queries = [
+        'happy bollywood songs',
+        'upbeat hindi songs 2025',
+        'good morning hindi songs',
+        'energetic bollywood hits',
+      ];
     } else if (hour >= 12 && hour < 17) {
-      queries = ['afternoon bollywood hits',
-        'energetic hindi songs afternoon'];
+      // Afternoon — mid-tempo, work-friendly
+      queries = [
+        'top hindi songs 2025',
+        'bollywood hits playlist',
+        'popular hindi songs',
+        'best bollywood 2024',
+      ];
     } else if (hour >= 17 && hour < 21) {
-      queries = ['evening romantic hindi songs',
-        'sunset bollywood romantic'];
+      // Evening — romantic, mellow
+      queries = [
+        'romantic hindi songs',
+        'bollywood love songs',
+        'evening hindi hits',
+        'soft hindi songs 2025',
+      ];
     } else {
-      queries = ['night chill hindi songs',
-        'late night sad bollywood'];
+      // Night — chill, sad, late-night
+      queries = [
+        'sad hindi songs',
+        'chill hindi songs night',
+        'late night bollywood',
+        'slow hindi songs 2025',
+      ];
     }
-    return _multiSearch(queries, limitEach: 8);
+    return _multiSearch(queries, limitEach: 12);
   }
 
   // ─── ARTIST SPOTLIGHT ─────────────────────────────

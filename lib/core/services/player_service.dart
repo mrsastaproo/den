@@ -6,34 +6,36 @@ import '../providers/music_providers.dart';
 import '../providers/queue_meta.dart';
 import 'database_service.dart';
 import 'audius_service.dart';
-import '../../features/settings/equalizer_screen.dart';
+import 'dart:io';
+
+void _log(String msg) {
+  print(msg);
+  try {
+    final f = File('c:\\Users\\Sanjeev\\den\\player_logs.txt');
+    f.writeAsStringSync('${DateTime.now().toIso8601String()}: $msg\n', mode: FileMode.append);
+  } catch (_) {}
+}
+
 class PlayerService {
-  late final AudioPlayer _player;
-  late final AndroidEqualizer _equalizer;
-  late final AndroidLoudnessEnhancer _loudness;
+  final AudioPlayer _player = AudioPlayer();
   final ApiService _api;
   final Ref _ref;
+  final AudiusService _audius = AudiusService(); // single instance — not recreated per song
   bool _fetchingMore = false; // guard against duplicate fetches
+  bool _loadingNext  = false; // guard against rapid automatic skips
+  int _consecutiveSkips = 0; // prevent infinite auto-skip loops on errors
 
   PlayerService(this._api, this._ref) {
-    _equalizer = AndroidEqualizer();
-    _loudness = AndroidLoudnessEnhancer();
-    
-    // NOTE: AudioPipeline is explicitly REMOVED here because on certain devices
-    // (like Xiaomi / MIUI), attempting to attach an AndroidEqualizer throws an
-    // uncatchable generic RuntimeException (Error: -3) in just_audio's native layer,
-    // which permanently breaks playback. 
-    _player = AudioPlayer(
-      // audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer, _loudness]),
-    );
-
     _initListener();
-    // _initEqualizerSync(); // Disabled due to device incompatibility
   }
 
   void _initListener() {
     _player.playerStateStream.listen((state) {
+      _log('Player state: ${state.processingState}, playing=${state.playing}');
       if (state.processingState == ProcessingState.completed) {
+        _log('completed listener: _loadingNext=$_loadingNext');
+        if (_loadingNext) return;
+        _loadingNext = true;
         final playlist = _ref.read(currentPlaylistProvider);
         final index   = _ref.read(currentSongIndexProvider);
 
@@ -54,10 +56,11 @@ class PlayerService {
       }
     });
 
-    // Proactive prefetch: when 2 songs left, silently fetch more
+    // Proactive prefetch: when 2 songs left, silently fetch more.
+    // Uses a flag to fire only once per crossing, not every tick.
     _player.positionStream.listen((_) {
-      final playlist = _ref.read(currentPlaylistProvider);
-      final index   = _ref.read(currentSongIndexProvider);
+      final playlist  = _ref.read(currentPlaylistProvider);
+      final index     = _ref.read(currentSongIndexProvider);
       final remaining = playlist.length - index - 1;
       if (remaining <= 2 && !_fetchingMore) {
         _fetchSmartQueue(prefetch: true);
@@ -65,34 +68,11 @@ class PlayerService {
     });
   }
 
-  void _initEqualizerSync() {
-    _ref.listen<EqualizerState>(equalizerProvider, (prev, next) async {
-      try {
-        final params = await _equalizer.parameters;
-        await _equalizer.setEnabled(next.enabled);
-        await _loudness.setEnabled(next.enabled);
-        await _loudness.setTargetGain(next.masterGain);
-
-        final deviceBands = params.bands;
-        if (deviceBands.isEmpty) return;
-        
-        final eqBands = next.bands;
-        for (int i = 0; i < deviceBands.length; i++) {
-          final mappedIndex = (i * 5 / deviceBands.length).floor().clamp(0, 4);
-          final val = eqBands[mappedIndex]; 
-          await deviceBands[i].setGain(val);
-        }
-      } catch (e) {
-        print('PLAYER: Equalizer sync error: $e');
-      }
-    }, fireImmediately: true);
-  }
-
   void _advanceTo(int nextIndex) {
     final playlist = _ref.read(currentPlaylistProvider);
     if (playlist.isEmpty || nextIndex >= playlist.length) return;
     final nextSong = playlist[nextIndex];
-    print('PLAYER: → [$nextIndex] ${nextSong.title}');
+    _log('PLAYER: → [$nextIndex] ${nextSong.title}');
     _ref.read(currentSongIndexProvider.notifier).state = nextIndex;
     _ref.read(currentSongProvider.notifier).state      = nextSong;
     playSong(nextSong);
@@ -145,10 +125,12 @@ class PlayerService {
         case QueueContext.mood:
           recs = meta.mood != null
               ? await _api.getMoodMix(meta.mood!)
-              : await _api.getRecommendations(current);
+              : await _getSimilarSongs(current);
           break;
         case QueueContext.artist:
-          recs = await _api.getArtistSongs(meta.artistName ?? current.artist);
+          recs = await _api.getArtistSongs(
+              meta.artistName ?? current.artist);
+          if (recs.isEmpty) recs = await _getSimilarSongs(current);
           break;
         case QueueContext.trending:
           recs = await _api.getTrending();
@@ -167,47 +149,114 @@ class PlayerService {
           break;
         case QueueContext.general:
         default:
-          recs = await _api.getRecommendations(current);
+          // If the current song came from Audius search, use genre-based autoplay.
+          // The genre is stored in song.language (set by _trackToSong in AudiusService).
+          if (current.id.startsWith('audius_')) {
+            final genre = current.language.isNotEmpty ? current.language : 'all';
+            print('PLAYER: Audius genre autoplay → genre=$genre');
+            recs = await _audius.fetchByGenre(genre, limit: 30, excludeId: current.id);
+            // Fallback: if genre fetch returns nothing, use Audius trending
+            if (recs.isEmpty) recs = await _audius.getTrending(limit: 20);
+          } else {
+            // Non-Audius song — use existing similar-song logic
+            recs = await _getSimilarSongs(current);
+          }
           break;
       }
     } catch (e) {
       print('PLAYER: Smart queue error: $e');
-      try { recs = await _api.getRecommendations(current); } catch (_) {}
     }
 
+    // Fallback chain
     if (recs.isEmpty) {
       try { recs = await _api.getRecommendations(current); } catch (_) {}
     }
+    if (recs.isEmpty) {
+      try { recs = await _api.getTrending(); } catch (_) {}
+    }
 
-    if (recs.isNotEmpty) {
-      final existing    = _ref.read(currentPlaylistProvider);
-      final existingIds = existing.map((s) => s.id).toSet();
-      final fresh       = recs.where((s) => !existingIds.contains(s.id)).toList();
+    final existing    = _ref.read(currentPlaylistProvider);
+    final existingIds = existing.map((s) => s.id).toSet();
+    final fresh       = recs
+        .where((s) => !existingIds.contains(s.id))
+        .toList();
 
-      if (fresh.isNotEmpty) {
-        final newList = [...existing, ...fresh];
-        // Write new playlist FIRST
-        _ref.read(currentPlaylistProvider.notifier).state = newList;
-        print('PLAYER: +\${fresh.length} songs added to queue.');
+    if (fresh.isNotEmpty) {
+      final newList = [...existing, ...fresh];
+      _ref.read(currentPlaylistProvider.notifier).state = newList;
+      print('PLAYER: +${fresh.length} songs added to queue.');
 
-        // Only auto-advance if at actual end (not a background prefetch)
-        if (!prefetch) {
-          final idx     = _ref.read(currentSongIndexProvider);
-          final nextIdx = idx + 1;
-          // Use newList directly — provider may not have flushed yet
-          if (nextIdx < newList.length) {
-            final nextSong = newList[nextIdx];
-            print('PLAYER: Auto-play [\$nextIdx] \${nextSong.title}');
-            _ref.read(currentSongIndexProvider.notifier).state = nextIdx;
-            _ref.read(currentSongProvider.notifier).state      = nextSong;
-            await Future.delayed(const Duration(milliseconds: 80));
-            await playSong(nextSong);
-          }
+      if (!prefetch) {
+        final idx     = _ref.read(currentSongIndexProvider);
+        final nextIdx = idx + 1;
+        if (nextIdx < newList.length) {
+          final nextSong = newList[nextIdx];
+          print('PLAYER: Auto-play [$nextIdx] ${nextSong.title}');
+          _ref.read(currentSongIndexProvider.notifier).state = nextIdx;
+          _ref.read(currentSongProvider.notifier).state      = nextSong;
+          _fetchingMore = false; // reset BEFORE playing
+          await Future.delayed(const Duration(milliseconds: 80));
+          await playSong(nextSong);
+          return;
         }
       }
+    } else if (!prefetch) {
+      // fresh is empty — all recs already in queue.
+      // Just advance if there are songs ahead.
+      final idx = _ref.read(currentSongIndexProvider);
+      final pl  = _ref.read(currentPlaylistProvider);
+      if (idx + 1 < pl.length) {
+        _fetchingMore = false;
+        _advanceTo(idx + 1);
+        return;
+      }
+      _loadingNext = false;  // Reset guard if queue cannot continue
+      _fetchingMore = false; // BUG FIX: was missing — caused permanent stall
     }
 
     _fetchingMore = false;
+  }
+
+  /// Gets songs genuinely similar to [song] by firing multiple
+  /// targeted queries in parallel — artist + language + recommendations.
+  Future<List<Song>> _getSimilarSongs(Song song) async {
+    final artist      = song.artist.isNotEmpty ? song.artist : '';
+    final lang        = song.language.isNotEmpty &&
+            song.language.toLowerCase() != 'unknown'
+        ? song.language
+        : '';
+    final searchQuery = _ref.read(queueMetaProvider).searchQuery ?? '';
+
+    final futures = <Future<List<Song>>>[
+      _api.getRecommendations(song),
+    ];
+
+    if (artist.isNotEmpty) {
+      futures.add(_api.searchSongs('$artist songs', page: 1));
+      futures.add(_api.getArtistSongs(artist));
+    }
+
+    if (lang.isNotEmpty) {
+      futures.add(_api.searchSongs('best $lang songs', page: 1));
+    }
+
+    // If the user searched for something specific (e.g. "phonk"),
+    // keep finding more of that same vibe
+    if (searchQuery.isNotEmpty && searchQuery.toLowerCase() != song.title.toLowerCase()) {
+      futures.add(_api.searchSongs(searchQuery, page: 2));
+      futures.add(_api.searchSongs(searchQuery, page: 3));
+    }
+
+    final results = await Future.wait(futures);
+
+    final seen = <String>{};
+    final all  = results
+        .expand((l) => l)
+        .where((s) => seen.add(s.id) && s.id != song.id)
+        .toList();
+
+    all.shuffle();
+    return all;
   }
 
   // ─── PUBLIC API ───────────────────────────────────────────────
@@ -219,37 +268,68 @@ class PlayerService {
   Stream<Duration>   get positionStream     => _player.positionStream;
 
   Future<void> playSong(Song song) async {
-    print('=== PLAYING: ${song.title} ===');
+    _log('=== PLAYING: ${song.title} ===');
     try {
       await _player.pause();
 
       String url = song.url;
       if (song.id.startsWith('audius_')) {
-        url = await AudiusService().getStreamUrl(song.id);
+        url = await _audius.getStreamUrl(song.id); // use shared instance, not new AudiusService()
       } else {
         url = await _api.getStreamUrl(song.id);
       }
 
       if (url.isEmpty) {
-        print('PLAYER: No URL — skipping');
-        // Auto-skip broken tracks
+        _log('PLAYER: No URL — skipping ${song.title}');
+        if (_consecutiveSkips >= 3) {
+          _log('PLAYER: Max consecutive skips reached. Stopping advance loop.');
+          _consecutiveSkips = 0;
+          _loadingNext = false;
+          return;
+        }
+        _consecutiveSkips++;
         final idx = _ref.read(currentSongIndexProvider);
         final pl  = _ref.read(currentPlaylistProvider);
-        if (idx + 1 < pl.length) _advanceTo(idx + 1);
+        if (idx + 1 < pl.length) {
+          _advanceTo(idx + 1);
+        } else {
+          _loadingNext = false; // Reset guard if queue ends
+          _fetchSmartQueue();
+        }
         return;
       }
 
       await _player.setUrl(url, initialPosition: Duration.zero, preload: true);
+      _consecutiveSkips = 0; // Reset counter on successful load
+      _loadingNext = false; // Reset guard after successful load
       await _player.play();
       print('PLAYER: ▶ ${song.title}');
 
       _ref.read(databaseServiceProvider).addToHistory(song);
     } catch (e, st) {
-      print('PLAYER: Error: $e\n$st');
+      _log('PLAYER: Error playing ${song.title}: $e');
       try {
         await Future.delayed(const Duration(milliseconds: 200));
         await _player.stop();
       } catch (_) {}
+
+      if (_consecutiveSkips >= 3) {
+        _log('PLAYER: Max consecutive skips reached in error handler. Stopping advance loop.');
+        _consecutiveSkips = 0;
+        _loadingNext = false;
+        return;
+      }
+      _consecutiveSkips++;
+
+      // Auto-skip on error
+      final idx = _ref.read(currentSongIndexProvider);
+      final pl  = _ref.read(currentPlaylistProvider);
+      if (idx + 1 < pl.length) {
+        _advanceTo(idx + 1);
+      } else {
+        _loadingNext = false; // Reset guard if queue ends
+        _fetchSmartQueue();
+      }
     }
   }
 

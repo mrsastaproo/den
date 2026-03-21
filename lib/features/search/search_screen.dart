@@ -1291,7 +1291,7 @@ class _ResultsBody extends ConsumerWidget {
       loading: _buildShimmer,
       error: (e, _) => Center(
           child: Text('Error: $e',
-              style: const TextStyle(color: Colors.redAccent))),
+              style: TextStyle(color: Colors.red.shade400))),
       data: (songs) {
         if (songs.isEmpty) return _EmptyResults(query: query);
 
@@ -1342,7 +1342,10 @@ class _ResultsBody extends ConsumerWidget {
               child: _TopResultCard(
                 song: songs.first,
                 onTap: () => playQueue(ref, songs, 0,
-                    meta: const QueueMeta(context: QueueContext.general)),
+                    meta: QueueMeta(
+                      context: QueueContext.search,
+                      searchQuery: query,
+                    )),
               )
                   .animate()
                   .fadeIn(duration: 380.ms)
@@ -1388,8 +1391,10 @@ class _ResultsBody extends ConsumerWidget {
                     song: song,
                     index: i + 1,
                     onTap: () => playQueue(ref, songs, i + 1,
-                        meta: const QueueMeta(
-                            context: QueueContext.general)),
+                        meta: QueueMeta(
+                          context: QueueContext.search,
+                          searchQuery: query,
+                        )),
                     onMore: () =>
                         _showOptions(ctx, ref, song, songs, i + 1),
                   )

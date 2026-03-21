@@ -31,65 +31,51 @@ class MiniPlayer extends ConsumerWidget {
 
     // Skip helpers
     void skipNext() {
-      final playlist = ref.read(currentPlaylistProvider);
-      final index = ref.read(currentSongIndexProvider);
-      if (playlist.isEmpty || index < 0) return;
-      final nextIndex = (index + 1) % playlist.length;
-      final nextSong = playlist[nextIndex];
-      ref.read(currentSongIndexProvider.notifier).state =
-          nextIndex;
-      ref.read(currentSongProvider.notifier).state = nextSong;
-      ref.read(playerServiceProvider).playSong(nextSong);
       HapticFeedback.selectionClick();
+      ref.read(playerServiceProvider).skipNext();
     }
 
     void skipPrev() {
-      final pos =
-          ref.read(positionStreamProvider).value ?? Duration.zero;
-      if (pos.inSeconds > 3) {
-        ref
-            .read(playerServiceProvider)
-            .seekTo(Duration.zero);
-        return;
-      }
-      final playlist = ref.read(currentPlaylistProvider);
-      final index = ref.read(currentSongIndexProvider);
-      if (playlist.isEmpty || index < 0) return;
-      final prevIndex =
-          index - 1 < 0 ? playlist.length - 1 : index - 1;
-      final prevSong = playlist[prevIndex];
-      ref.read(currentSongIndexProvider.notifier).state =
-          prevIndex;
-      ref.read(currentSongProvider.notifier).state = prevSong;
-      ref.read(playerServiceProvider).playSong(prevSong);
       HapticFeedback.selectionClick();
+      ref.read(playerServiceProvider).skipPrev();
     }
 
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        Navigator.of(context).push(
-          PageRouteBuilder(
-            pageBuilder: (_, animation, __) =>
-                const PlayerScreen(),
-            transitionsBuilder:
-                (_, animation, __, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                )),
-                child: child,
-              );
-            },
-            transitionDuration:
-                const Duration(milliseconds: 400),
-          ),
-        );
-      },
+    // ── Ghost-tap fix ─────────────────────────────────────────
+    // Track pointer-down position so we can reject "taps" that
+    // were actually scroll-end events (finger moved > 8px).
+    Offset? _tapDownPos;
+
+    return Listener(
+      onPointerDown: (e) => _tapDownPos = e.localPosition,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          // Only open player if pointer barely moved (true tap)
+          // This prevents ghost-opens while the user is scrolling
+          // a list that sits above the mini player.
+          HapticFeedback.lightImpact();
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (_, animation, __) =>
+                  const PlayerScreen(),
+              transitionsBuilder:
+                  (_, animation, __, child) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 1),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  )),
+                  child: child,
+                );
+              },
+              transitionDuration:
+                  const Duration(milliseconds: 400),
+            ),
+          );
+        },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: ClipRRect(
@@ -254,7 +240,8 @@ class MiniPlayer extends ConsumerWidget {
           ),
         ),
       ),
-    )
+    )  // GestureDetector
+    ) // Listener
         .animate()
         .fadeIn(duration: 400.ms)
         .slideY(

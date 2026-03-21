@@ -95,13 +95,13 @@ class IntegratedBottomShell extends ConsumerWidget {
                 ),
 
                 _NavItem(
-                  icon: Icons.bar_chart_rounded, // or equalizer
+                  icon: Icons.auto_awesome_rounded, // AI tab
                   index: 2,
                   currentIndex: currentIndex,
                   onTap: onTap,
                 ),
                 _NavItem(
-                  icon: Icons.notifications_rounded,
+                  icon: Icons.bar_chart_rounded,
                   index: 3,
                   currentIndex: currentIndex,
                   onTap: onTap,

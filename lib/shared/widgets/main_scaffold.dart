@@ -14,8 +14,9 @@ class MainScaffold extends ConsumerWidget {
   int _locationToIndex(String location) {
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/search')) return 1;
-    if (location.startsWith('/library')) return 2;
-    if (location.startsWith('/settings')) return 3;
+    if (location.startsWith('/ai')) return 2;
+    if (location.startsWith('/library')) return 3;
+    if (location.startsWith('/settings')) return 4;
     return 0;
   }
 
@@ -49,8 +50,9 @@ class MainScaffold extends ConsumerWidget {
                 switch (i) {
                   case 0: context.go('/home'); break;
                   case 1: context.go('/search'); break;
-                  case 2: context.go('/library'); break;
-                  case 3: context.go('/settings'); break;
+                  case 2: context.go('/ai'); break;
+                  case 3: context.go('/library'); break;
+                  case 4: context.go('/settings'); break;
                 }
               },
             ),

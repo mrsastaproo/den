@@ -7,6 +7,7 @@ import '../../features/library/library_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/admin_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/ai/ai_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
 import '../services/auth_service.dart';
 import '../services/admin_service.dart';
@@ -55,6 +56,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/search',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const SearchScreen(),
+              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          ),
+          GoRoute(
+            path: '/ai',
+            pageBuilder: (c, s) => CustomTransitionPage(
+              child: const AiScreen(),
               transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),

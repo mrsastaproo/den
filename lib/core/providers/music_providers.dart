@@ -67,15 +67,39 @@ final searchShuffleSeedProvider = StateProvider<int>((ref) => 0);
 
 // ── Genre-aware query expansion map ───────────────────────────
 const _queryExpansions = <String, List<String>>{
+  // ── Specific viral phonk songs / artists ─────────────────
+  // These need artist-name queries because JioSaavn doesn't
+  // surface them by title alone.
+  'fendi 2': [
+    'Fendi 2 Rakhim',
+    'Rakhim Khim ayv1o',
+    'Rakhim phonk',
+    'Rakhim songs',
+    'Fendi Rakhim',
+  ],
+  'fendi': [
+    'Fendi Rakhim',
+    'Rakhim songs',
+    'Fendi 2 Rakhim',
+    'Rakhim phonk',
+  ],
+  'rakhim': [
+    'Rakhim songs',
+    'Rakhim phonk',
+    'Rakhim Khim',
+    'Fendi Rakhim',
+  ],
+
   // ── Phonk & derivatives ──────────────────────────────────
   'phonk': [
     'phonk music', 'phonk drift', 'phonk russian',
     'phonk hard bass', 'cowbell phonk', 'memphis phonk',
     'phonk edit', 'phonk remix', 'drift phonk', 'villain phonk',
+    'Rakhim phonk', 'ghostemane', 'phonk trap',
   ],
   'drift phonk': ['drift phonk music', 'phonk drift', 'drift phonk car'],
   'cowbell phonk': ['cowbell phonk', 'phonk cowbell', 'phonk trumpet'],
-  'russian phonk': ['russian phonk', 'russian hard bass phonk'],
+  'russian phonk': ['russian phonk', 'Rakhim', 'russian hard bass phonk'],
   'memphis phonk': ['memphis phonk', 'memphis rap phonk'],
 
   // ── EDM ──────────────────────────────────────────────────
@@ -134,6 +158,8 @@ bool _shouldUseAudius(String query) {
     'lofi', 'lo fi', 'synthwave', 'retrowave', 'dark',
     'aggressive', 'mafia', 'slap house', 'drill',
     'gaming', 'night drive', 'workout', 'motivational',
+    // Specific viral artists / songs that live on Audius
+    'fendi', 'rakhim', 'khim', 'ayv1o',
   };
   return audiusGenres.any((g) => q.contains(g) || g.contains(q));
 }
@@ -157,7 +183,7 @@ bool _isSpecificTitle(String query) {
 }
 
 // Builds title-focused query variants for specific song searches.
-// e.g. "Fendi 2" → tries multiple combinations JioSaavn responds to.
+// Also checks _queryExpansions for known artist pairings.
 List<String> _buildTitleQueries(String query) {
   final q = query.trim();
   final lower = q.toLowerCase();
@@ -165,27 +191,41 @@ List<String> _buildTitleQueries(String query) {
 
   final queries = <String>{};
 
-  // Core variants
-  queries.add(q);                          // "Fendi 2"
-  queries.add('$q song');                  // "Fendi 2 song"
-  queries.add('$q official');              // "Fendi 2 official"
-
-  // Individual words as artist/title probes
-  for (final word in words) {
-    if (word.length > 2) {
-      queries.add(word);                   // "Fendi" alone
-      queries.add('$word song');           // "Fendi song"
+  // If we have a specific expansion for this title, use those first
+  // (they include artist names which massively improve results)
+  if (_queryExpansions.containsKey(lower)) {
+    queries.addAll(_queryExpansions[lower]!);
+  } else {
+    // Check partial match
+    for (final entry in _queryExpansions.entries) {
+      if (lower.contains(entry.key) || entry.key.contains(lower)) {
+        queries.addAll(entry.value);
+        break;
+      }
     }
   }
 
-  // Word combinations (for multi-word titles)
-  if (words.length >= 2) {
-    queries.add(words.first);              // first word
-    queries.add(words.last);              // last word
-    queries.add('${words.first} ${words.last}'); // first + last
+  // Always also add the raw query and common variants
+  queries.add(q);
+  queries.add('$q song');
+  queries.add('$q official');
+
+  // Individual words
+  for (final word in words) {
+    if (word.length > 2) {
+      queries.add(word);
+      queries.add('$word song');
+    }
   }
 
-  // Number variants — "2" might be "II" or vice versa
+  // Word combinations
+  if (words.length >= 2) {
+    queries.add(words.first);
+    queries.add(words.last);
+    queries.add('${words.first} ${words.last}');
+  }
+
+  // Number ↔ Roman numeral swap
   final withRoman = lower
       .replaceAll(RegExp(r'\b2\b'), 'ii')
       .replaceAll(RegExp(r'\b3\b'), 'iii')
@@ -333,8 +373,18 @@ void playQueue(
   // Save context so PlayerService knows how to continue
   ref.read(queueMetaProvider.notifier).state = meta;
 
-  ref.read(currentPlaylistProvider.notifier).state  = playlist;
-  ref.read(currentSongIndexProvider.notifier).state = index;
-  ref.read(currentSongProvider.notifier).state      = playlist[index];
-  ref.read(playerServiceProvider).playSong(playlist[index]);
+  List<Song> finalPlaylist = playlist;
+  int finalIndex = index;
+
+  if (meta.context == QueueContext.search) {
+    // For search, play ONLY the selected song initially.
+    // This forces smart queue continuation when it ends.
+    finalPlaylist = [playlist[index]];
+    finalIndex = 0;
+  }
+
+  ref.read(currentPlaylistProvider.notifier).state  = finalPlaylist;
+  ref.read(currentSongIndexProvider.notifier).state = finalIndex;
+  ref.read(currentSongProvider.notifier).state      = finalPlaylist[finalIndex];
+  ref.read(playerServiceProvider).playSong(finalPlaylist[finalIndex]);
 }
