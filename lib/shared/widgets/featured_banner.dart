@@ -111,10 +111,7 @@ class _FeaturedBannerState extends ConsumerState<FeaturedBanner>
                   gradientAnimation: _gradientAnimation,
                   index: index,
                   onPlay: () {
-                    ref.read(currentSongProvider.notifier)
-                      .state = songs[index];
-                    ref.read(playerServiceProvider)
-                      .playSong(songs[index]);
+                    playQueue(ref, songs, index);
                     ref.read(databaseServiceProvider)
                       .addToHistory(songs[index]);
                   },

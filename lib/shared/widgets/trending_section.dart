@@ -70,10 +70,7 @@ class TrendingSection extends ConsumerWidget {
                 song: songs[index],
                 index: index,
                 onTap: () {
-                  ref.read(currentSongProvider.notifier)
-                    .state = songs[index];
-                  ref.read(playerServiceProvider)
-                    .playSong(songs[index]);
+                  playQueue(ref, songs, index);
                   ref.read(databaseServiceProvider)
                     .addToHistory(songs[index]);
                 },

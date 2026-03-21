@@ -215,10 +215,7 @@ class _MixResult extends ConsumerWidget {
                       // Play all
                       GestureDetector(
                         onTap: () {
-                          ref.read(currentSongProvider.notifier)
-                            .state = songs[0];
-                          ref.read(playerServiceProvider)
-                            .playSong(songs[0]);
+                          playQueue(ref, songs, 0);
                           ref.read(databaseServiceProvider)
                             .addToHistory(songs[0]);
                         },
@@ -298,10 +295,7 @@ class _MixResult extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                       onTap: () {
-                        ref.read(currentSongProvider.notifier)
-                          .state = song;
-                        ref.read(playerServiceProvider)
-                          .playSong(song);
+                        playQueue(ref, songs, index);
                         ref.read(databaseServiceProvider)
                           .addToHistory(song);
                       },

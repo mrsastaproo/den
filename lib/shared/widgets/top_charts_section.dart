@@ -94,10 +94,7 @@ class TopChartsSection extends ConsumerWidget {
                     song: songs[index],
                     rank: index + 1,
                     onTap: () {
-                      ref.read(currentSongProvider.notifier)
-                        .state = songs[index];
-                      ref.read(playerServiceProvider)
-                        .playSong(songs[index]);
+                        playQueue(ref, songs, index);
                       ref.read(databaseServiceProvider)
                         .addToHistory(songs[index]);
                     },

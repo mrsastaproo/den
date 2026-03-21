@@ -9,779 +9,488 @@ import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';
+import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 
 // ─── PROVIDERS ────────────────────────────────────────────────
 
-final searchFilterProvider = StateProvider<String>((ref) => 'Songs');
-final searchLanguageProvider = StateProvider<String>((ref) => 'All');
+final searchFilterProvider =
+    StateProvider<String>((ref) => 'All');
+
 final recentSearchesProvider =
-  StateNotifierProvider<RecentSearchesNotifier, List<String>>(
-    (ref) => RecentSearchesNotifier());
+    StateNotifierProvider<RecentSearchesNotifier, List<String>>(
+        (ref) => RecentSearchesNotifier());
 
 class RecentSearchesNotifier extends StateNotifier<List<String>> {
-  RecentSearchesNotifier() : super([]) {
-    _load();
-  }
+  RecentSearchesNotifier() : super([]) { _load(); }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = prefs.getStringList('recent_searches') ?? [];
+    final p = await SharedPreferences.getInstance();
+    state = p.getStringList('recent_searches') ?? [];
   }
 
-  Future<void> add(String query) async {
-    if (query.isEmpty) return;
-    final updated = [query, ...state.where((s) => s != query)]
-      .take(8).toList();
+  Future<void> add(String q) async {
+    if (q.trim().isEmpty) return;
+    final updated =
+        [q.trim(), ...state.where((s) => s != q.trim())].take(10).toList();
     state = updated;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('recent_searches', updated);
+    final p = await SharedPreferences.getInstance();
+    await p.setStringList('recent_searches', updated);
   }
 
-  Future<void> remove(String query) async {
-    state = state.where((s) => s != query).toList();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('recent_searches', state);
+  Future<void> remove(String q) async {
+    state = state.where((s) => s != q).toList();
+    final p = await SharedPreferences.getInstance();
+    await p.setStringList('recent_searches', state);
   }
 
   Future<void> clear() async {
     state = [];
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('recent_searches');
+    final p = await SharedPreferences.getInstance();
+    await p.remove('recent_searches');
   }
 }
 
-// ─── MAIN SCREEN ──────────────────────────────────────────────
+// ─── SEARCH SCREEN ────────────────────────────────────────────
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
-
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen>
     with SingleTickerProviderStateMixin {
-  final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
-  bool _isFocused = false;
-  late AnimationController _searchBarController;
-  late Animation<double> _searchBarAnim;
+  final _ctrl    = TextEditingController();
+  final _focus   = FocusNode();
+  bool _focused  = false;
 
   @override
   void initState() {
     super.initState();
-    _searchBarController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300));
-    _searchBarAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _searchBarController,
-        curve: Curves.easeOutCubic));
-
-    _focusNode.addListener(() {
-      setState(() => _isFocused = _focusNode.hasFocus);
-      if (_focusNode.hasFocus) {
-        _searchBarController.forward();
-      } else {
-        _searchBarController.reverse();
-      }
-    });
+    _focus.addListener(() =>
+        setState(() => _focused = _focus.hasFocus));
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    _searchBarController.dispose();
+    _ctrl.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
-  void _onSearch(String query) {
-    ref.read(searchQueryProvider.notifier).state = query;
-    if (query.isNotEmpty) {
-      ref.read(recentSearchesProvider.notifier).add(query);
+  void _search(String q) {
+    _ctrl.text = q;
+    ref.read(searchQueryProvider.notifier).state = q;
+    if (q.trim().isNotEmpty) {
+      ref.read(recentSearchesProvider.notifier).add(q.trim());
     }
   }
 
-  void _clearSearch() {
-    _controller.clear();
+  void _clear() {
+    _ctrl.clear();
     ref.read(searchQueryProvider.notifier).state = '';
+    _focus.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    final query = ref.watch(searchQueryProvider);
-    final searchResults = ref.watch(searchResultsProvider);
+    final query   = ref.watch(searchQueryProvider);
+    final results = ref.watch(searchResultsProvider);
+    final filter  = ref.watch(searchFilterProvider);
+    final recents = ref.watch(recentSearchesProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── Header ──
-            _buildHeader(),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(children: [
 
-            // ── Animated Search Bar ──
-            _buildSearchBar(query),
+          // ── Header + Search bar ──────────────────────────
+          _SearchHeader(
+            ctrl: _ctrl,
+            focus: _focus,
+            focused: _focused,
+            query: query,
+            onChanged: (q) =>
+                ref.read(searchQueryProvider.notifier).state = q,
+            onSubmit: (q) {
+              _search(q);
+              FocusScope.of(context).unfocus();
+            },
+            onClear: _clear,
+          ),
 
-            // ── Filter + Language chips ──
-            if (query.isNotEmpty) _buildFilterChips(),
-            if (query.isNotEmpty) _buildLanguageChips(),
-
-            // ── Content ──
-            Expanded(
-              child: query.isEmpty
-                ? _buildEmptyState()
-                : _buildSearchResults(searchResults),
+          // ── Filter chips (only when results) ────────────
+          if (query.isNotEmpty)
+            _FilterChips(
+              selected: filter,
+              onSelect: (f) {
+                HapticFeedback.selectionClick();
+                ref.read(searchFilterProvider.notifier).state = f;
+              },
             ),
-          ],
-        ),
+
+          // ── Body ─────────────────────────────────────────
+          Expanded(
+            child: query.isEmpty
+                ? _EmptyState(
+                    recents: recents,
+                    onRecentTap: (q) {
+                      _search(q);
+                      FocusScope.of(context).unfocus();
+                    },
+                    onRecentRemove: (q) => ref
+                        .read(recentSearchesProvider.notifier)
+                        .remove(q),
+                    onClearAll: () => ref
+                        .read(recentSearchesProvider.notifier)
+                        .clear(),
+                    onCategoryTap: (cat) {
+                      _search(cat);
+                      FocusScope.of(context).unfocus();
+                    },
+                  )
+                : _ResultsBody(
+                    results: results,
+                    filter: filter,
+                    query: query,
+                  ),
+          ),
+        ]),
       ),
     );
   }
+}
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        children: [
-          ShaderMask(
-            shaderCallback: (b) =>
-              AppTheme.primaryGradient.createShader(b),
-            child: const Icon(Icons.search_rounded,
-              color: Colors.white, size: 26)),
-          const SizedBox(width: 10),
-          const Text('Search',
-            style: TextStyle(color: Colors.white,
-              fontSize: 28, fontWeight: FontWeight.w800,
-              letterSpacing: -0.5)),
-        ],
-      ),
-    ).animate().fadeIn(duration: 400.ms)
-      .slideX(begin: -0.1, end: 0, duration: 400.ms);
-  }
+// ─── SEARCH HEADER ────────────────────────────────────────────
 
-  Widget _buildSearchBar(String query) {
-    return AnimatedBuilder(
-      animation: _searchBarAnim,
-      builder: (_, __) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          16, 0,
-          _isFocused ? 70 : 16,
-          12),
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+class _SearchHeader extends StatelessWidget {
+  final TextEditingController ctrl;
+  final FocusNode focus;
+  final bool focused, query;
+  final String queryStr;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onClear;
+
+  // ignore: avoid_bool_literals_in_conditional_expressions
+  const _SearchHeader({
+    required this.ctrl,
+    required this.focus,
+    required this.focused,
+    required String query,
+    required this.onChanged,
+    required this.onSubmit,
+    required this.onClear,
+  })  : queryStr = query,
+        query = query != '';
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: Container(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 16, right: 16, bottom: 12,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.black.withOpacity(0.65),
+                Colors.transparent,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Column(children: [
+            // Title row
+            if (!focused)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(children: [
+                  ShaderMask(
+                    shaderCallback: (b) =>
+                        AppTheme.primaryGradient.createShader(b),
+                    child: const Icon(Icons.search_rounded,
+                        color: Colors.white, size: 24)),
+                  const SizedBox(width: 10),
+                  const Text('Search',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5)),
+                ]).animate().fadeIn(duration: 300.ms),
+              ),
+
+            // Search bar
+            Row(children: [
+              Expanded(
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
+                  duration: const Duration(milliseconds: 250),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _isFocused ? [
-                        AppTheme.pink.withOpacity(0.15),
-                        AppTheme.purple.withOpacity(0.1),
-                      ] : [
-                        Colors.white.withOpacity(0.08),
-                        Colors.white.withOpacity(0.04),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _isFocused
-                        ? AppTheme.pink.withOpacity(0.4)
-                        : Colors.white.withOpacity(0.1),
-                      width: _isFocused ? 1.5 : 1),
-                    boxShadow: _isFocused ? [
+                      color: focused
+                          ? AppTheme.pink.withOpacity(0.45)
+                          : Colors.white.withOpacity(0.1),
+                      width: focused ? 1.5 : 1,
+                    ),
+                    boxShadow: focused ? [
                       BoxShadow(
-                        color: AppTheme.pink.withOpacity(0.2),
-                        blurRadius: 20, spreadRadius: -5),
+                        color: AppTheme.pink.withOpacity(0.12),
+                        blurRadius: 16, spreadRadius: -4),
                     ] : null,
                   ),
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    style: const TextStyle(
-                      color: Colors.white, fontSize: 16),
-                    cursorColor: AppTheme.pink,
-                    decoration: InputDecoration(
-                      hintText: _isFocused
-                        ? 'Search songs, artists...'
-                        : 'What do you want to listen to?',
-                      hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
-                        fontSize: 14),
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: ShaderMask(
-                          shaderCallback: (b) =>
-                            AppTheme.primaryGradient.createShader(b),
-                          child: const Icon(Icons.search_rounded,
-                            color: Colors.white, size: 22)),
-                      ),
-                      suffixIcon: query.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.close_rounded,
-                              color: Colors.white.withOpacity(0.5),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: Colors.white.withOpacity(
+                            focused ? 0.07 : 0.05),
+                        child: TextField(
+                          controller: ctrl,
+                          focusNode: focus,
+                          onChanged: onChanged,
+                          onSubmitted: onSubmit,
+                          textInputAction: TextInputAction.search,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 15),
+                          cursorColor: AppTheme.pink,
+                          decoration: InputDecoration(
+                            hintText: 'Songs, artists, albums...',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.3),
+                              fontSize: 15),
+                            prefixIcon: Icon(Icons.search_rounded,
+                              color: focused
+                                  ? AppTheme.pink.withOpacity(0.8)
+                                  : Colors.white.withOpacity(0.35),
                               size: 20),
-                            onPressed: _clearSearch)
-                        : Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: ShaderMask(
-                              shaderCallback: (b) =>
-                                AppTheme.primaryGradient
-                                  .createShader(b),
-                              child: const Icon(Icons.mic_rounded,
-                                color: Colors.white, size: 20)),
+                            suffixIcon: queryStr.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: onClear,
+                                    child: Icon(Icons.close_rounded,
+                                      color: Colors.white.withOpacity(0.4),
+                                      size: 18))
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 14),
                           ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+                        ),
+                      ),
                     ),
-                    onChanged: (val) {
-                      ref.read(searchQueryProvider.notifier)
-                        .state = val;
-                    },
-                    onSubmitted: _onSearch,
                   ),
                 ),
               ),
-            ),
-          ],
+              if (focused) ...[
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    if (queryStr.isEmpty) onClear();
+                  },
+                  child: Text('Cancel',
+                    style: TextStyle(
+                      color: AppTheme.pink.withOpacity(0.9),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ]),
+          ]),
         ),
       ),
     );
   }
+}
 
-  Widget _buildFilterChips() {
-    final filters = ['Songs', 'Artists', 'Albums', 'Playlists'];
-    final selected = ref.watch(searchFilterProvider);
+// ─── FILTER CHIPS ─────────────────────────────────────────────
 
+class _FilterChips extends StatelessWidget {
+  final String selected;
+  final ValueChanged<String> onSelect;
+
+  const _FilterChips({required this.selected, required this.onSelect});
+
+  static const _filters = ['All', 'Songs', 'Artists', 'Albums'];
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 40,
+      height: 42,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: filters.length,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        itemCount: _filters.length,
         itemBuilder: (_, i) {
-          final isSelected = filters[i] == selected;
+          final f = _filters[i];
+          final sel = f == selected;
           return GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              ref.read(searchFilterProvider.notifier)
-                .state = filters[i];
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: isSelected
-                  ? AppTheme.primaryGradient : null,
-                color: isSelected ? null
-                  : Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected
-                    ? Colors.transparent
-                    : Colors.white.withOpacity(0.12)),
-                boxShadow: isSelected ? [
-                  BoxShadow(
-                    color: AppTheme.pink.withOpacity(0.3),
-                    blurRadius: 10, spreadRadius: -3),
-                ] : null,
-              ),
-              child: Text(filters[i],
-                style: TextStyle(
-                  color: isSelected
-                    ? Colors.white
-                    : Colors.white.withOpacity(0.5),
-                  fontSize: 13,
-                  fontWeight: isSelected
-                    ? FontWeight.w700 : FontWeight.w400)),
-            ),
-          ).animate()
-            .fadeIn(duration: 300.ms, delay: (i * 50).ms)
-            .slideX(begin: 0.2, end: 0,
-              duration: 300.ms, delay: (i * 50).ms);
-        },
-      ),
-    );
-  }
-
-  Widget _buildLanguageChips() {
-    final languages = ['All', 'Hindi', 'English', 'Punjabi',
-      'Tamil', 'Telugu'];
-    final selected = ref.watch(searchLanguageProvider);
-
-    return SizedBox(
-      height: 36,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-        itemCount: languages.length,
-        itemBuilder: (_, i) {
-          final isSelected = languages[i] == selected;
-          return GestureDetector(
-            onTap: () {
-              ref.read(searchLanguageProvider.notifier)
-                .state = languages[i];
-              final query =
-                ref.read(searchQueryProvider);
-              if (query.isNotEmpty) {
-                final langQuery = languages[i] == 'All'
-                  ? query
-                  : '$query ${languages[i]}';
-                ref.read(searchQueryProvider.notifier)
-                  .state = langQuery;
-              }
-            },
+            onTap: () => onSelect(f),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected
-                  ? AppTheme.pink.withOpacity(0.2)
-                  : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
+                gradient: sel ? AppTheme.primaryGradient : null,
+                color: sel ? null : Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected
-                    ? AppTheme.pink.withOpacity(0.5)
-                    : Colors.white.withOpacity(0.08)),
+                  color: sel
+                      ? Colors.transparent
+                      : Colors.white.withOpacity(0.12)),
               ),
-              child: Text(languages[i],
+              child: Text(f,
                 style: TextStyle(
-                  color: isSelected
-                    ? AppTheme.pink
-                    : Colors.white.withOpacity(0.35),
-                  fontSize: 11,
-                  fontWeight: isSelected
-                    ? FontWeight.w700 : FontWeight.w400)),
+                  color: sel ? Colors.white : Colors.white.withOpacity(0.6),
+                  fontSize: 13,
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
             ),
           );
         },
       ),
     );
   }
-
-  Widget _buildEmptyState() {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 160),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        // Recent searches
-        _RecentSearches(
-          onTap: (q) {
-            _controller.text = q;
-            ref.read(searchQueryProvider.notifier).state = q;
-          },
-        ),
-
-        // Discover Premium
-        _PremiumFeatureCards(
-          onTap: (q) {
-            _controller.text = q;
-            ref.read(searchQueryProvider.notifier).state = q;
-            ref.read(recentSearchesProvider.notifier).add(q);
-          },
-        ),
-
-        // Trending searches
-        _TrendingSearches(
-          onTap: (q) {
-            _controller.text = q;
-            ref.read(searchQueryProvider.notifier).state = q;
-            ref.read(recentSearchesProvider.notifier).add(q);
-          },
-        ),
-
-        // Browse categories
-        _BrowseCategories(
-          onTap: (q) {
-            _controller.text = q;
-            ref.read(searchQueryProvider.notifier).state = q;
-            ref.read(recentSearchesProvider.notifier).add(q);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchResults(AsyncValue<List<Song>> results) {
-    return results.when(
-      loading: () => _buildResultsShimmer(),
-      error: (e, _) => Center(
-        child: Text('Error: $e',
-          style: const TextStyle(color: Colors.red))),
-      data: (songs) => songs.isEmpty
-        ? _buildNoResults()
-        : _buildSongResults(songs),
-    );
-  }
-
-  Widget _buildResultsShimmer() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: 8,
-      itemBuilder: (_, i) => Container(
-        height: 72,
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16)),
-      ).animate(onPlay: (c) => c.repeat())
-        .shimmer(duration: 1200.ms,
-          color: Colors.white.withOpacity(0.05)),
-    );
-  }
-
-  Widget _buildNoResults() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ShaderMask(
-            shaderCallback: (b) =>
-              AppTheme.primaryGradient.createShader(b),
-            child: const Icon(Icons.search_off_rounded,
-              color: Colors.white, size: 72)),
-          const SizedBox(height: 16),
-          const Text('No results found',
-            style: TextStyle(color: Colors.white,
-              fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Text('Try different keywords',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
-              fontSize: 14)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSongResults(List<Song> songs) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-      physics: const BouncingScrollPhysics(),
-      itemCount: songs.length,
-      itemBuilder: (context, index) => _SearchResultCard(
-        song: songs[index],
-        index: index,
-      ).animate()
-        .fadeIn(duration: 300.ms, delay: (index * 40).ms)
-        .slideY(begin: 0.1, end: 0,
-          duration: 300.ms, delay: (index * 40).ms),
-    );
-  }
 }
 
-// ─── SEARCH RESULT CARD ───────────────────────────────────────
+// ─── EMPTY STATE (recents + browse) ───────────────────────────
 
-class _SearchResultCard extends ConsumerWidget {
-  final Song song;
-  final int index;
+class _EmptyState extends StatelessWidget {
+  final List<String> recents;
+  final ValueChanged<String> onRecentTap;
+  final ValueChanged<String> onRecentRemove;
+  final VoidCallback onClearAll;
+  final ValueChanged<String> onCategoryTap;
 
-  const _SearchResultCard({
-    required this.song,
-    required this.index,
+  const _EmptyState({
+    required this.recents,
+    required this.onRecentTap,
+    required this.onRecentRemove,
+    required this.onClearAll,
+    required this.onCategoryTap,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentSong = ref.watch(currentSongProvider);
-    final isPlaying = currentSong?.id == song.id;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        ref.read(currentSongProvider.notifier).state = song;
-        ref.read(playerServiceProvider).playSong(song);
-        ref.read(databaseServiceProvider).addToHistory(song);
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isPlaying ? [
-                  AppTheme.pink.withOpacity(0.2),
-                  AppTheme.purple.withOpacity(0.15),
-                ] : [
-                  Colors.white.withOpacity(0.06),
-                  Colors.white.withOpacity(0.03),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isPlaying
-                  ? AppTheme.pink.withOpacity(0.4)
-                  : Colors.white.withOpacity(0.08),
-                width: isPlaying ? 1.5 : 1),
-              boxShadow: isPlaying ? [
-                BoxShadow(
-                  color: AppTheme.pink.withOpacity(0.2),
-                  blurRadius: 15, spreadRadius: -5),
-              ] : null,
-            ),
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        // Recent searches
+        if (recents.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Album art
-                Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: isPlaying ? [
-                          BoxShadow(
-                            color: AppTheme.pink.withOpacity(0.4),
-                            blurRadius: 12, spreadRadius: -2),
-                        ] : null,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: CachedNetworkImage(
-                          imageUrl: song.image,
-                          width: 56, height: 56,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
-                            width: 56, height: 56,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
-                              borderRadius:
-                                BorderRadius.circular(12)),
-                            child: const Icon(Icons.music_note,
-                              color: Colors.white, size: 24),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Playing indicator overlay
-                    if (isPlaying)
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(12)),
-                          child: const Icon(
-                            Icons.equalizer_rounded,
-                            color: Colors.white, size: 20),
-                        ),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(width: 14),
-
-                // Song info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(song.title,
-                        style: TextStyle(
-                          color: isPlaying
-                            ? AppTheme.pink : Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Text(song.artist,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
-                          fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      // Language + duration tag
-                      Row(
-                        children: [
-                          if (song.language.isNotEmpty)
-                            _Tag(song.language.capitalize()),
-                          const SizedBox(width: 6),
-                          if (song.duration != '0')
-                            _Tag(_formatDuration(song.duration)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // Play button
-                Column(
-                  children: [
-                    Container(
-                      width: 38, height: 38,
-                      decoration: BoxDecoration(
-                        gradient: isPlaying
-                          ? AppTheme.primaryGradient
-                          : LinearGradient(colors: [
-                              Colors.white.withOpacity(0.1),
-                              Colors.white.withOpacity(0.05),
-                            ]),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isPlaying
-                            ? Colors.transparent
-                            : Colors.white.withOpacity(0.1)),
-                        boxShadow: isPlaying ? [
-                          BoxShadow(
-                            color: AppTheme.pink.withOpacity(0.4),
-                            blurRadius: 10, spreadRadius: -3),
-                        ] : null,
-                      ),
-                      child: Icon(
-                        isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                        color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(height: 4),
-                    // More options
-                    Icon(Icons.more_vert_rounded,
-                      color: Colors.white.withOpacity(0.3),
-                      size: 16),
-                  ],
+                const Text('Recent Searches',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
+                GestureDetector(
+                  onTap: onClearAll,
+                  child: Text('Clear all',
+                    style: TextStyle(
+                      color: AppTheme.pink.withOpacity(0.8),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500)),
                 ),
               ],
             ),
           ),
-        ),
+          ...recents.asMap().entries.map((e) => _RecentTile(
+            query: e.value,
+            onTap: () => onRecentTap(e.value),
+            onRemove: () => onRecentRemove(e.value),
+          ).animate().fadeIn(
+              delay: Duration(milliseconds: e.key * 30),
+              duration: 300.ms)),
+          const SizedBox(height: 8),
+          Divider(color: Colors.white.withOpacity(0.06),
+              indent: 20, endIndent: 20),
+        ],
+
+        // Browse categories
+        _BrowseSection(onTap: onCategoryTap),
+
+        const SizedBox(height: 160),
+      ],
+    );
+  }
+}
+
+class _RecentTile extends StatelessWidget {
+  final String query;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  const _RecentTile({
+    required this.query,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10)),
+            child: Icon(Icons.history_rounded,
+              color: Colors.white.withOpacity(0.4), size: 18)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(query,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500)),
+          ),
+          GestureDetector(
+            onTap: onRemove,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.close_rounded,
+                color: Colors.white.withOpacity(0.3), size: 16)),
+          ),
+        ]),
       ),
     );
   }
-
-  String _formatDuration(String seconds) {
-    final s = int.tryParse(seconds) ?? 0;
-    final m = s ~/ 60;
-    final sec = s % 60;
-    return '$m:${sec.toString().padLeft(2, '0')}';
-  }
 }
 
-class _Tag extends StatelessWidget {
-  final String label;
-  const _Tag(this.label);
+// ─── BROWSE SECTION ───────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1))),
-      child: Text(label,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.4),
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5)),
-    );
-  }
-}
+class _BrowseSection extends StatelessWidget {
+  final ValueChanged<String> onTap;
+  const _BrowseSection({required this.onTap});
 
-// ─── RECENT SEARCHES ──────────────────────────────────────────
-
-class _RecentSearches extends ConsumerWidget {
-  final Function(String) onTap;
-  const _RecentSearches({required this.onTap});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recents = ref.watch(recentSearchesProvider);
-    if (recents.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(children: [
-                ShaderMask(
-                  shaderCallback: (b) =>
-                    AppTheme.primaryGradient.createShader(b),
-                  child: const Icon(Icons.history_rounded,
-                    color: Colors.white, size: 18)),
-                const SizedBox(width: 8),
-                const Text('Recent',
-                  style: TextStyle(color: Colors.white,
-                    fontSize: 16, fontWeight: FontWeight.w700)),
-              ]),
-              GestureDetector(
-                onTap: () => ref.read(
-                  recentSearchesProvider.notifier).clear(),
-                child: Text('Clear all',
-                  style: TextStyle(
-                    color: AppTheme.pink, fontSize: 12,
-                    fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-        ),
-        ...recents.map((q) => ListTile(
-          contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1))),
-                child: Icon(Icons.history_rounded,
-                  color: Colors.white.withOpacity(0.4),
-                  size: 16)),
-            ),
-          ),
-          title: Text(q,
-            style: const TextStyle(color: Colors.white,
-              fontSize: 14, fontWeight: FontWeight.w500)),
-          trailing: GestureDetector(
-            onTap: () => ref.read(
-              recentSearchesProvider.notifier).remove(q),
-            child: Icon(Icons.close_rounded,
-              color: Colors.white.withOpacity(0.3), size: 16)),
-          onTap: () => onTap(q),
-        )),
-        const SizedBox(height: 8),
-      ],
-    ).animate().fadeIn(duration: 400.ms);
-  }
-}
-
-// ─── TRENDING SEARCHES ────────────────────────────────────────
-
-class _TrendingSearches extends StatelessWidget {
-  final Function(String) onTap;
-  const _TrendingSearches({required this.onTap});
-
-  static const _trending = [
-    '🔥 Arijit Singh', '💜 AP Dhillon', '🎵 Trending 2025',
-    '❤️ Romantic Hindi', '🌙 Night Vibes', '💃 Party Songs',
-    '🎤 Shreya Ghoshal', '🎸 Bollywood Hits',
+  static const _cats = [
+    {'label': 'Bollywood',   'emoji': '🎬', 'c1': Color(0xFFFFB3C6), 'c2': Color(0xFFFF85A1)},
+    {'label': 'Punjabi',     'emoji': '🎵', 'c1': Color(0xFFB794FF), 'c2': Color(0xFFD4B8FF)},
+    {'label': 'Romance',     'emoji': '❤️', 'c1': Color(0xFFFF6B6B), 'c2': Color(0xFFFFB3C6)},
+    {'label': 'Party',       'emoji': '🎉', 'c1': Color(0xFFFF85A1), 'c2': Color(0xFFB794FF)},
+    {'label': 'Devotional',  'emoji': '🙏', 'c1': Color(0xFFFFD700), 'c2': Color(0xFFFF85A1)},
+    {'label': 'Indie',       'emoji': '🎸', 'c1': Color(0xFF89CFF0), 'c2': Color(0xFFB794FF)},
+    {'label': 'Hip Hop',     'emoji': '🎤', 'c1': Color(0xFFB794FF), 'c2': Color(0xFF89CFF0)},
+    {'label': 'Classical',   'emoji': '🪕', 'c1': Color(0xFFD4B8FF), 'c2': Color(0xFFFFD700)},
+    {'label': 'Chill',       'emoji': '🌊', 'c1': Color(0xFF89CFF0), 'c2': Color(0xFFD4B8FF)},
+    {'label': 'Workout',     'emoji': '💪', 'c1': Color(0xFFFF6B6B), 'c2': Color(0xFFFFB347)},
   ];
 
   @override
@@ -794,243 +503,15 @@ class _TrendingSearches extends StatelessWidget {
           child: Row(children: [
             ShaderMask(
               shaderCallback: (b) =>
-                AppTheme.primaryGradient.createShader(b),
-              child: const Icon(Icons.trending_up_rounded,
-                color: Colors.white, size: 18)),
-            const SizedBox(width: 8),
-            const Text('Trending Searches',
-              style: TextStyle(color: Colors.white,
-                fontSize: 16, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Wrap(
-            spacing: 8, runSpacing: 8,
-            children: _trending.asMap().entries.map((e) =>
-              GestureDetector(
-                onTap: () => onTap(e.value
-                  .replaceAll(RegExp(r'[^\w\s]'), '').trim()),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(
-                      sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [
-                          AppTheme.pink.withOpacity(0.12),
-                          AppTheme.purple.withOpacity(0.08),
-                        ]),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppTheme.pink.withOpacity(0.2))),
-                      child: Text(e.value,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500)),
-                    ),
-                  ),
-                ),
-              ).animate()
-                .fadeIn(duration: 300.ms,
-                  delay: (e.key * 50).ms)
-                .scale(begin: const Offset(0.9, 0.9),
-                  duration: 300.ms,
-                  delay: (e.key * 50).ms,
-                  curve: Curves.easeOutBack),
-            ).toList(),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
-  }
-}
-
-// ─── PREMIUM FEATURE CARDS ──────────────────────────────────────
-
-class _PremiumFeatureCards extends StatelessWidget {
-  final Function(String) onTap;
-  const _PremiumFeatureCards({required this.onTap});
-
-  static const _cards = [
-    {
-      'title': 'New In Pop',
-      'subtitle': 'The latest hits',
-      'image': 'https://picsum.photos/seed/pop/400/400',
-      'query': 'new pop songs'
-    },
-    {
-      'title': 'Chill Vibes',
-      'subtitle': 'Relaxing tunes',
-      'image': 'https://picsum.photos/seed/chill/400/400',
-      'query': 'chill relax lofi'
-    },
-    {
-      'title': 'Workout',
-      'subtitle': 'Beast mode',
-      'image': 'https://picsum.photos/seed/workout/400/400',
-      'query': 'workout gym hype'
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Row(children: [
-            ShaderMask(
-              shaderCallback: (b) =>
-                AppTheme.primaryGradient.createShader(b),
-              child: const Icon(Icons.star_rounded,
-                color: Colors.white, size: 18)),
-            const SizedBox(width: 8),
-            const Text('Discover',
-              style: TextStyle(color: Colors.white,
-                fontSize: 16, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        SizedBox(
-          height: 140,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _cards.length,
-            itemBuilder: (_, i) {
-              final card = _cards[i];
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onTap(card['query']!);
-                },
-                child: Container(
-                  width: 240,
-                  margin: const EdgeInsets.only(right: 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CachedNetworkImage(
-                          imageUrl: card['image']!,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 400,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[900],
-                            child: const Center(
-                              child: CircularProgressIndicator(color: AppTheme.pink),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[900],
-                            child: const Icon(Icons.music_note_rounded, color: Colors.white54, size: 40),
-                          ),
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.9),
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 16, left: 16, right: 16,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(card['title']!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 2),
-                              Text(card['subtitle']!,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 13)),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          top: 12, right: 12,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.3),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.play_arrow_rounded,
-                                  color: Colors.white, size: 16),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ).animate()
-                .fadeIn(duration: 400.ms, delay: (i * 100).ms)
-                .slideX(begin: 0.1, end: 0, duration: 400.ms, delay: (i * 100).ms);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── BROWSE CATEGORIES ────────────────────────────────────────
-
-class _BrowseCategories extends StatelessWidget {
-  final Function(String) onTap;
-  const _BrowseCategories({required this.onTap});
-
-  static const _categories = [
-    {'label': 'Bollywood', 'emoji': '🎬', 'image': 'https://picsum.photos/seed/bollywood/400/400'},
-    {'label': 'Punjabi', 'emoji': '🎵', 'image': 'https://picsum.photos/seed/punjabi/400/400'},
-    {'label': 'Romance', 'emoji': '❤️', 'image': 'https://picsum.photos/seed/romance/400/400'},
-    {'label': 'Party', 'emoji': '🎉', 'image': 'https://picsum.photos/seed/party/400/400'},
-    {'label': 'Devotional', 'emoji': '🙏', 'image': 'https://picsum.photos/seed/devotional/400/400'},
-    {'label': 'Indie', 'emoji': '🎸', 'image': 'https://picsum.photos/seed/indie/400/400'},
-    {'label': 'Hip Hop', 'emoji': '🎤', 'image': 'https://picsum.photos/seed/hiphop/400/400'},
-    {'label': 'Classical', 'emoji': '🪕', 'image': 'https://picsum.photos/seed/classical/400/400'},
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Row(children: [
-            ShaderMask(
-              shaderCallback: (b) =>
-                AppTheme.primaryGradient.createShader(b),
+                  AppTheme.primaryGradient.createShader(b),
               child: const Icon(Icons.grid_view_rounded,
-                color: Colors.white, size: 18)),
+                  color: Colors.white, size: 18)),
             const SizedBox(width: 8),
             const Text('Browse All',
-              style: TextStyle(color: Colors.white,
-                fontSize: 16, fontWeight: FontWeight.w700)),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700)),
           ]),
         ),
         Padding(
@@ -1039,89 +520,494 @@ class _BrowseCategories extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.4,
-              ),
-            itemCount: _categories.length,
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 2.1,
+            ),
+            itemCount: _cats.length,
             itemBuilder: (_, i) {
-              final cat = _categories[i];
+              final cat = _cats[i];
+              final c1  = cat['c1'] as Color;
+              final c2  = cat['c2'] as Color;
               return GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  onTap(cat['label'] as String);
+                  onTap('${cat['label']} hindi songs');
                 },
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl: cat['image'] as String,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 400,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey[900],
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[900],
-                          child: const Icon(Icons.error_outline, color: Colors.white54),
-                        ),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [c1, c2],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.8),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ),
+                    ),
+                    child: Stack(children: [
+                      // Decorative circle
                       Positioned(
-                        bottom: 12, left: 12, right: 12,
-                        child: Row(
-                          children: [
-                            Text(cat['emoji'] as String,
-                              style: const TextStyle(fontSize: 18)),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(cat['label'] as String,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5)),
-                            ),
-                          ],
-                        ),
+                        right: -16, bottom: -16,
+                        child: Container(
+                          width: 72, height: 72,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.12),
+                            shape: BoxShape.circle)),
                       ),
-                    ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        child: Row(children: [
+                          Text(cat['emoji'] as String,
+                            style: const TextStyle(fontSize: 22)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(cat['label'] as String,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis)),
+                        ]),
+                      ),
+                    ]),
                   ),
                 ),
               ).animate()
-                .fadeIn(duration: 300.ms, delay: (i * 40).ms)
-                .scale(begin: const Offset(0.9, 0.9),
-                  end: const Offset(1, 1),
-                  duration: 300.ms, delay: (i * 40).ms,
-                  curve: Curves.easeOutBack);
+                  .fadeIn(delay: Duration(milliseconds: i * 35), duration: 300.ms)
+                  .scale(begin: const Offset(0.92, 0.92),
+                    delay: Duration(milliseconds: i * 35),
+                    duration: 300.ms, curve: Curves.easeOutBack);
             },
           ),
         ),
-        const SizedBox(height: 20),
       ],
     );
   }
 }
 
+// ─── RESULTS BODY ─────────────────────────────────────────────
 
-// ─── EXTENSION ────────────────────────────────────────────────
+class _ResultsBody extends ConsumerWidget {
+  final AsyncValue<List<Song>> results;
+  final String filter;
+  final String query;
+
+  const _ResultsBody({
+    required this.results,
+    required this.filter,
+    required this.query,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return results.when(
+      loading: () => _buildShimmer(),
+      error: (e, _) => Center(
+        child: Text('Search error: $e',
+          style: const TextStyle(color: Colors.red))),
+      data: (songs) {
+        if (songs.isEmpty) {
+          return _NoResults(query: query);
+        }
+
+        // Filter songs by type chip (simplified since API returns songs)
+        final display = filter == 'All' ? songs : songs;
+
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 160),
+          children: [
+            // Result count
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+              child: Text(
+                '${display.length} results for "$query"',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.4),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500)),
+            ),
+
+            // Top result card (first song, prominent)
+            if (display.isNotEmpty)
+              _TopResult(
+                song: display.first,
+                onTap: () => playQueue(ref, display, 0,
+                  meta: const QueueMeta(context: QueueContext.general)),
+              ).animate().fadeIn(duration: 350.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 350.ms),
+
+            // Rest of results
+            ...display.skip(1).toList().asMap().entries.map((e) {
+              final i    = e.key;
+              final song = e.value;
+              return _ResultTile(
+                song: song,
+                index: i + 1,
+                onTap: () => playQueue(ref, display, i + 1,
+                  meta: const QueueMeta(context: QueueContext.general)),
+                onMore: () => _showSongOptions(context, ref, song, display, i + 1),
+              ).animate()
+                  .fadeIn(delay: Duration(milliseconds: i * 30), duration: 300.ms)
+                  .slideX(begin: 0.05, end: 0,
+                    delay: Duration(milliseconds: i * 30), duration: 300.ms);
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 8,
+      itemBuilder: (_, i) => Container(
+        height: 64, margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(14)),
+      ).animate(onPlay: (c) => c.repeat())
+          .shimmer(duration: 1200.ms,
+            color: Colors.white.withOpacity(0.04)),
+    );
+  }
+
+  void _showSongOptions(BuildContext context, WidgetRef ref,
+      Song song, List<Song> playlist, int index) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SongOptionsSheet(song: song, ref: ref,
+          playlist: playlist, index: index),
+    );
+  }
+}
+
+// ─── TOP RESULT ───────────────────────────────────────────────
+
+class _TopResult extends StatelessWidget {
+  final Song song;
+  final VoidCallback onTap;
+
+  const _TopResult({required this.song, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(children: [
+              ShaderMask(
+                shaderCallback: (b) =>
+                    AppTheme.primaryGradient.createShader(b),
+                child: const Icon(Icons.star_rounded,
+                    color: Colors.white, size: 16)),
+              const SizedBox(width: 6),
+              const Text('Top Result',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+            ]),
+          ),
+          GestureDetector(
+            onTap: onTap,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      Colors.white.withOpacity(0.07),
+                      Colors.white.withOpacity(0.03),
+                    ]),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.1))),
+                  child: Row(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: CachedNetworkImage(
+                        imageUrl: song.image,
+                        width: 72, height: 72, fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 72, height: 72,
+                          color: AppTheme.bgTertiary,
+                          child: const Icon(Icons.music_note,
+                              color: AppTheme.pink, size: 32)))),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(song.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          Text(song.artist,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 42, height: 42,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle),
+                      child: const Icon(Icons.play_arrow_rounded,
+                          color: Colors.black, size: 24)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── RESULT TILE ──────────────────────────────────────────────
+
+class _ResultTile extends StatelessWidget {
+  final Song song;
+  final int index;
+  final VoidCallback onTap;
+  final VoidCallback onMore;
+
+  const _ResultTile({
+    required this.song,
+    required this.index,
+    required this.onTap,
+    required this.onMore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        child: Row(children: [
+          // Art
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: CachedNetworkImage(
+              imageUrl: song.image,
+              width: 52, height: 52, fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Container(
+                width: 52, height: 52, color: AppTheme.bgTertiary,
+                child: const Icon(Icons.music_note,
+                    color: AppTheme.pink, size: 22)))),
+          const SizedBox(width: 12),
+          // Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(song.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(song.artist,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.45),
+                    fontSize: 12),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          // Duration
+          Text(_fmt(int.tryParse(song.duration) ?? 0),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.3),
+              fontSize: 12)),
+          const SizedBox(width: 4),
+          // More
+          GestureDetector(
+            onTap: onMore,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(Icons.more_vert_rounded,
+                color: Colors.white.withOpacity(0.4), size: 18)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  String _fmt(int s) {
+    if (s <= 0) return '';
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+}
+
+// ─── NO RESULTS ───────────────────────────────────────────────
+
+class _NoResults extends StatelessWidget {
+  final String query;
+  const _NoResults({required this.query});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ShaderMask(
+              shaderCallback: (b) =>
+                  AppTheme.primaryGradient.createShader(b),
+              child: const Icon(Icons.search_off_rounded,
+                  color: Colors.white, size: 64)),
+            const SizedBox(height: 16),
+            Text('No results for',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.45),
+                fontSize: 14)),
+            const SizedBox(height: 4),
+            Text('"$query"',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text('Try different keywords or\ncheck spelling',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.35),
+                fontSize: 13,
+                height: 1.5)),
+          ],
+        ),
+      ).animate().fadeIn(duration: 400.ms)
+          .scale(begin: const Offset(0.95, 0.95),
+            duration: 400.ms, curve: Curves.easeOutBack),
+    );
+  }
+}
+
+// ─── SONG OPTIONS SHEET ───────────────────────────────────────
+
+class _SongOptionsSheet extends StatelessWidget {
+  final Song song;
+  final WidgetRef ref;
+  final List<Song> playlist;
+  final int index;
+
+  const _SongOptionsSheet({
+    required this.song,
+    required this.ref,
+    required this.playlist,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.75),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(color: Colors.white.withOpacity(0.08))),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              Row(children: [
+                ClipRRect(borderRadius: BorderRadius.circular(10),
+                  child: CachedNetworkImage(imageUrl: song.image,
+                    width: 50, height: 50, fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      width: 50, height: 50, color: AppTheme.bgTertiary,
+                      child: const Icon(Icons.music_note, color: AppTheme.pink)))),
+                const SizedBox(width: 12),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(song.title,
+                      style: const TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.w700, fontSize: 14),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(song.artist,
+                      style: TextStyle(color: Colors.white.withOpacity(0.5),
+                        fontSize: 12),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                )),
+              ]),
+              const SizedBox(height: 14),
+              Divider(color: Colors.white.withOpacity(0.08)),
+              const SizedBox(height: 6),
+              ...[
+                (Icons.favorite_rounded,     'Like Song',          AppTheme.pink),
+                (Icons.playlist_add_rounded, 'Add to Playlist',    AppTheme.purple),
+                (Icons.queue_rounded,        'Add to Queue',       AppTheme.pinkDeep),
+                (Icons.person_rounded,       'Go to Artist',       Colors.white70),
+                (Icons.share_rounded,        'Share',              Colors.white70),
+              ].map((o) => ListTile(
+                leading: Icon(o.$1, color: o.$3, size: 22),
+                title: Text(o.$2,
+                  style: const TextStyle(color: Colors.white,
+                    fontSize: 14, fontWeight: FontWeight.w500)),
+                onTap: () async {
+                  if (o.$2 == 'Like Song') {
+                    await ref.read(databaseServiceProvider).likeSong(song);
+                  } else if (o.$2 == 'Add to Queue') {
+                    final pl  = ref.read(currentPlaylistProvider);
+                    final idx = ref.read(currentSongIndexProvider);
+                    final nl  = [...pl]..insert(idx + 1, song);
+                    ref.read(currentPlaylistProvider.notifier).state = nl;
+                  }
+                  if (context.mounted) Navigator.pop(context);
+                  HapticFeedback.selectionClick();
+                },
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 extension StringExtension on String {
-  String capitalize() => isEmpty ? this
-    : '${this[0].toUpperCase()}${substring(1)}';
+  String capitalize() =>
+      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }

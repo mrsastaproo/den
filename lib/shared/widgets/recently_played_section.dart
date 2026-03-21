@@ -51,9 +51,7 @@ class RecentlyPlayedSection extends ConsumerWidget {
                   final song = recent[index];
                   return GestureDetector(
                     onTap: () {
-                      ref.read(currentSongProvider.notifier)
-                        .state = song;
-                      ref.read(playerServiceProvider).playSong(song);
+                      playQueue(ref, recent, index);
                       ref.read(databaseServiceProvider)
                         .addToHistory(song);
                     },

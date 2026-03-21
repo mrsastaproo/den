@@ -125,6 +125,17 @@ class ApiService {
     return _multiSearch(queries, limitEach: 8);
   }
 
+  // ─── RECOMMENDATIONS ─────────────────────────────
+  Future<List<Song>> getRecommendations(Song current) async {
+    // Combine artist, language and a general "hits" vibe
+    final queries = [
+      '${current.artist} latest songs',
+      'best ${current.language} songs 2025',
+      'similar to ${current.title} ${current.artist}',
+    ];
+    return _multiSearch(queries, limitEach: 6);
+  }
+
   // ─── STREAM URL ───────────────────────────────────
   Future<String> getStreamUrl(String songId) async {
     try {

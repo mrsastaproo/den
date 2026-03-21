@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/providers/music_providers.dart';
 import 'mini_player.dart'; // For FullPlayerSheet
 import '../../core/services/player_service.dart';
+import 'player_screen.dart';
 
 class IntegratedBottomShell extends ConsumerWidget {
   final int currentIndex;
@@ -83,7 +84,7 @@ class IntegratedBottomShell extends ConsumerWidget {
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
-                        builder: (_) => const FullPlayerSheet(),
+                        builder: (_) => const PlayerScreen(),
                       );
                     }
                   },

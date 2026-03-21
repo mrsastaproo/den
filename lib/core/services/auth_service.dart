@@ -6,7 +6,6 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Current user stream
   Stream<User?> get userStream => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => _auth.currentUser != null;
@@ -16,7 +15,6 @@ class AuthService {
     try {
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
-
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -34,7 +32,7 @@ class AuthService {
       String email, String password) async {
     try {
       return await _auth.createUserWithEmailAndPassword(
-        email: email, password: password);
+          email: email, password: password);
     } catch (e) {
       print('Sign up error: $e');
       return null;
@@ -46,10 +44,21 @@ class AuthService {
       String email, String password) async {
     try {
       return await _auth.signInWithEmailAndPassword(
-        email: email, password: password);
+          email: email, password: password);
     } catch (e) {
       print('Sign in error: $e');
       return null;
+    }
+  }
+
+  // Password reset
+  Future<bool> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return true;
+    } catch (e) {
+      print('Password reset error: $e');
+      return false;
     }
   }
 
@@ -60,7 +69,8 @@ class AuthService {
   }
 }
 
-final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final authServiceProvider =
+    Provider<AuthService>((ref) => AuthService());
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authServiceProvider).userStream;

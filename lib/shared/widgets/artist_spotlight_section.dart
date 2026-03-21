@@ -10,6 +10,7 @@ import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 
+
 const _spotlightArtists = [
   {'name': 'Arijit Singh', 'query': 'arijit singh latest 2025',
     'emoji': '🎤'},
@@ -263,12 +264,9 @@ class ArtistSpotlightSection extends ConsumerWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w800)),
                           onTap: () {
-                            ref.read(currentSongProvider.notifier)
-                              .state = song;
-                            ref.read(playerServiceProvider)
-                              .playSong(song);
-                            ref.read(databaseServiceProvider)
-                              .addToHistory(song);
+ref.read(currentSongProvider.notifier).state = songs[index];
+ref.read(playerServiceProvider).playSong(songs[index]);
+ref.read(databaseServiceProvider).addToHistory(songs[index]);
                           },
                         );
                       },
