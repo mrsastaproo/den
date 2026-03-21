@@ -66,228 +66,65 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 final searchShuffleSeedProvider = StateProvider<int>((ref) => 0);
 
 // ── Genre-aware query expansion map ───────────────────────────
-// Maps user search terms → best JioSaavn query variants that
-// actually return the right songs. JioSaavn indexes by song
-// name / artist, not genre tags, so raw genre words often fail.
 const _queryExpansions = <String, List<String>>{
-  // ── Phonk & derivatives ───────────────────────────────────
+  // ── Phonk & derivatives ──────────────────────────────────
   'phonk': [
-    'phonk music',
-    'phonk drift',
-    'phonk russian',
-    'phonk hard bass',
-    'cowbell phonk',
-    'memphis phonk',
-    'phonk edit',
-    'phonk remix',
-    'drift phonk',
-    'villain phonk',
+    'phonk music', 'phonk drift', 'phonk russian',
+    'phonk hard bass', 'cowbell phonk', 'memphis phonk',
+    'phonk edit', 'phonk remix', 'drift phonk', 'villain phonk',
   ],
-  'drift phonk': [
-    'drift phonk music',
-    'phonk drift',
-    'drift phonk car',
-    'phonk hard bass drift',
-  ],
-  'cowbell phonk': [
-    'cowbell phonk',
-    'phonk cowbell',
-    'phonk trumpet cowbell',
-  ],
-  'russian phonk': [
-    'russian phonk',
-    'russian hard bass phonk',
-    'slap house phonk',
-  ],
-  'memphis phonk': [
-    'memphis phonk',
-    'memphis rap phonk',
-  ],
+  'drift phonk': ['drift phonk music', 'phonk drift', 'drift phonk car'],
+  'cowbell phonk': ['cowbell phonk', 'phonk cowbell', 'phonk trumpet'],
+  'russian phonk': ['russian phonk', 'russian hard bass phonk'],
+  'memphis phonk': ['memphis phonk', 'memphis rap phonk'],
 
-  // ── EDM sub-genres ────────────────────────────────────────
-  'edm': [
-    'edm songs',
-    'edm drop',
-    'edm festival',
-    'electronic dance music',
-    'edm bass',
-  ],
-  'house': [
-    'house music',
-    'deep house',
-    'tech house',
-    'house vibes',
-  ],
-  'techno': [
-    'techno music',
-    'techno hard',
-    'dark techno',
-    'techno rave',
-  ],
-  'dubstep': [
-    'dubstep',
-    'dubstep bass drop',
-    'heavy dubstep',
-    'riddim dubstep',
-  ],
-  'trap': [
-    'trap music',
-    'trap beat',
-    'hard trap',
-    'trap hip hop',
-    'trap bass',
-  ],
-  'bass': [
-    'bass music',
-    'heavy bass',
-    'bass house',
-    'future bass',
-    'bass boosted',
-  ],
-  'future bass': [
-    'future bass',
-    'future bass music',
-    'melodic future bass',
-  ],
-  'drum and bass': [
-    'drum and bass',
-    'dnb music',
-    'liquid drum bass',
-    'neurofunk',
-  ],
-  'dnb': [
-    'drum and bass',
-    'dnb',
-    'liquid dnb',
-  ],
-  'hardstyle': [
-    'hardstyle',
-    'hardstyle music',
-    'hardstyle kicks',
-    'frenchcore hardstyle',
-  ],
-  'lofi': [
-    'lofi hip hop',
-    'lo fi music',
-    'lofi chill beats',
-    'lofi study',
-    'chill lofi',
-  ],
-  'lo fi': [
-    'lo fi',
-    'lofi chill',
-    'lo fi hip hop beats',
-  ],
-  'synthwave': [
-    'synthwave',
-    'retro synthwave',
-    'synthwave outrun',
-    '80s synthwave',
-  ],
-  'retrowave': [
-    'retrowave',
-    'synthwave retrowave',
-    'retro 80s music',
-  ],
-  'dark': [
-    'dark music',
-    'dark ambient',
-    'dark trap',
-    'dark phonk',
-    'dark bass',
-  ],
-  'aggressive': [
-    'aggressive music',
-    'aggressive phonk',
-    'aggressive bass',
-    'aggressive rap',
-  ],
-  'slap house': [
-    'slap house',
-    'slap house music',
-    'slap bass house',
-  ],
-  'mafia': [
-    'mafia music',
-    'mafia phonk',
-    'dark mafia music',
-    'gangster music',
-  ],
+  // ── EDM ──────────────────────────────────────────────────
+  'edm': ['edm songs', 'edm drop', 'edm festival', 'electronic dance music'],
+  'house': ['house music', 'deep house', 'tech house'],
+  'techno': ['techno music', 'techno hard', 'dark techno'],
+  'dubstep': ['dubstep', 'dubstep bass drop', 'heavy dubstep'],
+  'trap': ['trap music', 'trap beat', 'hard trap', 'trap bass'],
+  'bass': ['bass music', 'heavy bass', 'bass house', 'future bass'],
+  'future bass': ['future bass', 'future bass music', 'melodic future bass'],
+  'drum and bass': ['drum and bass', 'dnb music', 'liquid drum bass'],
+  'dnb': ['drum and bass', 'dnb', 'liquid dnb'],
+  'hardstyle': ['hardstyle', 'hardstyle music', 'hardstyle kicks'],
+  'lofi': ['lofi hip hop', 'lo fi music', 'lofi chill beats', 'lofi study'],
+  'lo fi': ['lo fi', 'lofi chill', 'lo fi hip hop beats'],
+  'synthwave': ['synthwave', 'retro synthwave', '80s synthwave'],
+  'retrowave': ['retrowave', 'synthwave retrowave', 'retro 80s music'],
+  'dark': ['dark music', 'dark ambient', 'dark trap', 'dark phonk'],
+  'aggressive': ['aggressive music', 'aggressive phonk', 'aggressive bass'],
+  'slap house': ['slap house', 'slap house music'],
+  'mafia': ['mafia music', 'mafia phonk', 'dark mafia music'],
 
-  // ── Hip hop ───────────────────────────────────────────────
-  'hip hop': [
-    'hip hop music',
-    'hip hop rap',
-    'best hip hop',
-    'hip hop beats',
-  ],
-  'rap': [
-    'rap music',
-    'hindi rap',
-    'best rap songs',
-    'rap beats',
-  ],
-  'drill': [
-    'drill music',
-    'uk drill',
-    'chicago drill',
-    'dark drill beats',
-  ],
+  // ── Hip hop ──────────────────────────────────────────────
+  'hip hop': ['hip hop music', 'hip hop rap', 'best hip hop'],
+  'rap': ['rap music', 'hindi rap', 'best rap songs', 'rap beats'],
+  'drill': ['drill music', 'uk drill', 'dark drill beats'],
 
-  // ── Vibes ─────────────────────────────────────────────────
-  'workout': [
-    'workout motivation music',
-    'gym motivation songs',
-    'workout beats',
-    'training music',
-  ],
-  'gaming': [
-    'gaming music',
-    'gaming background music',
-    'gaming phonk',
-    'gaming edm',
-  ],
-  'night drive': [
-    'night drive music',
-    'night drive songs',
-    'late night driving music',
-    'phonk night drive',
-  ],
-  'road trip': [
-    'road trip songs',
-    'driving music',
-    'road trip music playlist',
-  ],
-  'motivational': [
-    'motivational music',
-    'motivation songs',
-    'workout motivation',
-    'inspirational music',
-  ],
+  // ── Vibes ────────────────────────────────────────────────
+  'workout': ['workout motivation music', 'gym motivation songs', 'training music'],
+  'gaming': ['gaming music', 'gaming background music', 'gaming phonk'],
+  'night drive': ['night drive music', 'night drive songs', 'late night driving'],
+  'road trip': ['road trip songs', 'driving music', 'road trip music'],
+  'motivational': ['motivational music', 'motivation songs', 'inspirational music'],
 };
 
-// Returns expanded queries for a given search term.
-// Falls back to [query, "$query songs", "$query music"] if not in map.
+// Returns expanded queries for a given search term
 List<String> _expandQuery(String query) {
   final q = query.trim().toLowerCase();
-
-  // Direct match
-  if (_queryExpansions.containsKey(q)) {
-    return _queryExpansions[q]!;
-  }
-
-  // Partial match — check if query contains any known keyword
+  if (_queryExpansions.containsKey(q)) return _queryExpansions[q]!;
   for (final entry in _queryExpansions.entries) {
     if (q.contains(entry.key) || entry.key.contains(q)) {
       return entry.value;
     }
   }
-
-  // Default: generic expansion
+  // Default generic expansion
   return [query, '$query songs', '$query music', '$query hits'];
 }
 
-// Whether this query should also hit Audius (better for Western/EDM/phonk)
+// Whether to also search Audius (better for Western/EDM/phonk)
 bool _shouldUseAudius(String query) {
   final q = query.trim().toLowerCase();
   const audiusGenres = {
@@ -301,6 +138,68 @@ bool _shouldUseAudius(String query) {
   return audiusGenres.any((g) => q.contains(g) || g.contains(q));
 }
 
+// Whether the query looks like a specific song/artist name
+// (not a genre keyword) — triggers title-focused search strategy
+bool _isSpecificTitle(String query) {
+  final q = query.trim().toLowerCase();
+  // If it matches a genre keyword, it's NOT a specific title
+  for (final key in _queryExpansions.keys) {
+    if (q == key || q.contains(key)) return false;
+  }
+  // Likely a specific song/artist if it's short and not a common genre word
+  const genericWords = {
+    'songs', 'music', 'hits', 'playlist', 'mix', 'best',
+    'top', 'new', 'latest', 'hindi', 'bollywood', 'trending',
+  };
+  final words = q.split(RegExp(r'\s+'));
+  final nonGeneric = words.where((w) => !genericWords.contains(w)).length;
+  return nonGeneric >= 1;
+}
+
+// Builds title-focused query variants for specific song searches.
+// e.g. "Fendi 2" → tries multiple combinations JioSaavn responds to.
+List<String> _buildTitleQueries(String query) {
+  final q = query.trim();
+  final lower = q.toLowerCase();
+  final words = q.split(RegExp(r'\s+'));
+
+  final queries = <String>{};
+
+  // Core variants
+  queries.add(q);                          // "Fendi 2"
+  queries.add('$q song');                  // "Fendi 2 song"
+  queries.add('$q official');              // "Fendi 2 official"
+
+  // Individual words as artist/title probes
+  for (final word in words) {
+    if (word.length > 2) {
+      queries.add(word);                   // "Fendi" alone
+      queries.add('$word song');           // "Fendi song"
+    }
+  }
+
+  // Word combinations (for multi-word titles)
+  if (words.length >= 2) {
+    queries.add(words.first);              // first word
+    queries.add(words.last);              // last word
+    queries.add('${words.first} ${words.last}'); // first + last
+  }
+
+  // Number variants — "2" might be "II" or vice versa
+  final withRoman = lower
+      .replaceAll(RegExp(r'\b2\b'), 'ii')
+      .replaceAll(RegExp(r'\b3\b'), 'iii')
+      .replaceAll(RegExp(r'\b4\b'), 'iv');
+  if (withRoman != lower) queries.add(withRoman);
+
+  final withArabic = lower
+      .replaceAll(RegExp(r'\bii\b'), '2')
+      .replaceAll(RegExp(r'\biii\b'), '3');
+  if (withArabic != lower) queries.add(withArabic);
+
+  return queries.toList();
+}
+
 final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(searchQueryProvider);
   final seed  = ref.watch(searchShuffleSeedProvider);
@@ -309,38 +208,56 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   final api    = ref.read(apiServiceProvider);
   final audius = ref.read(audiusServiceProvider);
 
-  final expanded = _expandQuery(query);
+  final isTitle   = _isSpecificTitle(query);
   final useAudius = _shouldUseAudius(query);
 
-  // ── Fire all requests in parallel ─────────────────────────
-  final jioFutures = <Future<List<Song>>>[];
-
-  // Always fetch page 1 of the original query
-  jioFutures.add(api.searchSongs(query, page: 1));
-  jioFutures.add(api.searchSongs(query, page: 2));
-
-  // Add expanded queries (up to 4 more)
-  for (final eq in expanded.take(4)) {
-    jioFutures.add(api.searchSongs(eq, page: 1));
+  // ── Build query list based on type ──────────────────────────
+  final List<String> queriesToFire;
+  if (isTitle) {
+    // Specific song/artist search — use title-focused variants
+    queriesToFire = _buildTitleQueries(query);
+  } else {
+    // Genre/vibe search — use genre expansion
+    final expanded = _expandQuery(query);
+    queriesToFire = [query, ...expanded];
   }
 
-  // Audius for EDM/phonk/Western genres — runs in parallel
+  // ── Fire JioSaavn requests in parallel ──────────────────────
+  // Always include: exact query p1, exact query p2, broad search
+  // Plus up to 6 of the computed variants
+  final jioFutures = <Future<List<Song>>>[
+    api.searchSongs(query, page: 1, limit: 20),
+    api.searchSongs(query, page: 2, limit: 20),
+    api.searchBroad(query),               // hits /search endpoint
+  ];
+
+  // Add computed variants (skip duplicates of main query)
+  final extras = queriesToFire
+      .where((q) => q.toLowerCase() != query.toLowerCase())
+      .take(6)
+      .toList();
+  for (final q in extras) {
+    jioFutures.add(api.searchSongs(q, page: 1, limit: 20));
+  }
+
+  // Audius parallel fetch
   Future<List<Song>> audiusFuture = Future.value([]);
   if (useAudius) {
     audiusFuture = audius.searchTracks(query, limit: 20);
   }
 
-  final results = await Future.wait([
+  // ── Await everything ─────────────────────────────────────────
+  final allResults = await Future.wait([
     Future.wait(jioFutures),
     audiusFuture,
   ]);
 
-  final jioResults = (results[0] as List<List<Song>>)
+  final jioResults = (allResults[0] as List<List<Song>>)
       .expand((l) => l)
       .toList();
-  final audiusResults = results[1] as List<Song>;
+  final audiusResults = allResults[1] as List<Song>;
 
-  // ── Merge: JioSaavn first, Audius fills the gaps ──────────
+  // ── Merge and deduplicate ────────────────────────────────────
   final seen = <String>{};
   final all = [
     ...jioResults.where((s) => seen.add(s.id)),
@@ -349,13 +266,27 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
 
   if (all.isEmpty) return [];
 
-  // ── Pin exact / closest title match to position 0 ─────────
+  // ── Pin best match to position 0 ─────────────────────────────
+  // Priority: exact title → starts with → contains → artist match
   final q = query.trim().toLowerCase();
 
-  int pinIdx = all.indexWhere((s) => s.title.toLowerCase() == q);
+  int pinIdx = all.indexWhere(
+      (s) => s.title.toLowerCase() == q);
   if (pinIdx < 0) {
     pinIdx = all.indexWhere(
         (s) => s.title.toLowerCase().startsWith(q));
+  }
+  if (pinIdx < 0) {
+    pinIdx = all.indexWhere(
+        (s) => s.title.toLowerCase().contains(q));
+  }
+  if (pinIdx < 0) {
+    // Try matching by first word of query against title
+    final firstWord = q.split(' ').first;
+    if (firstWord.length > 2) {
+      pinIdx = all.indexWhere(
+          (s) => s.title.toLowerCase().contains(firstWord));
+    }
   }
 
   final Song pinned;
@@ -374,7 +305,6 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
 
   return [pinned, ...rest].take(50).toList();
 });
-
 // ─── PLAYER STATE ─────────────────────────────────────────────
 
 final currentSongProvider     = StateProvider<Song?>((ref) => null);
