@@ -6,10 +6,12 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/database_service.dart';
+import '../../core/services/admin_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'edit_profile_screen.dart';
 import '../../core/services/settings_service.dart';
 import 'equalizer_screen.dart';
+import 'admin_screen.dart';
 import '../../core/providers/music_providers.dart';
 
 // ─── EXTRA SETTINGS PROVIDERS ────────────────────────────────
@@ -80,6 +82,9 @@ class SettingsScreen extends ConsumerWidget {
 
           // ── 9. About ────────────────────────────────────────
           SliverToBoxAdapter(child: _AboutSection()),
+
+          // ── Admin Panel (admin only) ─────────────────────
+          SliverToBoxAdapter(child: _AdminPanelEntry()),
 
           // ── Sign Out ────────────────────────────────────────
           SliverToBoxAdapter(child: _SignOutButton()),
@@ -2084,6 +2089,114 @@ class _ConfirmDialog extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ─── ADMIN PANEL ENTRY (only for mrsastapro@gmail.com) ───────
+
+class _AdminPanelEntry extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAdmin = ref.watch(isAdminProvider);
+    if (!isAdmin) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const AdminScreen(),
+          ));
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFFF3366),
+                    Color(0xFF6C63FF),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF3366).withOpacity(0.35),
+                    blurRadius: 24,
+                    spreadRadius: -6,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.shield_rounded,
+                        color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Admin Panel',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Full control over DEN',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'ADMIN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: Colors.white, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 400.ms, delay: 450.ms)
+        .slideY(begin: 0.05, end: 0, duration: 400.ms, delay: 450.ms);
   }
 }
 

@@ -35,7 +35,7 @@ class RecentSearchesNotifier extends StateNotifier<List<String>> {
   Future<void> add(String q) async {
     if (q.trim().isEmpty) return;
     final updated =
-        [q.trim(), ...state.where((s) => s != q.trim())].take(20).toList();
+        [q.trim(), ...state.where((s) => s != q.trim())].take(10).toList();
     state = updated;
     final p = await SharedPreferences.getInstance();
     await p.setStringList('recent_searches', updated);
@@ -58,6 +58,7 @@ class RecentSearchesNotifier extends StateNotifier<List<String>> {
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
+
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
@@ -68,27 +69,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   final _focus = FocusNode();
   final _scrollController = ScrollController();
   bool _focused = false;
-  bool _scrolled = false;
-
-  late AnimationController _pulseController;
-  late AnimationController _waveController;
+  double _scrollOffset = 0;
+  late AnimationController _orbCtrl;
 
   @override
   void initState() {
     super.initState();
     _focus.addListener(() => setState(() => _focused = _focus.hasFocus));
-    _scrollController.addListener(() {
-      final s = _scrollController.offset > 10;
-      if (s != _scrolled) setState(() => _scrolled = s);
-    });
-    _pulseController = AnimationController(
+    _scrollController
+        .addListener(() => setState(() => _scrollOffset = _scrollController.offset));
+    _orbCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 7),
     )..repeat(reverse: true);
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
-    )..repeat();
   }
 
   @override
@@ -96,13 +89,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _ctrl.dispose();
     _focus.dispose();
     _scrollController.dispose();
-    _pulseController.dispose();
-    _waveController.dispose();
+    _orbCtrl.dispose();
     super.dispose();
   }
 
   void _search(String q) {
     _ctrl.text = q;
+    // Bump seed BEFORE setting query so provider re-fetches with new shuffle
+    ref.read(searchShuffleSeedProvider.notifier).state =
+        DateTime.now().millisecondsSinceEpoch;
     ref.read(searchQueryProvider.notifier).state = q;
     if (q.trim().isNotEmpty) {
       ref.read(recentSearchesProvider.notifier).add(q.trim());
@@ -125,19 +120,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      body: Stack(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
           children: [
-            // ── Ambient background orbs ──
-            _AmbientOrbs(pulseController: _pulseController, waveController: _waveController),
-
-            // ── Main content ──
+            _SearchAmbient(ctrl: _orbCtrl),
             Column(
               children: [
-                _PremiumSearchHeader(
+                _SearchHeader(
                   ctrl: _ctrl,
                   focus: _focus,
                   focused: _focused,
-                  scrolled: _scrolled,
+                  scrolled: _scrollOffset > 8,
                   query: query,
                   onChanged: (q) =>
                       ref.read(searchQueryProvider.notifier).state = q,
@@ -146,20 +140,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     FocusScope.of(context).unfocus();
                   },
                   onClear: _clear,
+                  onCancel: () {
+                    FocusScope.of(context).unfocus();
+                    if (query.isEmpty) _clear();
+                  },
                 ),
-
                 if (query.isNotEmpty)
-                  _PremiumFilterChips(
+                  _FilterRow(
                     selected: filter,
                     onSelect: (f) {
                       HapticFeedback.selectionClick();
                       ref.read(searchFilterProvider.notifier).state = f;
                     },
                   ),
-
                 Expanded(
                   child: query.isEmpty
-                      ? _PremiumEmptyState(
+                      ? _BrowseBody(
                           recents: recents,
                           scrollController: _scrollController,
                           onRecentTap: (q) {
@@ -171,12 +167,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                               .remove(q),
                           onClearAll: () =>
                               ref.read(recentSearchesProvider.notifier).clear(),
-                          onCategoryTap: (cat) {
-                            _search(cat);
+                          onCategoryTap: (q) {
+                            _search(q);
                             FocusScope.of(context).unfocus();
                           },
                         )
-                      : _PremiumResultsBody(
+                      : _ResultsBody(
                           results: results,
                           filter: filter,
                           query: query,
@@ -187,90 +183,68 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             ),
           ],
         ),
+      ),
     );
   }
 }
 
-// ─── AMBIENT ORBS BACKGROUND ─────────────────────────────────
+// ─── AMBIENT ──────────────────────────────────────────────────
 
-class _AmbientOrbs extends StatelessWidget {
-  final AnimationController pulseController;
-  final AnimationController waveController;
-  const _AmbientOrbs({required this.pulseController, required this.waveController});
+class _SearchAmbient extends StatelessWidget {
+  final AnimationController ctrl;
+  const _SearchAmbient({required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([pulseController, waveController]),
+      animation: ctrl,
       builder: (_, __) {
-        final p = pulseController.value;
-        final w = waveController.value;
-        return Stack(
-          children: [
-            // Top-left pink orb
-            Positioned(
-              top: -80 + (p * 20),
-              left: -60 + (math.sin(w * math.pi * 2) * 15),
-              child: Container(
-                width: 280,
-                height: 280,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppTheme.pink.withOpacity(0.18 + p * 0.06),
-                      AppTheme.pink.withOpacity(0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Top-right purple orb
-            Positioned(
-              top: 60 + (math.cos(w * math.pi * 2) * 20),
-              right: -40,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppTheme.purple.withOpacity(0.14 + p * 0.05),
-                      AppTheme.purple.withOpacity(0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Mid subtle orb
-            Positioned(
-              top: 340,
-              left: 100,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppTheme.pinkDeep.withOpacity(0.07 + p * 0.03),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
+        final t = ctrl.value;
+        return Stack(children: [
+          Positioned(
+            top: -110 + math.sin(t * math.pi) * 28,
+            left: -70 + math.cos(t * math.pi * 0.7) * 18,
+            child: _Orb(320, AppTheme.pink, 0.10 + t * 0.04),
+          ),
+          Positioned(
+            top: 90 + math.cos(t * math.pi * 1.2) * 18,
+            right: -55,
+            child: _Orb(230, AppTheme.purple, 0.08 + t * 0.03),
+          ),
+          Positioned(
+            bottom: 220,
+            left: 30 + math.sin(t * math.pi * 1.6) * 14,
+            child: _Orb(170, AppTheme.pinkDeep, 0.055 + t * 0.02),
+          ),
+        ]);
       },
     );
   }
 }
 
-// ─── PREMIUM SEARCH HEADER ───────────────────────────────────
+class _Orb extends StatelessWidget {
+  final double size;
+  final Color color;
+  final double opacity;
+  const _Orb(this.size, this.color, this.opacity);
 
-class _PremiumSearchHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+            colors: [color.withOpacity(opacity), Colors.transparent]),
+      ),
+    );
+  }
+}
+
+// ─── SEARCH HEADER ────────────────────────────────────────────
+
+class _SearchHeader extends StatelessWidget {
   final TextEditingController ctrl;
   final FocusNode focus;
   final bool focused;
@@ -279,8 +253,9 @@ class _PremiumSearchHeader extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
+  final VoidCallback onCancel;
 
-  const _PremiumSearchHeader({
+  const _SearchHeader({
     required this.ctrl,
     required this.focus,
     required this.focused,
@@ -289,6 +264,7 @@ class _PremiumSearchHeader extends StatelessWidget {
     required this.onChanged,
     required this.onSubmit,
     required this.onClear,
+    required this.onCancel,
   });
 
   @override
@@ -296,24 +272,22 @@ class _PremiumSearchHeader extends StatelessWidget {
     final top = MediaQuery.of(context).padding.top;
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: EdgeInsets.fromLTRB(20, top + 12, 20, 16),
+          duration: const Duration(milliseconds: 240),
+          padding: EdgeInsets.fromLTRB(20, top + 10, 20, 14),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.black.withOpacity(scrolled ? 0.75 : 0.55),
-                Colors.black.withOpacity(0.0),
+                Colors.black.withOpacity(scrolled ? 0.70 : 0.48),
+                Colors.transparent,
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
             border: Border(
               bottom: BorderSide(
-                color: scrolled
-                    ? Colors.white.withOpacity(0.06)
-                    : Colors.transparent,
+                color: Colors.white.withOpacity(scrolled ? 0.07 : 0.0),
                 width: 0.5,
               ),
             ),
@@ -321,62 +295,61 @@ class _PremiumSearchHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header title
+              // Title
               AnimatedSize(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 280),
                 curve: Curves.easeOutCubic,
                 child: focused
                     ? const SizedBox.shrink()
                     : Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: Row(
-                          children: [
-                            // Animated sound wave icon
-                            _SoundWaveIcon(),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Discover',
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Row(children: [
+                          _WaveIcon(),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Search',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -1.2,
+                                  height: 1.0,
+                                ),
+                              ),
+                              ShaderMask(
+                                shaderCallback: (b) =>
+                                    AppTheme.primaryGradient.createShader(b),
+                                child: const Text(
+                                  'artists, songs & vibes',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -1.2,
-                                    height: 1.0,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.1,
                                   ),
                                 ),
-                                ShaderMask(
-                                  shaderCallback: (b) =>
-                                      AppTheme.primaryGradient.createShader(b),
-                                  child: const Text(
-                                    "music you'll love",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ).animate().fadeIn(duration: 350.ms).slideY(
-                              begin: -0.15,
+                              ),
+                            ],
+                          ),
+                        ])
+                            .animate()
+                            .fadeIn(duration: 300.ms)
+                            .slideY(
+                              begin: -0.1,
                               end: 0,
-                              duration: 350.ms,
+                              duration: 300.ms,
                               curve: Curves.easeOutCubic,
                             ),
                       ),
               ),
-
-              // Search bar
+              // Search bar row
               Row(
                 children: [
                   Expanded(
-                    child: _GlassSearchBar(
+                    child: _SearchBarWidget(
                       ctrl: ctrl,
                       focus: focus,
                       focused: focused,
@@ -387,42 +360,40 @@ class _PremiumSearchHeader extends StatelessWidget {
                     ),
                   ),
                   AnimatedSize(
-                    duration: const Duration(milliseconds: 250),
+                    duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutCubic,
                     child: focused
-                        ? Row(
-                            children: [
-                              const SizedBox(width: 12),
-                              GestureDetector(
-                                onTap: () {
-                                  FocusScope.of(context).unfocus();
-                                  if (query.isEmpty) onClear();
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.07),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: Colors.white.withOpacity(0.1)),
-                                  ),
-                                  child: Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      color: AppTheme.pink.withOpacity(0.9),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                        ? Row(children: [
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: onCancel,
+                              behavior: HitTestBehavior.opaque,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.07),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: Colors.white.withOpacity(0.1),
+                                      width: 0.8),
+                                ),
+                                child: Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    color: AppTheme.pink.withOpacity(0.9),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ).animate().fadeIn(duration: 200.ms).slideX(
-                                    begin: 0.3,
-                                    end: 0,
-                                    duration: 200.ms,
-                                  ),
-                            ],
-                          )
+                              ),
+                            ).animate().fadeIn(duration: 200.ms).slideX(
+                                  begin: 0.3,
+                                  end: 0,
+                                  duration: 200.ms,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                          ])
                         : const SizedBox.shrink(),
                   ),
                 ],
@@ -435,98 +406,87 @@ class _PremiumSearchHeader extends StatelessWidget {
   }
 }
 
-// ─── ANIMATED SOUND WAVE ICON ────────────────────────────────
+// ─── WAVE ICON ────────────────────────────────────────────────
 
-class _SoundWaveIcon extends StatefulWidget {
+class _WaveIcon extends StatefulWidget {
   @override
-  State<_SoundWaveIcon> createState() => _SoundWaveIconState();
+  State<_WaveIcon> createState() => _WaveIconState();
 }
 
-class _SoundWaveIconState extends State<_SoundWaveIcon>
+class _WaveIconState extends State<_WaveIcon>
     with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
+  late AnimationController _c;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: false);
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 860))
+      ..repeat();
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) {
-        return Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.pink.withOpacity(0.35),
-                blurRadius: 16,
-                spreadRadius: -4,
-              ),
-            ],
-          ),
-          child: CustomPaint(
-            painter: _WavePainter(_ctrl.value),
-          ),
-        );
-      },
+      animation: _c,
+      builder: (_, __) => Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.pink.withOpacity(0.38),
+              blurRadius: 18,
+              spreadRadius: -4,
+            ),
+          ],
+        ),
+        child: CustomPaint(painter: _BarsPainter(_c.value)),
+      ),
     );
   }
 }
 
-class _WavePainter extends CustomPainter {
+class _BarsPainter extends CustomPainter {
   final double t;
-  _WavePainter(this.t);
+  _BarsPainter(this.t);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final p = Paint()
       ..color = Colors.white
       ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2;
-
-    final bars = 5;
-    final barW = 2.2;
-    final gap = (size.width - bars * barW) / (bars + 1);
-    final heights = [0.3, 0.65, 1.0, 0.65, 0.3];
-
-    for (int i = 0; i < bars; i++) {
-      final phase = (t - i * 0.15) % 1.0;
+      ..strokeWidth = 2.4
+      ..style = PaintingStyle.stroke;
+    const n = 5;
+    const bw = 2.4;
+    final gap = (size.width - n * bw) / (n + 1);
+    const hs = [0.28, 0.62, 1.0, 0.62, 0.28];
+    for (int i = 0; i < n; i++) {
+      final phase = (t - i * 0.14) % 1.0;
       final wave = math.sin(phase * math.pi * 2);
-      final h = heights[i] * (0.4 + 0.6 * ((wave + 1) / 2)) * size.height * 0.65;
-      final x = gap + i * (barW + gap) + barW / 2;
+      final h = hs[i] * (0.38 + 0.62 * ((wave + 1) / 2)) * size.height * 0.62;
+      final x = gap + i * (bw + gap) + bw / 2;
       final cy = size.height / 2;
-      canvas.drawLine(
-        Offset(x, cy - h / 2),
-        Offset(x, cy + h / 2),
-        paint,
-      );
+      canvas.drawLine(Offset(x, cy - h / 2), Offset(x, cy + h / 2), p);
     }
   }
 
   @override
-  bool shouldRepaint(_WavePainter old) => old.t != t;
+  bool shouldRepaint(_BarsPainter o) => o.t != t;
 }
 
-// ─── GLASS SEARCH BAR ────────────────────────────────────────
+// ─── SEARCH BAR WIDGET ────────────────────────────────────────
 
-class _GlassSearchBar extends StatelessWidget {
+class _SearchBarWidget extends StatelessWidget {
   final TextEditingController ctrl;
   final FocusNode focus;
   final bool focused;
@@ -535,7 +495,7 @@ class _GlassSearchBar extends StatelessWidget {
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
 
-  const _GlassSearchBar({
+  const _SearchBarWidget({
     required this.ctrl,
     required this.focus,
     required this.focused,
@@ -554,31 +514,29 @@ class _GlassSearchBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: focused
-              ? AppTheme.pink.withOpacity(0.5)
-              : Colors.white.withOpacity(0.08),
+              ? AppTheme.pink.withOpacity(0.55)
+              : Colors.white.withOpacity(0.09),
           width: focused ? 1.5 : 1.0,
         ),
         boxShadow: focused
             ? [
                 BoxShadow(
-                  color: AppTheme.pink.withOpacity(0.15),
-                  blurRadius: 24,
-                  spreadRadius: -4,
-                ),
+                    color: AppTheme.pink.withOpacity(0.18),
+                    blurRadius: 28,
+                    spreadRadius: -6),
                 BoxShadow(
-                  color: AppTheme.purple.withOpacity(0.1),
-                  blurRadius: 32,
-                  spreadRadius: -8,
-                ),
+                    color: AppTheme.purple.withOpacity(0.12),
+                    blurRadius: 36,
+                    spreadRadius: -10),
               ]
             : [],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
-            color: Colors.white.withOpacity(focused ? 0.09 : 0.06),
+            color: Colors.white.withOpacity(focused ? 0.10 : 0.06),
             child: TextField(
               controller: ctrl,
               focusNode: focus,
@@ -586,59 +544,54 @@ class _GlassSearchBar extends StatelessWidget {
               onSubmitted: onSubmit,
               textInputAction: TextInputAction.search,
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.1,
-              ),
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500),
               cursorColor: AppTheme.pink,
               cursorRadius: const Radius.circular(2),
               decoration: InputDecoration(
                 hintText: 'Songs, artists, albums, moods…',
                 hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.28),
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w400,
-                ),
-                prefixIcon: AnimatedContainer(
-                  duration: const Duration(milliseconds: 280),
-                  padding: const EdgeInsets.all(14),
+                    color: Colors.white.withOpacity(0.28),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w400),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.all(13),
                   child: ShaderMask(
                     shaderCallback: (b) => (focused
                             ? AppTheme.primaryGradient
                             : LinearGradient(colors: [
-                                Colors.white.withOpacity(0.3),
-                                Colors.white.withOpacity(0.3),
+                                Colors.white.withOpacity(0.32),
+                                Colors.white.withOpacity(0.32),
                               ]))
                         .createShader(b),
                     child: const Icon(Icons.search_rounded,
-                        color: Colors.white, size: 20),
+                        color: Colors.white, size: 21),
                   ),
                 ),
                 suffixIcon: query.isNotEmpty
                     ? GestureDetector(
                         onTap: onClear,
-                        child: Container(
-                          margin: const EdgeInsets.all(10),
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.close_rounded,
-                            color: Colors.white.withOpacity(0.6),
-                            size: 14,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.14),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.close_rounded,
+                                color: Colors.white.withOpacity(0.7),
+                                size: 13),
                           ),
                         ),
                       )
                     : null,
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 15,
-                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 15),
               ),
             ),
           ),
@@ -648,21 +601,19 @@ class _GlassSearchBar extends StatelessWidget {
   }
 }
 
-// ─── PREMIUM FILTER CHIPS ─────────────────────────────────────
+// ─── FILTER ROW ───────────────────────────────────────────────
 
-class _PremiumFilterChips extends StatelessWidget {
+class _FilterRow extends StatelessWidget {
   final String selected;
   final ValueChanged<String> onSelect;
-
-  const _PremiumFilterChips(
-      {required this.selected, required this.onSelect});
+  const _FilterRow({required this.selected, required this.onSelect});
 
   static const _filters = ['All', 'Songs', 'Artists', 'Albums'];
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: 50,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
@@ -674,11 +625,12 @@ class _PremiumFilterChips extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () => onSelect(f),
+              behavior: HitTestBehavior.opaque,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
+                duration: const Duration(milliseconds: 230),
                 curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 18, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                 decoration: BoxDecoration(
                   gradient: sel ? AppTheme.primaryGradient : null,
                   color: sel ? null : Colors.white.withOpacity(0.06),
@@ -686,29 +638,26 @@ class _PremiumFilterChips extends StatelessWidget {
                   border: Border.all(
                     color: sel
                         ? Colors.transparent
-                        : Colors.white.withOpacity(0.1),
-                    width: 1,
+                        : Colors.white.withOpacity(0.10),
+                    width: 0.8,
                   ),
                   boxShadow: sel
                       ? [
                           BoxShadow(
-                            color: AppTheme.pink.withOpacity(0.3),
-                            blurRadius: 12,
-                            spreadRadius: -3,
-                          )
+                              color: AppTheme.pink.withOpacity(0.32),
+                              blurRadius: 14,
+                              spreadRadius: -4)
                         ]
                       : [],
                 ),
                 child: Text(
                   f,
                   style: TextStyle(
-                    color: sel
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.5),
+                    color:
+                        sel ? Colors.white : Colors.white.withOpacity(0.50),
                     fontSize: 13,
-                    fontWeight:
-                        sel ? FontWeight.w700 : FontWeight.w500,
-                    letterSpacing: sel ? 0.3 : 0,
+                    fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                    letterSpacing: sel ? 0.2 : 0,
                   ),
                 ),
               ),
@@ -716,13 +665,13 @@ class _PremiumFilterChips extends StatelessWidget {
           );
         },
       ),
-    ).animate().fadeIn(duration: 250.ms);
+    ).animate().fadeIn(duration: 220.ms);
   }
 }
 
-// ─── PREMIUM EMPTY STATE ─────────────────────────────────────
+// ─── BROWSE BODY ──────────────────────────────────────────────
 
-class _PremiumEmptyState extends StatefulWidget {
+class _BrowseBody extends StatefulWidget {
   final List<String> recents;
   final ScrollController scrollController;
   final ValueChanged<String> onRecentTap;
@@ -730,7 +679,7 @@ class _PremiumEmptyState extends StatefulWidget {
   final VoidCallback onClearAll;
   final ValueChanged<String> onCategoryTap;
 
-  const _PremiumEmptyState({
+  const _BrowseBody({
     required this.recents,
     required this.scrollController,
     required this.onRecentTap,
@@ -740,28 +689,40 @@ class _PremiumEmptyState extends StatefulWidget {
   });
 
   @override
-  State<_PremiumEmptyState> createState() => _PremiumEmptyStateState();
+  State<_BrowseBody> createState() => _BrowseBodyState();
 }
 
-class _PremiumEmptyStateState extends State<_PremiumEmptyState> {
-  bool _showAllRecents = false;
+class _BrowseBodyState extends State<_BrowseBody> {
+  static const _collapsedMax = 5;
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(_BrowseBody old) {
+    super.didUpdateWidget(old);
+    // Auto-collapse if recents drop to 5 or fewer
+    if (widget.recents.length <= _collapsedMax && _expanded) {
+      _expanded = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final displayedRecents = _showAllRecents
-        ? widget.recents
-        : widget.recents.take(5).toList();
+    final recents = widget.recents;
+    final hasMore = recents.length > _collapsedMax;
+    final hidden = recents.length - _collapsedMax;
+    final visible = _expanded
+        ? recents
+        : recents.take(_collapsedMax).toList();
 
     return ListView(
       controller: widget.scrollController,
       padding: EdgeInsets.zero,
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       physics: const BouncingScrollPhysics(),
       children: [
-        // Recent searches
-        if (widget.recents.isNotEmpty) ...[
+        // ── Recent Searches ───────────────────────────────
+        if (recents.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -779,103 +740,135 @@ class _PremiumEmptyStateState extends State<_PremiumEmptyState> {
                     'Recent',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 17,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
+                      letterSpacing: -0.4,
                     ),
                   ),
                 ]),
                 GestureDetector(
                   onTap: widget.onClearAll,
+                  behavior: HitTestBehavior.opaque,
                   child: Text(
                     'Clear all',
                     style: TextStyle(
                       color: AppTheme.pink.withOpacity(0.8),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          ...displayedRecents.asMap().entries.map((e) => _PremiumRecentTile(
-                query: e.value,
-                onTap: () => widget.onRecentTap(e.value),
-                onRemove: () => widget.onRecentRemove(e.value),
-              ).animate().fadeIn(
-                    delay: Duration(milliseconds: e.key * 40),
-                    duration: 300.ms,
-                  ).slideX(
-                    begin: -0.04,
-                    end: 0,
-                    delay: Duration(milliseconds: e.key * 40),
-                    duration: 300.ms,
-                    curve: Curves.easeOutCubic,
-                  )),
-          
-          if (widget.recents.length > 5)
+
+          // Visible tiles (max 5 when collapsed)
+          ...visible.asMap().entries.map(
+            (e) => _RecentTile(
+              query: e.value,
+              onTap: () => widget.onRecentTap(e.value),
+              onRemove: () => widget.onRecentRemove(e.value),
+            )
+                .animate()
+                .fadeIn(
+                    delay: Duration(milliseconds: e.key * 35),
+                    duration: 280.ms)
+                .slideX(
+                  begin: -0.04,
+                  end: 0,
+                  delay: Duration(milliseconds: e.key * 35),
+                  duration: 280.ms,
+                  curve: Curves.easeOutCubic,
+                ),
+          ),
+
+          // ── See more / Show less button ─────────────────
+          if (hasMore)
             GestureDetector(
-              onTap: () => setState(() => _showAllRecents = !_showAllRecents),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _expanded = !_expanded);
+              },
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppTheme.pink.withOpacity(0.2),
+                    width: 0.8,
+                  ),
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      _showAllRecents ? 'Show less' : 'See more',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    ShaderMask(
+                      shaderCallback: (b) =>
+                          AppTheme.primaryGradient.createShader(b),
+                      child: Icon(
+                        _expanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white,
+                        size: 18,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      _showAllRecents
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white.withOpacity(0.6),
-                      size: 16,
+                    const SizedBox(width: 6),
+                    ShaderMask(
+                      shaderCallback: (b) =>
+                          AppTheme.primaryGradient.createShader(b),
+                      child: Text(
+                        _expanded
+                            ? 'Show less'
+                            : 'See $hidden more',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
+            ).animate().fadeIn(duration: 220.ms),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Divider(
-            color: Colors.white.withOpacity(0.05),
-            indent: 20,
-            endIndent: 20,
-          ),
+              color: Colors.white.withOpacity(0.05),
+              indent: 20,
+              endIndent: 20),
         ],
 
-        // Browse section
-        _PremiumBrowseSection(onTap: widget.onCategoryTap),
-        const SizedBox(height: 160),
+        // ── Browse categories ─────────────────────────────
+        _BrowseGrid(onTap: widget.onCategoryTap),
+
+        const SizedBox(height: 180),
       ],
     );
   }
 }
 
-class _PremiumRecentTile extends StatefulWidget {
+// ─── RECENT TILE ──────────────────────────────────────────────
+
+class _RecentTile extends StatefulWidget {
   final String query;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
-  const _PremiumRecentTile({
-    required this.query,
-    required this.onTap,
-    required this.onRemove,
-  });
+  const _RecentTile(
+      {required this.query, required this.onTap, required this.onRemove});
 
   @override
-  State<_PremiumRecentTile> createState() => _PremiumRecentTileState();
+  State<_RecentTile> createState() => _RecentTileState();
 }
 
-class _PremiumRecentTileState extends State<_PremiumRecentTile> {
+class _RecentTileState extends State<_RecentTile> {
   bool _pressed = false;
 
   @override
@@ -885,142 +878,164 @@ class _PremiumRecentTileState extends State<_PremiumRecentTile> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
+      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+        duration: const Duration(milliseconds: 110),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: _pressed
-              ? Colors.white.withOpacity(0.08)
+              ? Colors.white.withOpacity(0.09)
               : Colors.white.withOpacity(0.03),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(_pressed ? 0.1 : 0.04),
+            color: Colors.white.withOpacity(_pressed ? 0.12 : 0.05),
+            width: 0.8,
           ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withOpacity(0.07)),
-              ),
-              child: Icon(
-                Icons.history_rounded,
-                color: Colors.white.withOpacity(0.35),
-                size: 16,
+        child: Row(children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.08), width: 0.5),
+            ),
+            child: Icon(Icons.history_rounded,
+                color: Colors.white.withOpacity(0.35), size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.query,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.85),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.query,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.85),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+          ),
+          GestureDetector(
+            onTap: widget.onRemove,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.north_west_rounded,
+                  color: Colors.white.withOpacity(0.22), size: 14),
             ),
-            GestureDetector(
-              onTap: widget.onRemove,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Icon(
-                  Icons.north_west_rounded,
-                  color: Colors.white.withOpacity(0.25),
-                  size: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
 }
 
-// ─── PREMIUM BROWSE SECTION ───────────────────────────────────
+// ─── BROWSE GRID ──────────────────────────────────────────────
 
-class _PremiumBrowseSection extends StatelessWidget {
+class _BrowseGrid extends StatelessWidget {
   final ValueChanged<String> onTap;
-  const _PremiumBrowseSection({required this.onTap});
+  const _BrowseGrid({required this.onTap});
 
+  // Real Unsplash images — each matched to the genre's mood
   static const _cats = [
-    {
-      'label': 'Bollywood',
-      'sub': 'Hindi Films',
-      'icon': Icons.movie_creation_outlined,
-      'c1': Color(0xFFFF6B6B),
-      'c2': Color(0xFFFF8E53),
-    },
-    {
-      'label': 'Punjabi',
-      'sub': 'Desi Beats',
-      'icon': Icons.graphic_eq_rounded,
-      'c1': Color(0xFF9B59B6),
-      'c2': Color(0xFF6C3483),
-    },
-    {
-      'label': 'Romance',
-      'sub': 'Love Songs',
-      'icon': Icons.favorite_rounded,
-      'c1': Color(0xFFE91E8C),
-      'c2': Color(0xFFFF6B9D),
-    },
-    {
-      'label': 'Party',
-      'sub': 'Turn Up',
-      'icon': Icons.celebration_rounded,
-      'c1': Color(0xFF667EEA),
-      'c2': Color(0xFF764BA2),
-    },
-    {
-      'label': 'Devotional',
-      'sub': 'Spiritual',
-      'icon': Icons.self_improvement_rounded,
-      'c1': Color(0xFFF7971E),
-      'c2': Color(0xFFFFD200),
-    },
-    {
-      'label': 'Indie',
-      'sub': 'Alternative',
-      'icon': Icons.music_note_rounded,
-      'c1': Color(0xFF11998E),
-      'c2': Color(0xFF38EF7D),
-    },
-    {
-      'label': 'Hip Hop',
-      'sub': 'Urban',
-      'icon': Icons.mic_rounded,
-      'c1': Color(0xFF1A1A2E),
-      'c2': Color(0xFF16213E),
-    },
-    {
-      'label': 'Classical',
-      'sub': 'Timeless',
-      'icon': Icons.piano_rounded,
-      'c1': Color(0xFFC9A96E),
-      'c2': Color(0xFF8B6914),
-    },
-    {
-      'label': 'Chill',
-      'sub': 'Lo-fi Vibes',
-      'icon': Icons.waves_rounded,
-      'c1': Color(0xFF2193B0),
-      'c2': Color(0xFF6DD5FA),
-    },
-    {
-      'label': 'Workout',
-      'sub': 'High Energy',
-      'icon': Icons.fitness_center_rounded,
-      'c1': Color(0xFFFF416C),
-      'c2': Color(0xFFFF4B2B),
-    },
+    _Cat(
+      label: 'Bollywood',
+      sub: 'Hindi Films',
+      query: 'bollywood hindi songs 2025',
+      image: 'https://images.unsplash.com/photo-1626379953822-baec19c3accd?w=600&q=80',
+      c1: Color(0xFFFF6B6B),
+      c2: Color(0xFFFF8E53),
+    ),
+    _Cat(
+      label: 'Punjabi',
+      sub: 'Desi Beats',
+      query: 'punjabi hits 2025',
+      image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+      c1: Color(0xFF9B59B6),
+      c2: Color(0xFF6C3483),
+    ),
+    _Cat(
+      label: 'Romance',
+      sub: 'Love Songs',
+      query: 'romantic love songs hindi',
+      image: 'https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?w=600&q=80',
+      c1: Color(0xFFE91E8C),
+      c2: Color(0xFFFF6B9D),
+    ),
+    _Cat(
+      label: 'Party',
+      sub: 'Turn It Up',
+      query: 'party dance hindi songs',
+      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80',
+      c1: Color(0xFF667EEA),
+      c2: Color(0xFF764BA2),
+    ),
+    _Cat(
+      label: 'Devotional',
+      sub: 'Spiritual',
+      query: 'best bhajan devotional hindi',
+      image: 'https://images.unsplash.com/photo-1602526429747-ac387a91d43b?w=600&q=80',
+      c1: Color(0xFFF7971E),
+      c2: Color(0xFFFFD200),
+    ),
+    _Cat(
+      label: 'Indie',
+      sub: 'Underground Gems',
+      query: 'indie hindi independent artists',
+      image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+      c1: Color(0xFF11998E),
+      c2: Color(0xFF38EF7D),
+    ),
+    _Cat(
+      label: 'Hip Hop',
+      sub: 'Urban Vibes',
+      query: 'hindi hip hop rap songs',
+      image: 'https://images.unsplash.com/photo-1571609803939-54d71e14cae5?w=600&q=80',
+      c1: Color(0xFF1A1A2E),
+      c2: Color(0xFF16213E),
+    ),
+    _Cat(
+      label: 'Classical',
+      sub: 'Timeless',
+      query: 'indian classical music ragas',
+      image: 'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=600&q=80',
+      c1: Color(0xFFC9A96E),
+      c2: Color(0xFF8B6914),
+    ),
+    _Cat(
+      label: 'Chill',
+      sub: 'Lo-fi Vibes',
+      query: 'chill lofi hindi songs',
+      image: 'https://images.unsplash.com/photo-1516912481808-3406841bd33c?w=600&q=80',
+      c1: Color(0xFF2193B0),
+      c2: Color(0xFF6DD5FA),
+    ),
+    _Cat(
+      label: 'Workout',
+      sub: 'Beast Mode',
+      query: 'workout gym motivation hindi songs',
+      image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80',
+      c1: Color(0xFFFF416C),
+      c2: Color(0xFFFF4B2B),
+    ),
+    _Cat(
+      label: 'Sad Songs',
+      sub: 'Feel It All',
+      query: 'sad heartbreak hindi songs',
+      image: 'https://images.unsplash.com/photo-1498931299472-f7a63a5a1cfa?w=600&q=80',
+      c1: Color(0xFF373B44),
+      c2: Color(0xFF4286f4),
+    ),
+    _Cat(
+      label: 'Throwback',
+      sub: '90s & 2000s',
+      query: 'hindi classic 90s 2000s bollywood',
+      image: 'https://images.unsplash.com/photo-1471478331149-c72f17e33c73?w=600&q=80',
+      c1: Color(0xFFFFC371),
+      c2: Color(0xFFFF5F6D),
+    ),
   ];
 
   @override
@@ -1029,39 +1044,37 @@ class _PremiumBrowseSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 16,
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+          child: Row(children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(width: 10),
-              const Text(
-                'Browse',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Browse',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
               ),
-              const SizedBox(width: 6),
-              Text(
-                'all genres',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.35),
-                  fontSize: 17,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: -0.3,
-                ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'all genres',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.32),
+                fontSize: 18,
+                fontWeight: FontWeight.w400,
+                letterSpacing: -0.4,
               ),
-            ],
-          ),
+            ),
+          ]),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1071,29 +1084,16 @@ class _PremiumBrowseSection extends StatelessWidget {
             gridDelegate:
                 const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 1.75,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.55,
             ),
             itemCount: _cats.length,
-            itemBuilder: (_, i) {
-              final cat = _cats[i];
-              final c1 = cat['c1'] as Color;
-              final c2 = cat['c2'] as Color;
-              final icon = cat['icon'] as IconData;
-              return _GenreCard(
-                label: cat['label'] as String,
-                sub: cat['sub'] as String,
-                icon: icon,
-                c1: c1,
-                c2: c2,
-                delay: i * 40,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onTap('${cat['label']} hindi songs');
-                },
-              );
-            },
+            itemBuilder: (_, i) => _CategoryCard(
+              cat: _cats[i],
+              delay: i * 45,
+              onTap: () => onTap(_cats[i].query),
+            ),
           ),
         ),
       ],
@@ -1101,147 +1101,184 @@ class _PremiumBrowseSection extends StatelessWidget {
   }
 }
 
-class _GenreCard extends StatefulWidget {
+// ─── CATEGORY MODEL ───────────────────────────────────────────
+
+class _Cat {
   final String label;
   final String sub;
-  final IconData icon;
+  final String query;
+  final String image;
   final Color c1;
   final Color c2;
+
+  const _Cat({
+    required this.label,
+    required this.sub,
+    required this.query,
+    required this.image,
+    required this.c1,
+    required this.c2,
+  });
+}
+
+// ─── CATEGORY CARD with real background image ─────────────────
+
+class _CategoryCard extends StatefulWidget {
+  final _Cat cat;
   final int delay;
   final VoidCallback onTap;
 
-  const _GenreCard({
-    required this.label,
-    required this.sub,
-    required this.icon,
-    required this.c1,
-    required this.c2,
-    required this.delay,
-    required this.onTap,
-  });
+  const _CategoryCard(
+      {required this.cat, required this.delay, required this.onTap});
 
   @override
-  State<_GenreCard> createState() => _GenreCardState();
+  State<_CategoryCard> createState() => _CategoryCardState();
 }
 
-class _GenreCardState extends State<_GenreCard> {
+class _CategoryCardState extends State<_CategoryCard> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
+      behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
-        scale: _pressed ? 0.95 : 1.0,
+        scale: _pressed ? 0.94 : 1.0,
         duration: const Duration(milliseconds: 130),
         curve: Curves.easeOutCubic,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [widget.c1, widget.c2],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Large bg icon
-                Positioned(
-                  right: -12,
-                  bottom: -16,
-                  child: Icon(
-                    widget.icon,
-                    size: 68,
-                    color: Colors.black.withOpacity(0.15),
-                  ),
-                ),
-                // Noise overlay
-                Container(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ── Real background image ─────────────────────
+              CachedNetworkImage(
+                imageUrl: widget.cat.image,
+                fit: BoxFit.cover,
+                // Fallback gradient if image fails to load
+                errorWidget: (_, __, ___) => Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.08),
-                        Colors.transparent,
-                      ],
+                      colors: [widget.cat.c1, widget.cat.c2],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              ),
+
+              // ── Cinematic colour-tinted overlay ──────────
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      widget.cat.c1.withOpacity(0.52),
+                      widget.cat.c2.withOpacity(0.38),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+
+              // ── Bottom scrim — ensures text always readable
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 72,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.75),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Text labels ───────────────────────────────
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
+                      Text(
+                        widget.cat.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                          height: 1.1,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 10)
+                          ],
                         ),
-                        child: Icon(widget.icon,
-                            color: Colors.white, size: 16),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.label,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.2,
-                              height: 1.0,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.sub,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.65),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.cat.sub,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.68),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          shadows: const [
+                            Shadow(color: Colors.black45, blurRadius: 6)
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // ── Press ripple ──────────────────────────────
+              if (_pressed)
+                Container(color: Colors.white.withOpacity(0.07)),
+            ],
           ),
         ),
       ),
     )
         .animate()
         .fadeIn(
-            delay: Duration(milliseconds: widget.delay), duration: 350.ms)
+            delay: Duration(milliseconds: widget.delay),
+            duration: 380.ms)
         .scale(
-          begin: const Offset(0.9, 0.9),
+          begin: const Offset(0.88, 0.88),
           delay: Duration(milliseconds: widget.delay),
-          duration: 350.ms,
+          duration: 380.ms,
           curve: Curves.easeOutBack,
         );
   }
 }
 
-// ─── PREMIUM RESULTS BODY ─────────────────────────────────────
+// ─── RESULTS BODY ─────────────────────────────────────────────
 
-class _PremiumResultsBody extends ConsumerWidget {
+class _ResultsBody extends ConsumerWidget {
   final AsyncValue<List<Song>> results;
   final String filter;
   final String query;
   final ScrollController scrollController;
 
-  const _PremiumResultsBody({
+  const _ResultsBody({
     required this.results,
     required this.filter,
     required this.query,
@@ -1251,80 +1288,79 @@ class _PremiumResultsBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return results.when(
-      loading: () => _buildShimmer(),
+      loading: _buildShimmer,
       error: (e, _) => Center(
-        child: Text('Error: $e',
-            style: const TextStyle(color: Colors.red))),
+          child: Text('Error: $e',
+              style: const TextStyle(color: Colors.redAccent))),
       data: (songs) {
-        if (songs.isEmpty) return _PremiumNoResults(query: query);
-        final display = songs;
+        if (songs.isEmpty) return _EmptyResults(query: query);
+
         return CustomScrollView(
           controller: scrollController,
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // Result count pill
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.08)),
-                      ),
-                      child: Text(
-                        '${display.length} results',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.45),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3,
-                        ),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.09),
+                          width: 0.8),
+                    ),
+                    child: Text(
+                      '${songs.length} results',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.42),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
                       'for "$query"',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withOpacity(0.28),
                         fontSize: 12,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 300.ms),
+                  ),
+                ]),
+              ).animate().fadeIn(duration: 280.ms),
             ),
 
-            // Top Result
-            if (display.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _PremiumTopResult(
-                  song: display.first,
-                  onTap: () => playQueue(ref, display, 0,
-                      meta: const QueueMeta(
-                          context: QueueContext.general)),
-                ).animate().fadeIn(duration: 400.ms).slideY(
-                      begin: 0.06,
+            SliverToBoxAdapter(
+              child: _TopResultCard(
+                song: songs.first,
+                onTap: () => playQueue(ref, songs, 0,
+                    meta: const QueueMeta(context: QueueContext.general)),
+              )
+                  .animate()
+                  .fadeIn(duration: 380.ms)
+                  .slideY(
+                      begin: 0.05,
                       end: 0,
-                      duration: 400.ms,
-                      curve: Curves.easeOutCubic,
-                    ),
-              ),
+                      duration: 380.ms,
+                      curve: Curves.easeOutCubic),
+            ),
 
-            // Section header for rest
-            if (display.length > 1)
+            if (songs.length > 1)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
                   child: Row(children: [
                     Container(
                       width: 3,
-                      height: 14,
+                      height: 13,
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(2),
@@ -1334,47 +1370,46 @@ class _PremiumResultsBody extends ConsumerWidget {
                     Text(
                       'Songs',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withOpacity(0.88),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.2,
                       ),
                     ),
                   ]),
-                ).animate().fadeIn(duration: 300.ms),
+                ).animate().fadeIn(duration: 280.ms),
               ),
 
-            // Song list
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (ctx, i) {
-                  final song = display[i + 1];
-                  return _PremiumResultTile(
+                  final song = songs[i + 1];
+                  return _SongResultTile(
                     song: song,
                     index: i + 1,
-                    onTap: () => playQueue(ref, display, i + 1,
+                    onTap: () => playQueue(ref, songs, i + 1,
                         meta: const QueueMeta(
                             context: QueueContext.general)),
                     onMore: () =>
-                        _showOptions(ctx, ref, song, display, i + 1),
-                  ).animate().fadeIn(
-                        delay: Duration(milliseconds: i * 25),
-                        duration: 280.ms,
-                      ).slideX(
+                        _showOptions(ctx, ref, song, songs, i + 1),
+                  )
+                      .animate()
+                      .fadeIn(
+                          delay: Duration(milliseconds: i * 22),
+                          duration: 260.ms)
+                      .slideX(
                         begin: 0.03,
                         end: 0,
-                        delay: Duration(milliseconds: i * 25),
-                        duration: 280.ms,
+                        delay: Duration(milliseconds: i * 22),
+                        duration: 260.ms,
                         curve: Curves.easeOutCubic,
                       );
                 },
-                childCount:
-                    display.length > 1 ? display.length - 1 : 0,
+                childCount: songs.length > 1 ? songs.length - 1 : 0,
               ),
             ),
 
-            const SliverToBoxAdapter(
-                child: SizedBox(height: 160)),
+            const SliverToBoxAdapter(child: SizedBox(height: 180)),
           ],
         );
       },
@@ -1386,7 +1421,7 @@ class _PremiumResultsBody extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
       itemCount: 8,
       itemBuilder: (_, i) => Container(
-        height: 68,
+        height: 70,
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.04),
@@ -1395,37 +1430,36 @@ class _PremiumResultsBody extends ConsumerWidget {
       )
           .animate(onPlay: (c) => c.repeat())
           .shimmer(
-            duration: 1400.ms,
-            color: Colors.white.withOpacity(0.045),
-          ),
+              duration: 1400.ms,
+              color: Colors.white.withOpacity(0.045)),
     );
   }
 
-  void _showOptions(BuildContext context, WidgetRef ref, Song song,
+  void _showOptions(BuildContext ctx, WidgetRef ref, Song song,
       List<Song> playlist, int index) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet(
-      context: context,
+      context: ctx,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _PremiumSongOptionsSheet(
+      builder: (_) => _SongOptionsSheet(
           song: song, ref: ref, playlist: playlist, index: index),
     );
   }
 }
 
-// ─── PREMIUM TOP RESULT ───────────────────────────────────────
+// ─── TOP RESULT CARD ──────────────────────────────────────────
 
-class _PremiumTopResult extends StatefulWidget {
+class _TopResultCard extends StatefulWidget {
   final Song song;
   final VoidCallback onTap;
-  const _PremiumTopResult({required this.song, required this.onTap});
+  const _TopResultCard({required this.song, required this.onTap});
 
   @override
-  State<_PremiumTopResult> createState() => _PremiumTopResultState();
+  State<_TopResultCard> createState() => _TopResultCardState();
 }
 
-class _PremiumTopResultState extends State<_PremiumTopResult> {
+class _TopResultCardState extends State<_TopResultCard> {
   bool _pressed = false;
 
   @override
@@ -1440,7 +1474,7 @@ class _PremiumTopResultState extends State<_PremiumTopResult> {
             child: Row(children: [
               Container(
                 width: 3,
-                height: 14,
+                height: 13,
                 decoration: BoxDecoration(
                   gradient: AppTheme.primaryGradient,
                   borderRadius: BorderRadius.circular(2),
@@ -1453,7 +1487,7 @@ class _PremiumTopResultState extends State<_PremiumTopResult> {
                 child: const Icon(Icons.auto_awesome_rounded,
                     color: Colors.white, size: 14),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               const Text(
                 'Top Result',
                 style: TextStyle(
@@ -1470,6 +1504,7 @@ class _PremiumTopResultState extends State<_PremiumTopResult> {
             onTapDown: (_) => setState(() => _pressed = true),
             onTapUp: (_) => setState(() => _pressed = false),
             onTapCancel: () => setState(() => _pressed = false),
+            behavior: HitTestBehavior.opaque,
             child: AnimatedScale(
               scale: _pressed ? 0.975 : 1.0,
               duration: const Duration(milliseconds: 130),
@@ -1480,124 +1515,107 @@ class _PremiumTopResultState extends State<_PremiumTopResult> {
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [
-                        Colors.white.withOpacity(0.09),
+                        Colors.white.withOpacity(0.10),
                         Colors.white.withOpacity(0.04),
                       ]),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
-                          color: Colors.white.withOpacity(0.09)),
+                          color: Colors.white.withOpacity(0.10),
+                          width: 0.8),
                     ),
-                    child: Row(
-                      children: [
-                        // Large album art
-                        ClipRRect(
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(22),
-                            bottomLeft: Radius.circular(22),
-                          ),
-                          child: CachedNetworkImage(
-                            imageUrl: widget.song.image,
-                            width: 110,
-                            height: 110,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
-                              width: 110,
-                              height: 110,
-                              color: AppTheme.bgTertiary,
-                              child: const Icon(Icons.music_note,
-                                  color: AppTheme.pink, size: 36),
-                            ),
+                    child: Row(children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(22),
+                          bottomLeft: Radius.circular(22),
+                        ),
+                        child: CachedNetworkImage(
+                          imageUrl: widget.song.image,
+                          width: 118,
+                          height: 118,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(
+                            width: 118,
+                            height: 118,
+                            color: AppTheme.bgTertiary,
+                            child: const Icon(Icons.music_note,
+                                color: AppTheme.pink, size: 38),
                           ),
                         ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.pink
-                                        .withOpacity(0.15),
-                                    borderRadius:
-                                        BorderRadius.circular(6),
-                                    border: Border.all(
-                                        color: AppTheme.pink
-                                            .withOpacity(0.25)),
-                                  ),
-                                  child: Text(
-                                    'SONG',
-                                    style: TextStyle(
-                                      color: AppTheme.pink
-                                          .withOpacity(0.9),
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.pink.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                      color: AppTheme.pink.withOpacity(0.28),
+                                      width: 0.7),
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  widget.song.title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.4,
-                                    height: 1.2,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.song.artist,
+                                child: Text(
+                                  'SONG',
                                   style: TextStyle(
-                                    color:
-                                        Colors.white.withOpacity(0.45),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.pink.withOpacity(0.9),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.4,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 12),
-                                Row(children: [
-                                  // Play button
-                                  Container(
-                                    width: 38,
-                                    height: 38,
-                                    decoration: BoxDecoration(
-                                      gradient:
-                                          AppTheme.primaryGradient,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppTheme.pink
-                                              .withOpacity(0.4),
-                                          blurRadius: 14,
-                                          spreadRadius: -3,
-                                        ),
-                                      ],
+                              ),
+                              const SizedBox(height: 9),
+                              Text(
+                                widget.song.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                  height: 1.2,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.song.artist,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.45),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 14),
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  gradient: AppTheme.primaryGradient,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.pink.withOpacity(0.4),
+                                      blurRadius: 16,
+                                      spreadRadius: -4,
                                     ),
-                                    child: const Icon(
-                                      Icons.play_arrow_rounded,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
-                                  ),
-                                ]),
-                              ],
-                            ),
+                                  ],
+                                ),
+                                child: const Icon(Icons.play_arrow_rounded,
+                                    color: Colors.white, size: 24),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ]),
                   ),
                 ),
               ),
@@ -1609,15 +1627,15 @@ class _PremiumTopResultState extends State<_PremiumTopResult> {
   }
 }
 
-// ─── PREMIUM RESULT TILE ─────────────────────────────────────
+// ─── SONG RESULT TILE ─────────────────────────────────────────
 
-class _PremiumResultTile extends StatefulWidget {
+class _SongResultTile extends StatefulWidget {
   final Song song;
   final int index;
   final VoidCallback onTap;
   final VoidCallback onMore;
 
-  const _PremiumResultTile({
+  const _SongResultTile({
     required this.song,
     required this.index,
     required this.onTap,
@@ -1625,11 +1643,16 @@ class _PremiumResultTile extends StatefulWidget {
   });
 
   @override
-  State<_PremiumResultTile> createState() => _PremiumResultTileState();
+  State<_SongResultTile> createState() => _SongResultTileState();
 }
 
-class _PremiumResultTileState extends State<_PremiumResultTile> {
+class _SongResultTileState extends State<_SongResultTile> {
   bool _pressed = false;
+
+  String _fmt(int s) {
+    if (s <= 0) return '';
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1638,123 +1661,106 @@ class _PremiumResultTileState extends State<_PremiumResultTile> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
+      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+        duration: const Duration(milliseconds: 110),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: _pressed
-              ? Colors.white.withOpacity(0.07)
+              ? Colors.white.withOpacity(0.08)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Row(
-          children: [
-            // Thumbnail with play overlay on press
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: widget.song.image,
-                    width: 54,
-                    height: 54,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 54,
-                      height: 54,
-                      color: AppTheme.bgTertiary,
-                      child: const Icon(Icons.music_note,
-                          color: AppTheme.pink, size: 22),
-                    ),
-                  ),
+        child: Row(children: [
+          Stack(alignment: Alignment.center, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: widget.song.image,
+                width: 54,
+                height: 54,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(
+                  width: 54,
+                  height: 54,
+                  color: AppTheme.bgTertiary,
+                  child: const Icon(Icons.music_note,
+                      color: AppTheme.pink, size: 22),
                 ),
-                if (_pressed)
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.45),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.play_arrow_rounded,
-                        color: Colors.white, size: 22),
+              ),
+            ),
+            if (_pressed)
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.42),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.play_arrow_rounded,
+                    color: Colors.white, size: 22),
+              ),
+          ]),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.song.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.1,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  widget.song.artist,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.40),
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
-            const SizedBox(width: 13),
-            // Song info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.song.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.1,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    widget.song.artist,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+          ),
+          Text(
+            _fmt(int.tryParse(widget.song.duration) ?? 0),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.24),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
-            // Duration
-            Text(
-              _fmt(int.tryParse(widget.song.duration) ?? 0),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.25),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: widget.onMore,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+              child: Icon(Icons.more_vert_rounded,
+                  color: Colors.white.withOpacity(0.28), size: 18),
             ),
-            const SizedBox(width: 2),
-            // More button
-            GestureDetector(
-              onTap: widget.onMore,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-                child: Icon(
-                  Icons.more_vert_rounded,
-                  color: Colors.white.withOpacity(0.3),
-                  size: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
-
-  String _fmt(int s) {
-    if (s <= 0) return '';
-    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
-  }
 }
 
-// ─── PREMIUM NO RESULTS ───────────────────────────────────────
+// ─── EMPTY RESULTS ────────────────────────────────────────────
 
-class _PremiumNoResults extends StatelessWidget {
+class _EmptyResults extends StatelessWidget {
   final String query;
-  const _PremiumNoResults({required this.query});
+  const _EmptyResults({required this.query});
 
   @override
   Widget build(BuildContext context) {
@@ -1771,19 +1777,16 @@ class _PremiumNoResults extends StatelessWidget {
                 color: Colors.white.withOpacity(0.04),
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: Colors.white.withOpacity(0.08)),
+                    color: Colors.white.withOpacity(0.08), width: 0.8),
               ),
-              child: Icon(
-                Icons.search_off_rounded,
-                color: Colors.white.withOpacity(0.2),
-                size: 34,
-              ),
+              child: Icon(Icons.search_off_rounded,
+                  color: Colors.white.withOpacity(0.2), size: 34),
             ),
             const SizedBox(height: 20),
             Text(
               'Nothing found',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withOpacity(0.70),
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.4,
@@ -1793,19 +1796,17 @@ class _PremiumNoResults extends StatelessWidget {
             Text(
               '"$query"',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
-                fontSize: 14,
-              ),
+                  color: Colors.white.withOpacity(0.30), fontSize: 14),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
-              'Try different keywords\nor check the spelling',
+              'Try different keywords\nor check spelling',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withOpacity(0.24),
                 fontSize: 13,
-                height: 1.5,
+                height: 1.55,
               ),
             ),
           ],
@@ -1814,23 +1815,22 @@ class _PremiumNoResults extends StatelessWidget {
           .animate()
           .fadeIn(duration: 400.ms)
           .scale(
-            begin: const Offset(0.92, 0.92),
-            duration: 400.ms,
-            curve: Curves.easeOutBack,
-          ),
+              begin: const Offset(0.92, 0.92),
+              duration: 400.ms,
+              curve: Curves.easeOutBack),
     );
   }
 }
 
-// ─── PREMIUM SONG OPTIONS SHEET ───────────────────────────────
+// ─── SONG OPTIONS SHEET ───────────────────────────────────────
 
-class _PremiumSongOptionsSheet extends StatelessWidget {
+class _SongOptionsSheet extends StatelessWidget {
   final Song song;
   final WidgetRef ref;
   final List<Song> playlist;
   final int index;
 
-  const _PremiumSongOptionsSheet({
+  const _SongOptionsSheet({
     required this.song,
     required this.ref,
     required this.playlist,
@@ -1840,22 +1840,21 @@ class _PremiumSongOptionsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius:
-          const BorderRadius.vertical(top: Radius.circular(30)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.82),
+            color: Colors.black.withOpacity(0.84),
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border.all(color: Colors.white.withOpacity(0.07)),
+            border: Border.all(
+                color: Colors.white.withOpacity(0.07), width: 0.8),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle
               Container(
                 width: 40,
                 height: 4,
@@ -1865,8 +1864,6 @@ class _PremiumSongOptionsSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Song info row
               Row(children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -1889,45 +1886,33 @@ class _PremiumSongOptionsSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        song.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          letterSpacing: -0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Text(song.title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              letterSpacing: -0.3),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 3),
-                      Text(
-                        song.artist,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.45),
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Text(song.artist,
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.45),
+                              fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                     ],
                   ),
                 ),
               ]),
-
               const SizedBox(height: 18),
-              Divider(color: Colors.white.withOpacity(0.07)),
+              Divider(color: Colors.white.withOpacity(0.07), height: 0.5),
               const SizedBox(height: 8),
-
-              // Options
               ...[
                 (Icons.favorite_rounded, 'Like Song', AppTheme.pink),
-                (Icons.playlist_add_rounded, 'Add to Playlist',
-                    AppTheme.purple),
-                (Icons.queue_music_rounded, 'Play Next',
-                    AppTheme.pinkDeep),
-                (Icons.person_rounded, 'Go to Artist',
-                    Colors.white54),
+                (Icons.playlist_add_rounded, 'Add to Playlist', AppTheme.purple),
+                (Icons.queue_music_rounded, 'Play Next', AppTheme.pinkDeep),
+                (Icons.person_rounded, 'Go to Artist', Colors.white54),
                 (Icons.share_rounded, 'Share', Colors.white54),
               ].map(
                 (o) => ListTile(
@@ -1939,30 +1924,26 @@ class _PremiumSongOptionsSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: (o.$3 as Color).withOpacity(0.12),
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: (o.$3 as Color).withOpacity(0.2),
+                          width: 0.6),
                     ),
                     child: Icon(o.$1 as IconData,
                         color: o.$3 as Color, size: 18),
                   ),
-                  title: Text(
-                    o.$2 as String,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  title: Text(o.$2 as String,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
                   onTap: () async {
                     if (o.$2 == 'Like Song') {
-                      await ref
-                          .read(databaseServiceProvider)
-                          .likeSong(song);
+                      await ref.read(databaseServiceProvider).likeSong(song);
                     } else if (o.$2 == 'Play Next') {
                       final pl = ref.read(currentPlaylistProvider);
                       final idx = ref.read(currentSongIndexProvider);
                       final nl = [...pl]..insert(idx + 1, song);
-                      ref
-                          .read(currentPlaylistProvider.notifier)
-                          .state = nl;
+                      ref.read(currentPlaylistProvider.notifier).state = nl;
                     }
                     if (context.mounted) Navigator.pop(context);
                     HapticFeedback.selectionClick();

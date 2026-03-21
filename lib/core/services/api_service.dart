@@ -13,29 +13,52 @@ class ApiService {
   ));
 
   // ─── HELPER ───────────────────────────────────────
-  Future<List<Song>> _search(String query, {int limit = 20}) async {
+  Future<List<Song>> _search(String query, {int limit = 20, bool useFallback = true}) async {
     try {
+      final page = (DateTime.now().millisecond % 3) + 1; // Random page 1, 2, or 3
       final res = await _dio.get('/search/songs',
-        queryParameters: {'query': query, 'limit': limit});
+        queryParameters: {'query': query, 'limit': limit, 'page': page});
       final results = res.data['data']['results'] as List? ?? [];
-      return results.map((e) => Song.fromSumitApi(e)).toList();
+      final songs = results.map((e) => Song.fromSumitApi(e)).toList();
+      
+      if (songs.isEmpty && useFallback) {
+         // Fallback 1: Try page 1 of the exact same query
+         final fbRes = await _dio.get('/search/songs',
+            queryParameters: {'query': query, 'limit': limit, 'page': 1});
+         final fbResults = fbRes.data['data']['results'] as List? ?? [];
+         final fbSongs = fbResults.map((e) => Song.fromSumitApi(e)).toList();
+         if (fbSongs.isNotEmpty) return fbSongs;
+         
+         // Fallback 2: Try a universally safe query
+         return _search('bollywood hits ${DateTime.now().year}', limit: limit, useFallback: false);
+      }
+      return songs;
     } catch (e) {
-      print('Search error [$query]: $e');
+      if (useFallback) return _search('bollywood trending', limit: limit, useFallback: false);
       return [];
     }
   }
 
   Future<List<Song>> _multiSearch(List<String> queries,
-      {int limitEach = 10}) async {
+      {int limitEach = 20}) async {
     try {
-      final futures = queries.map((q) => _search(q, limit: limitEach));
-      final results = await Future.wait(futures);
-      final songs = results.expand((s) => s).toList();
-      final seen = <String>{};
-      return songs.where((s) => seen.add(s.id)).toList();
+      // Free Render APIs cannot handle 40 simultaneous connections.
+      // Instead of Future.wait, randomly select ONE query per section.
+      // This both halves the network load AND increases app randomness!
+      final shuffled = queries.toList()..shuffle();
+      final query = shuffled.first;
+      
+      final songs = await _search(query, limit: limitEach);
+      songs.shuffle();
+      return songs;
     } catch (e) {
       return [];
     }
+  }
+
+  // Use this for custom UI sections to leverage random pages & fallbacks
+  Future<List<Song>> getSectionMix(String query) async {
+    return _search(query, limit: 15);
   }
 
   // ─── SEARCH ───────────────────────────────────────
@@ -44,7 +67,8 @@ class ApiService {
     try {
       final res = await _dio.get('/search/songs',
         queryParameters: {
-          'query': query, 'page': page, 'limit': 20});
+          'query': query, 'page': page, 'limit': 20,
+        });
       final results = res.data['data']['results'] as List? ?? [];
       return results.map((e) => Song.fromSumitApi(e)).toList();
     } catch (e) {

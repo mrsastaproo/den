@@ -15,90 +15,78 @@ import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 
 // ─────────────────────────────────────────────────────────────
-// PROVIDERS — fresh on every app session, deduped globally
+// PROVIDERS — fresh on every app session, shuffled for variety
 // ─────────────────────────────────────────────────────────────
-
-// Seed changes every session so results rotate
-final _sessionSeed = DateTime.now().millisecondsSinceEpoch;
-
-final _globalSeenIdsProvider = StateProvider<Set<String>>((ref) => {});
-
-// Helper: removes already-seen songs, ensures unique images locally, marks as seen
-List<Song> _dedupe(Ref ref, List<Song> songs) {
-  final seen = ref.read(_globalSeenIdsProvider);
-  final Set<String> localImages = {};
-
-  final fresh = songs.where((s) {
-    if (seen.contains(s.id)) return false;
-    if (localImages.contains(s.image) && s.image.isNotEmpty) return false;
-    
-    localImages.add(s.image);
-    return true;
-  }).toList();
-
-  ref.read(_globalSeenIdsProvider.notifier).update(
-    (s) => {...s, ...fresh.map((e) => e.id)},
-  );
-  return fresh;
-}
-
 // Extra section providers
 final romanticSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider).getMoodMix('Love');
-  songs.shuffle(math.Random(_sessionSeed ^ 0xAA));
-  return _dedupe(ref, songs);
+  songs.shuffle();
+  return songs;
 });
 
 final partyHitsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider).getMoodMix('Hype');
-  songs.shuffle(math.Random(_sessionSeed ^ 0xBB));
-  return _dedupe(ref, songs);
+  songs.shuffle();
+  return songs;
 });
 
 final chillVibesProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider).getMoodMix('Chill');
-  songs.shuffle(math.Random(_sessionSeed ^ 0xCC));
-  return _dedupe(ref, songs);
+  songs.shuffle();
+  return songs;
 });
 
 final focusMixProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider).getMoodMix('Focus');
-  songs.shuffle(math.Random(_sessionSeed ^ 0xDD));
-  return _dedupe(ref, songs);
+  songs.shuffle();
+  return songs;
 });
 
 final sadSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider).getMoodMix('Sad');
-  songs.shuffle(math.Random(_sessionSeed ^ 0xEE));
-  return _dedupe(ref, songs);
+  songs.shuffle();
+  return songs;
 });
 
 final indieHitsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
-  final songs = await ref.read(apiServiceProvider)
-      .searchSongs('best independent indie artist hindi');
-  songs.shuffle(math.Random(_sessionSeed ^ 0xFF));
-  return _dedupe(ref, songs);
+  final songs = await ref.read(apiServiceProvider).getMoodMix('Focus');
+  final extra = await ref.read(apiServiceProvider)
+      .searchSongs('indie pop hindi english 2025');
+  final seen = <String>{};
+  final merged = [...songs, ...extra]
+      .where((s) => seen.add(s.id))
+      .toList();
+  merged.shuffle();
+  return merged;
 });
 
 final devotionalProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
-  final songs = await ref.read(apiServiceProvider)
-      .searchSongs('devotional bhajan aarti');
-  songs.shuffle(math.Random(_sessionSeed ^ 0x11));
-  return _dedupe(ref, songs);
+  final futures = await Future.wait([
+    ref.read(apiServiceProvider).searchSongs('bhajan hindi 2025'),
+    ref.read(apiServiceProvider).searchSongs('devotional songs hindi'),
+    ref.read(apiServiceProvider).searchSongs('aarti kirtan bhajan'),
+  ]);
+  final seen = <String>{};
+  final songs = futures
+      .expand((l) => l)
+      .where((s) => seen.add(s.id))
+      .toList();
+  songs.shuffle();
+  return songs;
 });
 
 final punjabiBangerProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider)
-      .searchSongs('punjabi hits diljit ap karan');
-  songs.shuffle(math.Random(_sessionSeed ^ 0x22));
-  return _dedupe(ref, songs);
+      .searchSongs('punjabi hits diljit ap dhillon 2025');
+  songs.shuffle();
+  return songs;
 });
 
 final workoutBangerProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider)
-      .searchSongs('workout gym motivation hits');
-  songs.shuffle(math.Random(_sessionSeed ^ 0x33));
-  return _dedupe(ref, songs);
+      .searchSongs('workout gym motivation energy songs');
+  songs.shuffle();
+  return songs;
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -146,6 +134,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.dispose();
   }
 
+  Future<void> _onRefresh() async {
+    HapticFeedback.mediumImpact();
+    final providers = [
+      trendingProvider, newReleasesProvider, topChartsProvider, throwbackProvider,
+      timeBasedSongsProvider, romanticSongsProvider, partyHitsProvider,
+      chillVibesProvider, focusMixProvider, sadSongsProvider, indieHitsProvider,
+      devotionalProvider, punjabiBangerProvider, workoutBangerProvider
+    ];
+    for (final p in providers) {
+      ref.invalidate(p);
+    }
+    // Artificial delay to let the UI shimmer beautifully before rendering
+    await Future.delayed(const Duration(milliseconds: 1500));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -160,19 +163,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
 
           // Main scroll content
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            slivers: [
-              // Sticky glass header
-              SliverPersistentHeader(
+          RefreshIndicator(
+            onRefresh: _onRefresh,
+            color: AppTheme.pink,
+            backgroundColor: Colors.black87,
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
+                // Sticky glass header
+                SliverPersistentHeader(
                 pinned: true,
                 delegate: _GlassHeaderDelegate(
                   scrollOffset: _scrollOffset,
                   onSearch: () => context.go('/search'),
-                  onNotification: () {},
+                  onNotification: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No new notifications')),
+                    );
+                  },
+                  onSettings: () => context.go('/settings'),
                 ),
               ),
 
@@ -386,6 +398,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               const SliverToBoxAdapter(child: SizedBox(height: 180)),
             ],
           ),
+          ),
         ],
       ),
     );
@@ -499,11 +512,13 @@ class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
   final ValueNotifier<double> scrollOffset;
   final VoidCallback onSearch;
   final VoidCallback onNotification;
+  final VoidCallback onSettings;
 
   _GlassHeaderDelegate({
     required this.scrollOffset,
     required this.onSearch,
     required this.onNotification,
+    required this.onSettings,
   });
 
   @override
@@ -598,22 +613,25 @@ class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
                     onTap: onNotification,
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.pink.withOpacity(0.4),
-                          blurRadius: 12,
-                          spreadRadius: -3,
-                        ),
-                      ],
+                  GestureDetector(
+                    onTap: onSettings,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.pink.withOpacity(0.4),
+                            blurRadius: 12,
+                            spreadRadius: -3,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.person_rounded,
+                          color: Colors.white, size: 18),
                     ),
-                    child: const Icon(Icons.person_rounded,
-                        color: Colors.white, size: 18),
                   ),
                 ],
               ),
