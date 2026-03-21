@@ -6,15 +6,29 @@ import '../providers/music_providers.dart';
 import '../providers/queue_meta.dart';
 import 'database_service.dart';
 import 'audius_service.dart';
-
+import '../../features/settings/equalizer_screen.dart';
 class PlayerService {
-  final AudioPlayer _player = AudioPlayer();
+  late final AudioPlayer _player;
+  late final AndroidEqualizer _equalizer;
+  late final AndroidLoudnessEnhancer _loudness;
   final ApiService _api;
   final Ref _ref;
   bool _fetchingMore = false; // guard against duplicate fetches
 
   PlayerService(this._api, this._ref) {
+    _equalizer = AndroidEqualizer();
+    _loudness = AndroidLoudnessEnhancer();
+    
+    // NOTE: AudioPipeline is explicitly REMOVED here because on certain devices
+    // (like Xiaomi / MIUI), attempting to attach an AndroidEqualizer throws an
+    // uncatchable generic RuntimeException (Error: -3) in just_audio's native layer,
+    // which permanently breaks playback. 
+    _player = AudioPlayer(
+      // audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer, _loudness]),
+    );
+
     _initListener();
+    // _initEqualizerSync(); // Disabled due to device incompatibility
   }
 
   void _initListener() {
@@ -49,6 +63,29 @@ class PlayerService {
         _fetchSmartQueue(prefetch: true);
       }
     });
+  }
+
+  void _initEqualizerSync() {
+    _ref.listen<EqualizerState>(equalizerProvider, (prev, next) async {
+      try {
+        final params = await _equalizer.parameters;
+        await _equalizer.setEnabled(next.enabled);
+        await _loudness.setEnabled(next.enabled);
+        await _loudness.setTargetGain(next.masterGain);
+
+        final deviceBands = params.bands;
+        if (deviceBands.isEmpty) return;
+        
+        final eqBands = next.bands;
+        for (int i = 0; i < deviceBands.length; i++) {
+          final mappedIndex = (i * 5 / deviceBands.length).floor().clamp(0, 4);
+          final val = eqBands[mappedIndex]; 
+          await deviceBands[i].setGain(val);
+        }
+      } catch (e) {
+        print('PLAYER: Equalizer sync error: $e');
+      }
+    }, fireImmediately: true);
   }
 
   void _advanceTo(int nextIndex) {
