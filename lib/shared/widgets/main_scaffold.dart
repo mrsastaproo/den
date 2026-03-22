@@ -16,7 +16,8 @@ class MainScaffold extends ConsumerWidget {
     if (location.startsWith('/search')) return 1;
     if (location.startsWith('/ai')) return 2;
     if (location.startsWith('/library')) return 3;
-    if (location.startsWith('/settings')) return 4;
+    if (location.startsWith('/friends')) return 4;
+    if (location.startsWith('/settings')) return 5;
     return 0;
   }
 
@@ -52,7 +53,8 @@ class MainScaffold extends ConsumerWidget {
                   case 1: context.go('/search'); break;
                   case 2: context.go('/ai'); break;
                   case 3: context.go('/library'); break;
-                  case 4: context.go('/settings'); break;
+                  case 4: context.go('/friends'); break;
+                  case 5: context.go('/settings'); break;
                 }
               },
             ),

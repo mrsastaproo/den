@@ -10,15 +10,23 @@ import '../../features/auth/login_screen.dart';
 import '../../features/ai/ai_screen.dart';
 import '../../features/wrapped/wrapped_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
+import '../../features/friends/friends_screen.dart';
+import '../../features/friends/chat_screen.dart';
 import '../services/auth_service.dart';
 import '../services/admin_service.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final refreshNotifier = ValueNotifier<bool>(false);
+
+  ref.listen<AsyncValue<dynamic>>(authStateProvider, (prev, next) {
+    refreshNotifier.value = !refreshNotifier.value; // trigger notifyListeners
+  });
 
   return GoRouter(
     initialLocation: '/home',
+    refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       final isLoggedIn = authState.value != null;
       final isLoginRoute = state.uri.toString() == '/login';
       final isAdminRoute = state.uri.toString() == '/admin';
@@ -40,6 +48,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin',
         builder: (c, s) => const AdminScreen(),
+      ),
+      GoRoute(
+        path: '/chat/:uid',
+        builder: (c, s) => ChatScreen(otherUid: s.pathParameters['uid']!),
       ),
       ShellRoute(
         builder: (context, state, child) =>
@@ -73,6 +85,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/library',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const LibraryScreen(),
+              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          ),
+          GoRoute(
+            path: '/friends',
+            pageBuilder: (c, s) => CustomTransitionPage(
+              child: const FriendsScreen(),
               transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),

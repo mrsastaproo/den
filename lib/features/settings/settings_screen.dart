@@ -715,12 +715,12 @@ class _DownloadsSection extends ConsumerWidget {
   void _showClearDownloadsDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => _ConfirmDialog(
+      builder: (dialogContext) => _ConfirmDialog(
         title: 'Clear Downloads',
         message: 'This will remove all downloaded songs from your device.',
         confirmLabel: 'Clear',
         isDestructive: true,
-        onConfirm: () => Navigator.pop(context),
+        onConfirm: () => Navigator.pop(dialogContext),
       ),
     );
   }
@@ -1452,13 +1452,15 @@ class _SignOutButton extends ConsumerWidget {
   void _confirmSignOut(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (_) => _ConfirmDialog(
+      builder: (dialogContext) => _ConfirmDialog(
         title: 'Sign Out',
         message: 'Are you sure you want to sign out of DEN?',
         confirmLabel: 'Sign Out',
         isDestructive: false,
         onConfirm: () async {
-          Navigator.pop(context);
+          Navigator.pop(dialogContext);
+          // Wait for dialog pop animation to complete to prevent mid-frame unmount element crashes
+          await Future.delayed(const Duration(milliseconds: 300));
           await ref.read(authServiceProvider).signOut();
         },
       ),
@@ -1492,14 +1494,14 @@ class _DeleteAccountButton extends ConsumerWidget {
   void _confirmDelete(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (_) => _ConfirmDialog(
+      builder: (dialogContext) => _ConfirmDialog(
         title: 'Delete Account',
         message: 'This will permanently delete your account, '
             'playlists, liked songs and all your data. '
             'This action cannot be undone.',
         confirmLabel: 'Delete Account',
         isDestructive: true,
-        onConfirm: () => Navigator.pop(context),
+        onConfirm: () => Navigator.pop(dialogContext),
       ),
     );
   }

@@ -27,7 +27,7 @@ class IntegratedBottomShell extends ConsumerWidget {
     final isPlaying = ref.watch(isPlayingStreamProvider).value ?? false;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 32),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(40),
         child: BackdropFilter(
@@ -74,6 +74,12 @@ class IntegratedBottomShell extends ConsumerWidget {
                   currentIndex: currentIndex,
                   onTap: onTap,
                 ),
+                _NavItem(
+                  icon: Icons.settings_rounded,
+                  index: 5,
+                  currentIndex: currentIndex,
+                  onTap: onTap,
+                ),
 
                 // Center Orb (Mini Player)
                 GestureDetector(
@@ -97,6 +103,12 @@ class IntegratedBottomShell extends ConsumerWidget {
                 _NavItem(
                   icon: Icons.auto_awesome_rounded, // AI tab
                   index: 2,
+                  currentIndex: currentIndex,
+                  onTap: onTap,
+                ),
+                _NavItem(
+                  icon: Icons.people_alt_rounded, // Friends
+                  index: 4,
                   currentIndex: currentIndex,
                   onTap: onTap,
                 ),
@@ -267,7 +279,7 @@ class _NavItemState extends State<_NavItem>
       },
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: AnimatedBuilder(
           animation: _controller,
           builder: (_, __) => Transform.scale(
