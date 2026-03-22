@@ -61,6 +61,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void initState() {
     super.initState();
 
+    // Notify DynamicIsland to hide itself while this screen is open.
+    Future.microtask(() {
+      if (mounted) ref.read(playerScreenOpenProvider.notifier).state = true;
+    });
+
     _bgPulse = AnimationController(
         vsync: this, duration: const Duration(seconds: 6))
       ..repeat(reverse: true);
@@ -84,10 +89,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final song = ref.read(currentSongProvider);
       if (song != null) _extractPalette(song.image);
     });
+
+    // ── Single listener that drives ALL page sync ─────────────
+    // This replaces the stale-read pattern in onNext/onPrev.
+    // Fires AFTER playSong() commits the new index — so the page
+    // always animates to the correct, confirmed song.
+    ref.listenManual(currentSongIndexProvider, (prev, next) {
+      if (!mounted || !_pcReady || !_pc.hasClients) return;
+      if (_dragging || _isScrolling) return;
+      final curPage = _pc.page?.round() ?? next;
+      if (curPage == next) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_pc.hasClients) return;
+        final diff = (curPage - next).abs();
+        if (diff > 3) {
+          _pc.jumpToPage(next);
+        } else {
+          _pc.animateToPage(next,
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutCubic);
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    // Restore DynamicIsland visibility now that the player is closing.
+    // Using addPostFrameCallback so we never read a ref after unmount.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(playerScreenOpenProvider.notifier).state = false;
+    });
     _bgPulse.dispose();
     _vinylSpin.dispose();
     _pc.dispose();
@@ -124,32 +156,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final pl = ref.read(currentPlaylistProvider);
     if (idx < 0 || idx >= pl.length) return;
     final song = pl[idx];
-    ref.read(currentSongIndexProvider.notifier).state = idx;
-    ref.read(currentSongProvider.notifier).state = song;
-    ref.read(playerServiceProvider).loadingNext = true; // Guard manual swipes
-    ref.read(playerServiceProvider).playSong(song);
+    // Do NOT write currentSongIndexProvider or currentSongProvider here.
+    // playSong() is the single source of truth — it writes them after
+    // the URL is confirmed. Writing them here causes the 2-3 artwork
+    // flicker bug.
     _extractPalette(song.image);
     HapticFeedback.lightImpact();
+    ref.read(playerServiceProvider).playSong(song, confirmedIndex: idx);
   }
 
-  void _syncPage(int idx) {
-    if (!_pcReady || !_pc.hasClients || _dragging || _isScrolling)
-      return;
-    final curPage = _pc.page?.round() ?? idx;
-    if (curPage != idx) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_pc.hasClients) return;
-        final diff = (curPage - idx).abs();
-        if (diff > 1) {
-          _pc.jumpToPage(idx);
-        } else {
-          _pc.animateToPage(idx,
-              duration: const Duration(milliseconds: 380),
-              curve: Curves.easeOutCubic);
-        }
-      });
-    }
-  }
+  // _syncPage removed — page sync is now driven by ref.listenManual
+  // on currentSongIndexProvider in initState. This ensures the page
+  // only animates AFTER playSong() has confirmed the URL and committed
+  // the new index — eliminating the stale-read flicker.
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +197,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           (_) => _extractPalette(song.image));
     }
 
-    _syncPage(curIdx);
+    // Page sync is handled by ref.listenManual in initState — not here.
 
     final double seekMax =
         duration.inSeconds.toDouble().clamp(1.0, double.infinity);
@@ -329,32 +348,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             .togglePlayPause();
                       },
                       onNext: () {
+                        print('[PlayerScreen] onNext tapped');
                         HapticFeedback.selectionClick();
                         ref
                             .read(playerServiceProvider)
                             .skipNext();
-                        final ni = ref.read(
-                            currentSongIndexProvider);
-                        if (_pc.hasClients) {
-                          _pc.animateToPage(ni,
-                              duration: const Duration(
-                                  milliseconds: 380),
-                              curve: Curves.easeOutCubic);
-                        }
+                        // DO NOT read currentSongIndexProvider here —
+                        // skipNext() is async internally. The page sync
+                        // is handled by ref.listen in initState which
+                        // fires when currentSongIndexProvider actually
+                        // updates (after URL is confirmed and song commits).
                       },
                       onPrev: () {
+                        print('[PlayerScreen] onPrev tapped');
                         HapticFeedback.selectionClick();
                         ref
                             .read(playerServiceProvider)
                             .skipPrev();
-                        final ni = ref.read(
-                            currentSongIndexProvider);
-                        if (_pc.hasClients) {
-                          _pc.animateToPage(ni,
-                              duration: const Duration(
-                                  milliseconds: 380),
-                              curve: Curves.easeOutCubic);
-                        }
+                        // Same — do not read index here, let listener sync.
                       },
                       onShuffle: () {
                         HapticFeedback.selectionClick();

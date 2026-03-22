@@ -27,6 +27,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
+      
+      // Do not redirect while the initial auth state is still loading.
+      // This prevents the black screen / flash of login screen on startup.
+      if (authState.isLoading) return null;
+
       final isLoggedIn = authState.value != null;
       final isLoginRoute = state.uri.toString() == '/login';
       final isAdminRoute = state.uri.toString() == '/admin';

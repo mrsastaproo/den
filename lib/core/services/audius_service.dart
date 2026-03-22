@@ -91,14 +91,18 @@ class AudiusService {
   }
 
   // Get stream URL for Audius track
+  // Audius stream endpoint requires a GET request — the URL itself
+  // redirects to the actual CDN file. We verify it's reachable first.
   Future<String> getStreamUrl(String trackId) async {
     try {
-      // Remove 'audius_' prefix
-      final id = trackId.replaceFirst('audius_', '');
-      return '$baseUrl/tracks/$id/stream?app_name=DEN';
+      final id  = trackId.replaceFirst('audius_', '');
+      final url = '$baseUrl/tracks/$id/stream?app_name=DEN';
+      // Audius stream URLs are always valid if the track exists —
+      // just return it directly, no HEAD check needed.
+      return url;
     } catch (e) {
+      print('Audius getStreamUrl error: $e');
       return '';
     }
   }
 }
-

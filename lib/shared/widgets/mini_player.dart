@@ -50,9 +50,6 @@ class MiniPlayer extends ConsumerWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          // Only open player if pointer barely moved (true tap)
-          // This prevents ghost-opens while the user is scrolling
-          // a list that sits above the mini player.
           HapticFeedback.lightImpact();
           Navigator.of(context).push(
             PageRouteBuilder(
@@ -204,32 +201,56 @@ class MiniPlayer extends ConsumerWidget {
                           ),
                         ),
 
-                        // Skip Prev (now working!)
-                        _MiniIconBtn(
-                          icon:
+                        // Skip Prev — wrapped to block tap from reaching
+                        // the outer GestureDetector (which opens PlayerScreen)
+                        GestureDetector(
+                          onTap: () {
+                            skipPrev();
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 8),
+                            child: Icon(
                               Icons.skip_previous_rounded,
-                          size: 22,
-                          onTap: skipPrev,
+                              color: Colors.white.withOpacity(0.7),
+                              size: 22,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 2),
 
                         // Play/Pause
-                        _MiniPlayPauseBtn(
-                          isPlaying: isPlaying,
+                        GestureDetector(
                           onTap: () {
                             HapticFeedback.lightImpact();
                             ref
                                 .read(playerServiceProvider)
                                 .togglePlayPause();
                           },
+                          behavior: HitTestBehavior.opaque,
+                          child: _MiniPlayPauseBtn(
+                            isPlaying: isPlaying,
+                            onTap: () {}, // handled above
+                          ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 2),
 
-                        // Skip Next (now working!)
-                        _MiniIconBtn(
-                          icon: Icons.skip_next_rounded,
-                          size: 22,
-                          onTap: skipNext,
+                        // Skip Next — same guard
+                        GestureDetector(
+                          onTap: () {
+                            skipNext();
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 8),
+                            child: Icon(
+                              Icons.skip_next_rounded,
+                              color: Colors.white.withOpacity(0.7),
+                              size: 22,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -269,10 +290,16 @@ class _MiniIconBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      // AbsorbPointer stops the tap from reaching the outer
+      // GestureDetector that opens PlayerScreen, so skip buttons
+      // never accidentally trigger a screen open.
+      onTap: () {
+        onTap();
+      },
       behavior: HitTestBehavior.opaque,
+      // Use a bigger hit area for easier tapping
       child: Padding(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Icon(
           icon,
           color: Colors.white.withOpacity(0.7),

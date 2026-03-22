@@ -106,6 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late AnimationController _orbController;
   late AnimationController _headerController;
   final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0);
+  final ValueNotifier<bool> _isHeaderScrolled = ValueNotifier<bool>(false);
 
   @override
   void initState() {
@@ -122,6 +123,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     _scrollController.addListener(() {
       _scrollOffset.value = _scrollController.offset;
+      final sc = _scrollController.offset > 20;
+      if (_isHeaderScrolled.value != sc) {
+        _isHeaderScrolled.value = sc;
+      }
     });
   }
 
@@ -131,6 +136,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _orbController.dispose();
     _headerController.dispose();
     _scrollOffset.dispose();
+    _isHeaderScrolled.dispose();
     super.dispose();
   }
 
@@ -177,7 +183,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 SliverPersistentHeader(
                 pinned: true,
                 delegate: _GlassHeaderDelegate(
-                  scrollOffset: _scrollOffset,
+                  isScrolledNotifier: _isHeaderScrolled,
                   onSearch: () => context.go('/search'),
                   onNotification: () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -437,42 +443,66 @@ class _AmbientBackground extends StatelessWidget {
           children: [
             // Top-left orb
             Positioned(
-              top: -100 + math.sin(t * math.pi) * 30 - parallax * 0.5,
-              left: -80 + math.cos(t * math.pi) * 20,
-              child: _Orb(
-                size: 340,
-                color: AppTheme.pink,
-                opacity: 0.12 + t * 0.04,
+              top: -100,
+              left: -80,
+              child: Transform.translate(
+                offset: Offset(
+                  math.cos(t * math.pi) * 20,
+                  math.sin(t * math.pi) * 30 - parallax * 0.5,
+                ),
+                child: _Orb(
+                  size: 340,
+                  color: AppTheme.pink,
+                  opacity: 0.12 + t * 0.04,
+                ),
               ),
             ),
             // Top-right orb
             Positioned(
-              top: 80 + math.cos(t * math.pi * 1.3) * 25 - parallax * 0.3,
-              right: -60 + math.sin(t * math.pi * 0.7) * 15,
-              child: _Orb(
-                size: 260,
-                color: AppTheme.purple,
-                opacity: 0.10 + t * 0.03,
+              top: 80,
+              right: -60,
+              child: Transform.translate(
+                offset: Offset(
+                  math.sin(t * math.pi * 0.7) * 15,
+                  math.cos(t * math.pi * 1.3) * 25 - parallax * 0.3,
+                ),
+                child: _Orb(
+                  size: 260,
+                  color: AppTheme.purple,
+                  opacity: 0.10 + t * 0.03,
+                ),
               ),
             ),
             // Mid orb
             Positioned(
-              top: 500 - parallax * 0.2,
-              left: 60 + math.sin(t * math.pi * 1.5) * 20,
-              child: _Orb(
-                size: 200,
-                color: AppTheme.pinkDeep,
-                opacity: 0.06 + t * 0.02,
+              top: 500,
+              left: 60,
+              child: Transform.translate(
+                offset: Offset(
+                  math.sin(t * math.pi * 1.5) * 20,
+                  -parallax * 0.2,
+                ),
+                child: _Orb(
+                  size: 200,
+                  color: AppTheme.pinkDeep,
+                  opacity: 0.06 + t * 0.02,
+                ),
               ),
             ),
             // Bottom orb
             Positioned(
               bottom: 300,
-              right: -30 + math.cos(t * math.pi) * 15,
-              child: _Orb(
-                size: 240,
-                color: AppTheme.purpleDeep,
-                opacity: 0.08 + t * 0.025,
+              right: -30,
+              child: Transform.translate(
+                offset: Offset(
+                  math.cos(t * math.pi) * 15,
+                  0,
+                ),
+                child: _Orb(
+                  size: 240,
+                  color: AppTheme.purpleDeep,
+                  opacity: 0.08 + t * 0.025,
+                ),
               ),
             ),
           ],
@@ -509,13 +539,13 @@ class _Orb extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 
 class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final ValueNotifier<double> scrollOffset;
+  final ValueNotifier<bool> isScrolledNotifier;
   final VoidCallback onSearch;
   final VoidCallback onNotification;
   final VoidCallback onSettings;
 
   _GlassHeaderDelegate({
-    required this.scrollOffset,
+    required this.isScrolledNotifier,
     required this.onSearch,
     required this.onNotification,
     required this.onSettings,
@@ -529,10 +559,9 @@ class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return ValueListenableBuilder<double>(
-      valueListenable: scrollOffset,
-      builder: (context, offset, child) {
-        final isScrolled = offset > 20;
+    return ValueListenableBuilder<bool>(
+      valueListenable: isScrolledNotifier,
+      builder: (context, isScrolled, child) {
         return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
@@ -646,7 +675,7 @@ class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_GlassHeaderDelegate old) =>
-      old.scrollOffset != scrollOffset;
+      old.isScrolledNotifier != isScrolledNotifier;
 }
 
 class _GlassIconBtn extends StatefulWidget {
@@ -1374,32 +1403,25 @@ class _HeroCardState extends State<_HeroCard> {
                 Positioned(
                   top: 16,
                   left: 16,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter:
-                          ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 5),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                            grad[0].withOpacity(0.85),
-                            grad[1].withOpacity(0.85),
-                          ]),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: Colors.white.withOpacity(0.3)),
-                        ),
-                        child: const Text(
-                          'NEW',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                          ),
-                        ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        grad[0].withOpacity(0.95),
+                        grad[1].withOpacity(0.95),
+                      ]),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.35)),
+                    ),
+                    child: const Text(
+                      'NEW',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
                       ),
                     ),
                   ),
@@ -1526,6 +1548,7 @@ class _LiquidSection extends ConsumerWidget {
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
+                cacheExtent: 500,
                 // No physics override — inherits parent BouncingScrollPhysics
                 itemCount: songs.length,
                 itemBuilder: (_, i) {
@@ -1934,32 +1957,26 @@ class _RankedCardState extends State<_RankedCard> {
                   Positioned(
                     top: 8,
                     left: 8,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.55),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: widget.rank <= 3
-                                  ? widget.accentColor.withOpacity(0.5)
-                                  : Colors.white.withOpacity(0.15),
-                            ),
-                          ),
-                          child: Text(
-                            '#${widget.rank}',
-                            style: TextStyle(
-                              color: widget.rank <= 3
-                                  ? widget.accentColor
-                                  : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: widget.rank <= 3
+                              ? widget.accentColor.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.15),
+                        ),
+                      ),
+                      child: Text(
+                        '#${widget.rank}',
+                        style: TextStyle(
+                          color: widget.rank <= 3
+                              ? widget.accentColor
+                              : Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),

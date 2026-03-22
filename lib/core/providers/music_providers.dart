@@ -352,6 +352,10 @@ final currentPlaylistProvider = StateProvider<List<Song>>((ref) => []);
 final currentSongIndexProvider = StateProvider<int>((ref) => -1);
 final isPlayingProvider       = StateProvider<bool>((ref) => false);
 
+/// True while the full PlayerScreen modal is open.
+/// DynamicIsland watches this to hide itself when the player is visible.
+final playerScreenOpenProvider = StateProvider<bool>((ref) => false);
+
 // ─── PLAY QUEUE ───────────────────────────────────────────────
 //
 // Use this everywhere to start playback.

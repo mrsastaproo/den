@@ -73,6 +73,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
         extendBody: true,
         extendBodyBehindAppBar: true,
         body: Stack(
+          fit: StackFit.expand,
           children: [
             widget.child,
             const DynamicIsland(),
