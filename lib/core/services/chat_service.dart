@@ -110,6 +110,23 @@ class ChatService {
     );
   }
 
+  /// Delete all messages in a chat between two users
+  Future<void> clearChat(String otherUid) async {
+    if (userId == null) return;
+    final chatId = _getChatId(otherUid);
+    final msgs = await _db
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .limit(500)
+        .get();
+    final batch = _db.batch();
+    for (final d in msgs.docs) {
+      batch.delete(d.reference);
+    }
+    await batch.commit();
+  }
+
   /// Listen for message streams in real-time
   Stream<List<Message>> listenMessages(String otherUid) {
     if (userId == null) return Stream.value([]);

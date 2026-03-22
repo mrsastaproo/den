@@ -528,64 +528,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   void _showAttachmentSheet() {
     HapticFeedback.lightImpact();
-    // Capture the outer GoRouter context BEFORE entering the modal builder
-    final outerContext = context;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      useRootNavigator: true,
       isScrollControlled: true,
-      builder: (c) => Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0E0E1A),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 14),
-              width: 36, height: 4,
-              decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(2)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-              child: Row(
-                children: [
-                  ShaderMask(
-                    shaderCallback: (b) => AppTheme.primaryGradient.createShader(b),
-                    child: const Icon(Icons.attach_file_rounded, color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text('Share Music', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            _AttachmentTile(
-              icon: Icons.search_rounded,
-              label: 'Search & Share a Track',
-              subtitle: 'Find any song to send',
-              color: AppTheme.pink,
-              onTap: () {
-                Navigator.pop(c);
-                outerContext.push('/search');
-              },
-            ),
-            _AttachmentTile(
-              icon: Icons.library_music_rounded,
-              label: 'From My Library',
-              subtitle: 'Share a saved playlist or song',
-              color: AppTheme.purple,
-              onTap: () {
-                Navigator.pop(c);
-                outerContext.push('/library');
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
+      backgroundColor: Colors.transparent,
+      builder: (c) => _InlineLibraryPicker(
+        otherUid: widget.otherUid,
       ),
     );
   }
@@ -593,8 +542,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ─── Chat Options ─────────────────────────────────────────────────────────
 
   void _showChatOptions() {
+    final chatSvc = ref.read(chatServiceProvider);
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (c) => Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
@@ -611,9 +562,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               width: 36, height: 4,
               decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(2)),
             ),
-            _AttachmentTile(icon: Icons.person_rounded, label: 'View Profile', subtitle: 'See their full profile', color: AppTheme.pink, onTap: () => Navigator.pop(c)),
-            _AttachmentTile(icon: Icons.notifications_off_rounded, label: 'Mute Notifications', subtitle: 'Stop getting notified', color: Colors.orange, onTap: () => Navigator.pop(c)),
-            _AttachmentTile(icon: Icons.delete_outline_rounded, label: 'Clear Chat', subtitle: 'Remove all messages', color: Colors.redAccent, onTap: () => Navigator.pop(c)),
+            _AttachmentTile(
+              icon: Icons.delete_outline_rounded,
+              label: 'Clear Chat',
+              subtitle: 'Remove all messages from this conversation',
+              color: Colors.redAccent,
+              onTap: () async {
+                Navigator.pop(c);
+                // Show a confirmation dialog
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (d) => AlertDialog(
+                    backgroundColor: const Color(0xFF121220),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    title: const Text('Clear Chat?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    content: const Text('This will delete all messages in this conversation.', style: TextStyle(color: Colors.white54)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel', style: TextStyle(color: Colors.white38))),
+                      TextButton(
+                        onPressed: () => Navigator.pop(d, true),
+                        child: const Text('Clear', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await chatSvc.clearChat(widget.otherUid);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Chat cleared'), behavior: SnackBarBehavior.floating),
+                    );
+                  }
+                }
+              },
+            ),
             const SizedBox(height: 12),
           ],
         ),
@@ -779,6 +761,199 @@ class _AttachmentTile extends StatelessWidget {
       subtitle: Text(subtitle, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
       trailing: Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2)),
       onTap: onTap,
+    );
+  }
+}
+
+// ─── Inline Library Picker ────────────────────────────────────────────────────
+// Shows user's playlists + liked songs without any navigation, loading them
+// from Firestore via Riverpod providers directly inside the bottom sheet.
+
+class _InlineLibraryPicker extends ConsumerStatefulWidget {
+  final String otherUid;
+  const _InlineLibraryPicker({required this.otherUid});
+
+  @override
+  ConsumerState<_InlineLibraryPicker> createState() => _InlineLibraryPickerState();
+}
+
+class _InlineLibraryPickerState extends ConsumerState<_InlineLibraryPicker> {
+  int _tab = 0; // 0 = playlists, 1 = liked songs
+
+  @override
+  Widget build(BuildContext context) {
+    final playlistsAsync = ref.watch(playlistsProvider);
+    final likedAsync = ref.watch(likedSongsProvider);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (c, scroll) => Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E0E1A),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 14),
+              width: 36, height: 4,
+              decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(2)),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: Row(
+                children: [
+                  ShaderMask(
+                    shaderCallback: (b) => AppTheme.primaryGradient.createShader(b),
+                    child: const Icon(Icons.library_music_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('Share from Library', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                ],
+              ),
+            ),
+            // Tab row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _tab == 0
+                      ? _activeTab('Playlists')
+                      : _inactiveTab('Playlists', () => setState(() => _tab = 0)),
+                  const SizedBox(width: 10),
+                  _tab == 1
+                      ? _activeTab('Liked Songs')
+                      : _inactiveTab('Liked Songs', () => setState(() => _tab = 1)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Content
+            Expanded(
+              child: _tab == 0
+                  ? _buildPlaylists(playlistsAsync, scroll)
+                  : _buildLikedSongs(likedAsync, scroll),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _activeTab(String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+    decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(20)),
+    child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+  );
+
+  Widget _inactiveTab(String label, VoidCallback onTap) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+    ),
+  );
+
+  Widget _buildPlaylists(AsyncValue<List<Map<String, dynamic>>> async, ScrollController scroll) {
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.pink, strokeWidth: 2)),
+      error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Colors.white54))),
+      data: (playlists) {
+        if (playlists.isEmpty) return Center(child: Text('No playlists yet', style: TextStyle(color: Colors.white.withOpacity(0.3))));
+        return ListView.builder(
+          controller: scroll,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: playlists.length,
+          itemBuilder: (c, i) {
+            final p = playlists[i];
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              leading: Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(gradient: AppTheme.cardGradient, borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.queue_music_rounded, color: AppTheme.purple, size: 22),
+              ),
+              title: Text(p['name'] ?? 'Playlist', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              subtitle: Text('${p['songCount'] ?? 0} songs', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(10)),
+                child: const Text('Share', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await ref.read(chatServiceProvider).shareMedia(widget.otherUid, 'playlist', {
+                  'id': p['id'],
+                  'name': p['name'],
+                  'songCount': p['songCount'],
+                  'coverImage': p['coverImage'] ?? '',
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Shared playlist "${p['name']}"!'), behavior: SnackBarBehavior.floating, backgroundColor: const Color(0xFF1E1E30)),
+                  );
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLikedSongs(AsyncValue<List<Song>> async, ScrollController scroll) {
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.pink, strokeWidth: 2)),
+      error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Colors.white54))),
+      data: (songs) {
+        if (songs.isEmpty) return Center(child: Text('No liked songs yet', style: TextStyle(color: Colors.white.withOpacity(0.3))));
+        return ListView.builder(
+          controller: scroll,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: songs.length,
+          itemBuilder: (c, i) {
+            final s = songs[i];
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: CachedNetworkImage(
+                  imageUrl: s.image,
+                  width: 46, height: 46, fit: BoxFit.cover,
+                  errorWidget: (c, e, _) => Container(
+                    width: 46, height: 46,
+                    decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.music_note, color: Colors.white38),
+                  ),
+                ),
+              ),
+              title: Text(s.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(s.artist, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(10)),
+                child: const Text('Share', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await ref.read(chatServiceProvider).shareMedia(widget.otherUid, 'song', s.toJson());
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Shared "${s.title}"!'), behavior: SnackBarBehavior.floating, backgroundColor: const Color(0xFF1E1E30)),
+                  );
+                }
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
