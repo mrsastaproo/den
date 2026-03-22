@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/auth_service.dart';
@@ -54,6 +55,9 @@ class SettingsScreen extends ConsumerWidget {
 
           // ── Stats ───────────────────────────────────────────
           SliverToBoxAdapter(child: _StatsRow()),
+
+          // ── DEN Wrapped ──────────────────────────────────────
+          SliverToBoxAdapter(child: _WrappedEntry()),
 
           // ── 1. Music Playback ───────────────────────────────
           SliverToBoxAdapter(child: _PlaybackSection()),
@@ -2220,6 +2224,65 @@ class _InfoRow extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.w600)),
       ],
+    );
+  }
+}
+// ─── DEN WRAPPED ENTRY ────────────────────────────────────────
+
+class _WrappedEntry extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/wrapped'),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            AppTheme.pink.withOpacity(0.15),
+            AppTheme.purple.withOpacity(0.1),
+          ]),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.pink.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.bar_chart_rounded,
+                  color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('DEN Wrapped',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text('Your weekly & monthly music stats',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 12)),
+                ],
+              ),
+            ),
+            ShaderMask(
+              shaderCallback: (b) =>
+                  AppTheme.primaryGradient.createShader(b),
+              child: const Icon(Icons.arrow_forward_ios_rounded,
+                  color: Colors.white, size: 14),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

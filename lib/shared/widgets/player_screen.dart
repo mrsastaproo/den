@@ -12,6 +12,7 @@ import '../../core/providers/queue_meta.dart';
 import '../../core/services/database_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/song.dart';
+import '../../core/services/lyrics_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDERS
@@ -49,6 +50,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Ghost-tap fix: track whether a scroll/swipe is happening ──
   bool _isScrolling  = false;
+  bool _showLyrics   = false;
 
   @override
   void initState() {
@@ -119,6 +121,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final song = pl[idx];
     ref.read(currentSongIndexProvider.notifier).state = idx;
     ref.read(currentSongProvider.notifier).state = song;
+    ref.read(playerServiceProvider).loadingNext = true; // Guard manual swipes
     ref.read(playerServiceProvider).playSong(song);
     _extractPalette(song.image);
     HapticFeedback.lightImpact();
@@ -131,9 +134,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (curPage != idx) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_pc.hasClients) return;
-        _pc.animateToPage(idx,
-            duration: const Duration(milliseconds: 380),
-            curve: Curves.easeOutCubic);
+        final diff = (curPage - idx).abs();
+        if (diff > 1) {
+          _pc.jumpToPage(idx);
+        } else {
+          _pc.animateToPage(idx,
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutCubic);
+        }
       });
     }
   }
@@ -290,6 +298,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       pc: _pc,
                       vinylSpin: _vinylSpin,
                       fmt: _fmt,
+                      showLyrics: _showLyrics,
+                      onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
                       onClose: () => Navigator.of(context).pop(),
                       onMore: () =>
                           _showOptionsSheet(context, song),
@@ -417,8 +427,9 @@ class _PlayerBody extends StatelessWidget {
   final PageController pc;
   final AnimationController vinylSpin;
   final String Function(Duration) fmt;
+  final bool showLyrics;
   final VoidCallback onClose, onMore, onPlay, onNext, onPrev,
-      onShuffle, onRepeat, onLike, onQueue;
+      onShuffle, onRepeat, onLike, onQueue, onLyricsToggle;
   final ValueChanged<int> onPageSwipe;
   final ValueChanged<double> onDragStart, onDragUpdate, onDragEnd;
   final VoidCallback onScrollStart, onScrollEnd;
@@ -439,6 +450,7 @@ class _PlayerBody extends StatelessWidget {
     required this.pc,
     required this.vinylSpin,
     required this.fmt,
+    required this.showLyrics,
     required this.onClose,
     required this.onMore,
     required this.onPlay,
@@ -448,6 +460,7 @@ class _PlayerBody extends StatelessWidget {
     required this.onRepeat,
     required this.onLike,
     required this.onQueue,
+    required this.onLyricsToggle,
     required this.onPageSwipe,
     required this.onDragStart,
     required this.onDragUpdate,
@@ -467,10 +480,12 @@ class _PlayerBody extends StatelessWidget {
         onMore: onMore,
       ).animate().fadeIn(duration: 280.ms),
 
-      // ── Artwork carousel ───────────────────────────────────
+      // ── Artwork carousel / Lyrics switch ───────────────────
       Expanded(
         flex: 5,
-        child: NotificationListener<ScrollNotification>(
+        child: showLyrics
+            ? _LyricsPanel(song: song)
+            : NotificationListener<ScrollNotification>(
           // ── Ghost-tap fix: block taps while paging ──────
           onNotification: (n) {
             if (n is ScrollStartNotification) {
@@ -607,6 +622,8 @@ class _PlayerBody extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 28),
         child: _BottomBar(
           onQueue: onQueue,
+          onLyrics: onLyricsToggle,
+          showLyrics: showLyrics,
           song: song,
           playlist: playlist,
           curIdx: curIdx,
@@ -1241,12 +1258,16 @@ class _PlayPauseBtnState extends State<_PlayPauseBtn>
 
 class _BottomBar extends StatelessWidget {
   final VoidCallback onQueue;
+  final VoidCallback onLyrics;
+  final bool showLyrics;
   final Song song;
   final List<Song> playlist;
   final int curIdx;
 
   const _BottomBar({
     required this.onQueue,
+    required this.onLyrics,
+    required this.showLyrics,
     required this.song,
     required this.playlist,
     required this.curIdx,
@@ -1287,26 +1308,10 @@ class _BottomBar extends StatelessWidget {
           },
         ),
         _BarChip(
-          icon: Icons.download_rounded,
-          label: 'SAVE',
-          onTap: () {
-            HapticFeedback.lightImpact();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Coming soon!',
-                    style: TextStyle(
-                        color: Colors.white)),
-                backgroundColor:
-                    Colors.black.withOpacity(0.85),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(12)),
-                duration:
-                    const Duration(milliseconds: 1200),
-              ),
-            );
-          },
+          icon: Icons.lyrics_rounded,
+          label: 'LYRICS',
+          onTap: onLyrics,
+          color: showLyrics ? AppTheme.pink : null,
         ),
       ],
     );
@@ -1318,12 +1323,14 @@ class _BarChip extends StatefulWidget {
   final String label;
   final String? badge;
   final VoidCallback onTap;
+  final Color? color;
 
   const _BarChip({
     required this.icon,
     required this.label,
     required this.onTap,
     this.badge,
+    this.color,
   });
 
   @override
@@ -1335,6 +1342,8 @@ class _BarChipState extends State<_BarChip> {
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = widget.color ?? Colors.white.withOpacity(0.65);
+
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) =>
@@ -1358,26 +1367,26 @@ class _BarChipState extends State<_BarChip> {
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 11),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(
-                    _pressed ? 0.12 : 0.07),
+                color: widget.color != null 
+                    ? widget.color!.withOpacity(0.15)
+                    : Colors.white.withOpacity(_pressed ? 0.12 : 0.07),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                    color:
-                        Colors.white.withOpacity(0.1)),
+                    color: widget.color != null 
+                        ? widget.color!.withOpacity(0.3)
+                        : Colors.white.withOpacity(0.1)),
               ),
               child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(widget.icon,
-                        color: Colors.white
-                            .withOpacity(0.65),
+                        color: activeColor,
                         size: 14),
                     const SizedBox(width: 6),
                     Text(
                       widget.label,
                       style: TextStyle(
-                        color: Colors.white
-                            .withOpacity(0.55),
+                        color: activeColor.withOpacity(0.85),
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
@@ -1760,6 +1769,109 @@ class _OptionsSheet extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LYRICS PANEL
+// ─────────────────────────────────────────────────────────────
+
+class _LyricsPanel extends ConsumerStatefulWidget {
+  final Song song;
+  const _LyricsPanel({required this.song});
+
+  @override
+  ConsumerState<_LyricsPanel> createState() => _LyricsPanelState();
+}
+
+class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
+  final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _itemKeys = {};
+  int _activeIndex = -1;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lyricsAsync = ref.watch(lyricsProvider(widget.song));
+    final position = ref.watch(positionStreamProvider).value ?? Duration.zero;
+
+    return lyricsAsync.when(
+      loading: () => const Center(
+          child: CircularProgressIndicator(
+              color: AppTheme.pink, strokeWidth: 2)),
+      error: (e, _) => Center(
+          child: Text('Lyrics not available',
+              style: TextStyle(color: Colors.white.withOpacity(0.35)))),
+      data: (lyrics) {
+        if (lyrics.isEmpty) {
+          return Center(
+              child: Text('No lyrics found',
+                  style: TextStyle(color: Colors.white.withOpacity(0.35))));
+        }
+
+        int active = -1;
+        final isSynced = lyrics.any((l) => l.time != Duration.zero);
+        if (isSynced) {
+          for (int i = 0; i < lyrics.length; i++) {
+            if (lyrics[i].time <= position) {
+              active = i;
+            } else {
+              break;
+            }
+          }
+        }
+
+        if (active != _activeIndex && active != -1) {
+          _activeIndex = active;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final ctx = _itemKeys[active]?.currentContext;
+            if (ctx != null && mounted) {
+              Scrollable.ensureVisible(
+                ctx,
+                alignment: 0.35,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeInOutCubic,
+              );
+            }
+          });
+        }
+
+        return ListView.builder(
+          controller: _scrollController,
+          itemCount: lyrics.length,
+          padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
+          physics: const BouncingScrollPhysics(),
+          itemBuilder: (context, index) {
+            final lyric = lyrics[index];
+            final isActive = index == _activeIndex;
+            final key = _itemKeys.putIfAbsent(index, () => GlobalKey());
+
+            return Container(
+              key: key,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 240),
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.white.withOpacity(0.30),
+                    fontSize: isActive ? 22 : 18,
+                    fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
+                    letterSpacing: -0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                  child: Text(lyric.text),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

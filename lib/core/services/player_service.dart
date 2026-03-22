@@ -274,6 +274,7 @@ class PlayerService {
   // ─── PUBLIC API ───────────────────────────────────────────────
 
   AudioPlayer get player => _player;
+  set loadingNext(bool val) => _loadingNext = val;
 
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Stream<Duration?>  get durationStream     => _player.durationStream;
