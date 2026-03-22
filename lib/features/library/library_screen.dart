@@ -476,9 +476,10 @@ class _LibraryBody extends ConsumerWidget {
                 .contains(searchQuery.toLowerCase()))
             .toList();
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics()),
+    return ScrollConfiguration(
+      behavior: _NoOverscrollBehavior(),
+      child: CustomScrollView(
+      physics: const ClampingScrollPhysics(),
       slivers: [
         // ── Pinned Liked Songs card (Spotify-style) ──────
         if (filter == _FilterChip.all ||
@@ -622,11 +623,25 @@ class _LibraryBody extends ConsumerWidget {
             ),
           ),
 
-        const SliverToBoxAdapter(
-            child: SizedBox(height: 160)),
+        SliverToBoxAdapter(
+            child: SizedBox(height: kDenBottomPadding + 40)),
       ],
+    ),
     );
   }
+}
+
+
+// Removes the overscroll glow and tightens drag start distance
+class _NoOverscrollBehavior extends ScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const ClampingScrollPhysics();
+
+  @override
+  Widget buildOverscrollIndicator(
+          BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
 }
 
 // ─── LIKED SONGS BANNER ───────────────────────────────────────
@@ -644,6 +659,7 @@ class _LikedSongsBanner extends ConsumerWidget {
     final arts = songs.take(4).map((s) => s.image).toList();
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         if (songs.isNotEmpty) {
           playQueue(ref, songs, 0,
@@ -866,6 +882,7 @@ class _SongTile extends ConsumerWidget {
     final imgSize = compact ? 40.0 : 52.0;
 
     Widget tile = GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.lightImpact();
         playQueue(ref, playlist, index,
@@ -1037,6 +1054,7 @@ class _PlaylistListTile extends ConsumerWidget {
         playlist['coverImage'].toString().isNotEmpty;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => _openPlaylist(context, ref),
       onLongPress: () {
         HapticFeedback.mediumImpact();
@@ -1523,8 +1541,7 @@ class _SongOptionsSheet extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-              24, 16, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
             borderRadius: const BorderRadius.vertical(
@@ -1611,7 +1628,7 @@ class _SongOptionsSheet extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
             constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.75),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -1914,8 +1931,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-              24, 16, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
             borderRadius: const BorderRadius.vertical(
@@ -2022,8 +2038,7 @@ class _AddSheet extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-              24, 16, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
             borderRadius: const BorderRadius.vertical(
@@ -2162,8 +2177,7 @@ class _SortSheet extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-              24, 16, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
             borderRadius: const BorderRadius.vertical(

@@ -35,6 +35,8 @@ class PlayerService {
       if (state.processingState == ProcessingState.completed) {
         _log('completed listener: _loadingNext=$_loadingNext');
         if (_loadingNext) return;
+        // Ignore spurious completion fired during track loading
+        if (_player.position == Duration.zero && !_player.playing) return;
         _loadingNext = true;
         final playlist = _ref.read(currentPlaylistProvider);
         final index   = _ref.read(currentSongIndexProvider);
@@ -80,6 +82,11 @@ class PlayerService {
 
   // Public skip — used by UI buttons and swipe
   void skipNext() {
+    // ── Reset all guards on every manual skip ──────────────────
+    _loadingNext     = true;
+    _consecutiveSkips = 0;
+    _fetchingMore    = false;
+
     final playlist = _ref.read(currentPlaylistProvider);
     final index   = _ref.read(currentSongIndexProvider);
     if (playlist.isEmpty || index < 0) return;
@@ -97,6 +104,11 @@ class PlayerService {
   }
 
   void skipPrev() {
+    // ── Reset all guards on every manual skip ──────────────────
+    _loadingNext     = true;
+    _consecutiveSkips = 0;
+    _fetchingMore    = false;
+
     final pos = _player.position;
     if (pos.inSeconds > 3) {
       _player.seek(Duration.zero);
@@ -270,7 +282,7 @@ class PlayerService {
   Future<void> playSong(Song song) async {
     _log('=== PLAYING: ${song.title} ===');
     try {
-      await _player.pause();
+      await _player.stop(); // stop clears completed state; pause does not
 
       String url = song.url;
       if (song.id.startsWith('audius_')) {

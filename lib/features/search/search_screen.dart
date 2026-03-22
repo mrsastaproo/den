@@ -1423,7 +1423,7 @@ class _ResultsBody extends ConsumerWidget {
 
   Widget _buildShimmer() {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, kDenBottomPadding + 40),
       itemCount: 8,
       itemBuilder: (_, i) => Container(
         height: 70,
@@ -1849,7 +1849,7 @@ class _SongOptionsSheet extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
+          padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.84),
             borderRadius:

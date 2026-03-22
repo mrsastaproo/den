@@ -395,7 +395,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               const SliverToBoxAdapter(child: _FreshDropsList()),
 
               // Bottom space
-              const SliverToBoxAdapter(child: SizedBox(height: 180)),
+              SliverToBoxAdapter(child: SizedBox(height: kDenBottomPadding + 40)),
             ],
           ),
           ),
@@ -881,6 +881,7 @@ class _QuickAccessGrid extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
       child: GridView.builder(
+        padding: EdgeInsets.zero,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1174,6 +1175,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
               subtitle: 'fresh out now',
               icon: Icons.new_releases_rounded,
               accentColor: AppTheme.pinkDeep,
+              topPadding: 12,
               onSeeAll: () {
                 ref.read(searchQueryProvider.notifier).state =
                     'new releases hindi 2025';
@@ -2501,6 +2503,7 @@ class _SectionHeader extends StatelessWidget {
   final Color accentColor;
   final VoidCallback onSeeAll;
   final bool showSeeAll;
+  final double? topPadding;
 
   const _SectionHeader({
     required this.title,
@@ -2509,12 +2512,13 @@ class _SectionHeader extends StatelessWidget {
     required this.accentColor,
     required this.onSeeAll,
     this.showSeeAll = true,
+    this.topPadding,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 30, 20, 14),
+      padding: EdgeInsets.fromLTRB(20, topPadding ?? 30, 20, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

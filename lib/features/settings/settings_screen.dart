@@ -43,8 +43,7 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       body: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics()),
+        physics: const ClampingScrollPhysics(),
         slivers: [
 
           // ── Header ──────────────────────────────────────────
@@ -92,7 +91,7 @@ class SettingsScreen extends ConsumerWidget {
           // ── Delete Account ──────────────────────────────────
           SliverToBoxAdapter(child: _DeleteAccountButton()),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 180)),
+          SliverToBoxAdapter(child: SizedBox(height: kDenBottomPadding + 40)),
         ],
       ),
     );
@@ -1898,7 +1897,7 @@ class _GlassSheet extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Flexible(child: SingleChildScrollView(child: child)),
-              const SizedBox(height: 32),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
             ],
           ),
         ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/player_service.dart';
 
 // ─── STATE ────────────────────────────────────────────────────
 
@@ -47,7 +48,18 @@ class EqualizerState {
 }
 
 class EqualizerNotifier extends StateNotifier<EqualizerState> {
+  // Platform channel to Android's AudioEffect Equalizer
+  static const _channel = MethodChannel('den/equalizer');
+  int? _audioSessionId; // Android AudioSession ID from just_audio
+
   EqualizerNotifier() : super(const EqualizerState());
+
+  // Called once from EqualizerScreen to pass the Android audio session ID.
+  // just_audio 0.9.x exposes androidAudioSessionId on AudioPlayer.
+  Future<void> attachSessionId(int? sessionId) async {
+    _audioSessionId = sessionId;
+    await _applyAll(state);
+  }
 
   static const presets = <String, List<double>>{
     'Normal':     [0.0,  0.0,  0.0,  0.0,  0.0],
@@ -62,37 +74,66 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
     'Dance':      [5.0,  3.0,  1.0,  4.0,  3.0],
   };
 
+  // ── Apply EQ to Android AudioEffect via platform channel ───────
+  Future<void> _applyAll(EqualizerState s) async {
+    final sessionId = _audioSessionId;
+    if (sessionId == null || sessionId == 0) return;
+    try {
+      await _channel.invokeMethod('setEqualizer', {
+        'sessionId': sessionId,
+        'enabled': s.enabled,
+        'bands': s.bands, // List<double> in dB, -10 to +10
+        'masterGain': s.masterGain,
+      });
+    } catch (e) {
+      // Graceful degradation — EQ unavailable on this device/OS
+      print('[EQ] Platform channel error: $e');
+    }
+  }
+
   void setBand(int index, double v) {
     final bands = state.bands.toList();
     bands[index] = v;
-    state = state.copyWith(
-      bass:    bands[0], lowMid: bands[1], mid: bands[2],
+    final next = state.copyWith(
+      bass: bands[0], lowMid: bands[1], mid: bands[2],
       highMid: bands[3], treble: bands[4], preset: 'Custom');
+    state = next;
+    _applyAll(next);
   }
 
-  void setMasterGain(double v) =>
-      state = state.copyWith(masterGain: v);
+  void setMasterGain(double v) {
+    final next = state.copyWith(masterGain: v);
+    state = next;
+    _applyAll(next);
+  }
 
-  void setEnabled(bool v) =>
-      state = state.copyWith(enabled: v);
+  void setEnabled(bool v) {
+    final next = state.copyWith(enabled: v);
+    state = next;
+    _applyAll(next);
+  }
 
   void applyPreset(String name) {
     final v = presets[name];
     if (v == null) return;
-    state = EqualizerState(
+    final next = EqualizerState(
       bass: v[0], lowMid: v[1], mid: v[2],
       highMid: v[3], treble: v[4],
       preset: name, enabled: state.enabled,
       masterGain: state.masterGain,
     );
+    state = next;
+    _applyAll(next);
     HapticFeedback.selectionClick();
   }
 
   void reset() {
     state = const EqualizerState();
+    _applyAll(state);
     HapticFeedback.mediumImpact();
   }
 }
+
 
 // ─── EQUALIZER SCREEN ─────────────────────────────────────────
 
@@ -112,6 +153,13 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen>
     _vizCtrl = AnimationController(
       vsync: this, duration: const Duration(seconds: 2))
       ..repeat();
+    // Pass Android audio session ID to the EQ notifier
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final player = ref.read(playerServiceProvider).player;
+      // androidAudioSessionId is available on just_audio 0.9.x
+      final sessionId = player.androidAudioSessionId;
+      ref.read(equalizerProvider.notifier).attachSessionId(sessionId);
+    });
   }
 
   @override
