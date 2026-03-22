@@ -51,7 +51,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat/:uid',
-        builder: (c, s) => ChatScreen(otherUid: s.pathParameters['uid']!),
+        builder: (c, s) {
+          final extras = s.extra as Map<String, dynamic>?;
+          return ChatScreen(
+            otherUid: s.pathParameters['uid']!,
+            username: extras?['username'],
+            profileUrl: extras?['profileUrl'],
+          );
+        },
       ),
       ShellRoute(
         builder: (context, state, child) =>

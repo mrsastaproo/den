@@ -127,6 +127,26 @@ class SocialService {
     await batch.commit();
   }
 
+  /// Decline a friend request: simply deletes the request document.
+  Future<void> declineFriendRequest(String fromUid) async {
+    if (userId == null) return;
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('received_requests')
+        .doc(fromUid)
+        .delete();
+  }
+
+  /// Remove an existing friend from both sides.
+  Future<void> removeFriend(String friendUid) async {
+    if (userId == null) return;
+    final batch = _db.batch();
+    batch.delete(_db.collection('users').doc(userId).collection('friends').doc(friendUid));
+    batch.delete(_db.collection('users').doc(friendUid).collection('friends').doc(userId));
+    await batch.commit();
+  }
+
   /// Listen for incoming friend requests
   Stream<List<Map<String, dynamic>>> getIncomingRequests() {
     if (userId == null) return Stream.value([]);
@@ -179,6 +199,24 @@ class SocialService {
           return results;
         });
   }
+
+  // ─── PRESENCE ──────────────────────────────────────────────────
+
+  Future<void> updateOnlineStatus(bool isOnline) async {
+    if (userId == null) return;
+    try {
+      await _db.collection('users').doc(userId).update({
+        'isOnline': isOnline,
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      // Ignore if document not created yet
+    }
+  }
+
+  Stream<Map<String, dynamic>?> getUserProfileStream(String targetUid) {
+    return _db.collection('users').doc(targetUid).snapshots().map((s) => s.data());
+  }
 }
 
 // ─── PROVIDERS ────────────────────────────────────────────────
@@ -198,4 +236,8 @@ final friendsListProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
 
 final userProfileProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   return ref.watch(socialServiceProvider).getCurrentUserProfile();
+});
+
+final otherUserProfileProvider = StreamProvider.family<Map<String, dynamic>?, String>((ref, targetUid) {
+  return ref.watch(socialServiceProvider).getUserProfileStream(targetUid);
 });
