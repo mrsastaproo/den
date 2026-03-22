@@ -14,6 +14,8 @@ import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
+import '../../core/services/download_service.dart';
+import '../../core/services/audius_service.dart';
 
 // ─── PROVIDERS ────────────────────────────────────────────────
 
@@ -1916,6 +1918,7 @@ class _SongOptionsSheet extends StatelessWidget {
               const SizedBox(height: 8),
               ...[
                 (Icons.favorite_rounded, 'Like Song', AppTheme.pink),
+                (Icons.download_rounded, 'Download', Colors.teal), // [ADD]
                 (Icons.playlist_add_rounded, 'Add to Playlist', AppTheme.purple),
                 (Icons.queue_music_rounded, 'Play Next', AppTheme.pinkDeep),
                 (Icons.person_rounded, 'Go to Artist', Colors.white54),
@@ -1945,6 +1948,32 @@ class _SongOptionsSheet extends StatelessWidget {
                   onTap: () async {
                     if (o.$2 == 'Like Song') {
                       await ref.read(databaseServiceProvider).likeSong(song);
+                    } else if (o.$2 == 'Download') {
+                      if (context.mounted) Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(content: Text('Downloading ${song.title}...'), duration: const Duration(seconds: 2))
+                      );
+                      try {
+                        String url = song.url;
+                        if (song.id.startsWith('audius_')) {
+                          url = await ref.read(audiusServiceProvider).getStreamUrl(song.id);
+                        } else if (url.isEmpty) {
+                          url = await ref.read(apiServiceProvider).getStreamUrl(song.id);
+                        }
+                        await ref.read(downloadServiceProvider).downloadSong(song, resolvedUrl: url);
+                        if (context.mounted) {
+                           ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Downloaded ${song.title} successfully!'))
+                           );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                           ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red)
+                           );
+                        }
+                      }
+                      return;
                     } else if (o.$2 == 'Play Next') {
                       final pl = ref.read(currentPlaylistProvider);
                       final idx = ref.read(currentSongIndexProvider);

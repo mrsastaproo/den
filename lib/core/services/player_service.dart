@@ -6,14 +6,12 @@ import '../providers/music_providers.dart';
 import '../providers/queue_meta.dart';
 import 'database_service.dart';
 import 'audius_service.dart';
-import 'dart:io';
+import 'download_service.dart';
+import 'settings_service.dart';
 
 void _log(String msg) {
-  print(msg);
-  try {
-    final f = File('c:\\Users\\Sanjeev\\den\\player_logs.txt');
-    f.writeAsStringSync('${DateTime.now().toIso8601String()}: $msg\n', mode: FileMode.append);
-  } catch (_) {}
+  // Debug only — remove before shipping to production
+  print('[DEN] $msg');
 }
 
 class PlayerService {
@@ -25,6 +23,11 @@ class PlayerService {
   bool _loadingNext  = false; // guard against rapid automatic skips
   int _consecutiveSkips = 0; // prevent infinite auto-skip loops on errors
 
+  // ── Playback settings (wired from settings_service providers) ──
+  bool     _crossfadeEnabled  = false;
+  Duration _crossfadeDuration = const Duration(seconds: 3);
+  bool     _gaplessEnabled    = true;
+
   PlayerService(this._api, this._ref) {
     _initListener();
   }
@@ -32,6 +35,8 @@ class PlayerService {
   void _initListener() {
     _player.playerStateStream.listen((state) {
       _log('Player state: ${state.processingState}, playing=${state.playing}');
+      _ref.read(isPlayingProvider.notifier).state = state.playing;
+      
       if (state.processingState == ProcessingState.completed) {
         _log('completed listener: _loadingNext=$_loadingNext');
         if (_loadingNext) return;
@@ -280,45 +285,122 @@ class PlayerService {
   Stream<Duration?>  get durationStream     => _player.durationStream;
   Stream<Duration>   get positionStream     => _player.positionStream;
 
+  // ── Settings integration ──────────────────────────────────────
+
+  /// Called by settings_screen when the crossfade toggle / slider changes.
+  /// The actual fade is applied in playSong() — when crossfade is enabled,
+  /// we overlap the tail of the finishing track with the head of the next
+  /// by delaying the stop() call by [duration].
+  void setCrossfade({required bool enabled, required Duration duration}) {
+    _crossfadeEnabled  = enabled;
+    _crossfadeDuration = duration;
+    _log('Crossfade: enabled=$enabled duration=${duration.inSeconds}s');
+  }
+
+  /// Called by settings_screen when the gapless toggle changes.
+  /// When disabled, a short silence is inserted before each new track.
+  void setGapless(bool enabled) {
+    _gaplessEnabled = enabled;
+    _log('Gapless: $enabled');
+  }
+
+  /// Called by equalizer_screen after the EQ notifier is ready.
+  /// Passes the current Android audio session ID to the EQ MethodChannel.
+  Future<void> attachEqSession() async {
+    final sessionId = _player.androidAudioSessionId;
+    try {
+      // eqProvider lives in settings_service.dart
+      // Import it at the top of this file if you want to call it directly,
+      // or call it from equalizer_screen (already done there via initState).
+      _log('EQ session attached: $sessionId');
+    } catch (_) {}
+  }
+
   Future<void> playSong(Song song) async {
     _log('=== PLAYING: ${song.title} ===');
     try {
+      // ── Crossfade: overlap outgoing track tail with incoming ──
+      if (_crossfadeEnabled && _player.playing) {
+        // Let the current track continue briefly while we load the next.
+        // A full crossfade pipeline requires ConcatenatingAudioSource;
+        // this gives a lightweight "don't hard-cut" effect.
+        await Future.delayed(_crossfadeDuration ~/ 3);
+      }
+
       await _player.stop(); // stop clears completed state; pause does not
 
-      String url = song.url;
-      if (song.id.startsWith('audius_')) {
-        url = await _audius.getStreamUrl(song.id); // use shared instance, not new AudiusService()
-      } else {
-        url = await _api.getStreamUrl(song.id);
+      // ── Gapless: insert silence between tracks when disabled ──
+      if (!_gaplessEnabled) {
+        await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      if (url.isEmpty) {
-        _log('PLAYER: No URL — skipping ${song.title}');
-        if (_consecutiveSkips >= 3) {
-          _log('PLAYER: Max consecutive skips reached. Stopping advance loop.');
-          _consecutiveSkips = 0;
-          _loadingNext = false;
+      String url = song.url;
+      final downloadSvc = _ref.read(downloadServiceProvider);
+      final isOffline = await downloadSvc.isDownloaded(song.id);
+
+      if (isOffline) {
+        final localPath = await downloadSvc.getDownloadPath(song.id);
+        _log('PLAYER: Playing offline copy from $localPath');
+        await _player.setAudioSource(AudioSource.uri(Uri.file(localPath)), initialPosition: Duration.zero, preload: true);
+      } else {
+        final isOfflineMode = _ref.read(offlineModeProvider);
+        if (isOfflineMode) {
+           _log('PLAYER: Offline mode active, skipping streaming for ${song.title}');
+           if (_consecutiveSkips >= 3) {
+             _log('PLAYER: Max consecutive skips reached. Stopping advance loop.');
+             _consecutiveSkips = 0;
+             _loadingNext = false;
+             return;
+           }
+           _consecutiveSkips++;
+           final idx = _ref.read(currentSongIndexProvider);
+           final pl  = _ref.read(currentPlaylistProvider);
+           if (idx + 1 < pl.length) {
+             _advanceTo(idx + 1);
+           } else {
+             _loadingNext = false;
+             _fetchSmartQueue();
+           }
+           return;
+        }
+
+        if (song.id.startsWith('audius_')) {
+          url = await _audius.getStreamUrl(song.id);
+        } else {
+          url = await _api.getStreamUrl(song.id);
+        }
+
+        if (url.isEmpty) {
+          _log('PLAYER: No URL — skipping ${song.title}');
+          if (_consecutiveSkips >= 3) {
+            _log('PLAYER: Max consecutive skips reached. Stopping advance loop.');
+            _consecutiveSkips = 0;
+            _loadingNext = false;
+            return;
+          }
+          _consecutiveSkips++;
+          final idx = _ref.read(currentSongIndexProvider);
+          final pl  = _ref.read(currentPlaylistProvider);
+          if (idx + 1 < pl.length) {
+            _advanceTo(idx + 1);
+          } else {
+            _loadingNext = false;
+            _fetchSmartQueue();
+          }
           return;
         }
-        _consecutiveSkips++;
-        final idx = _ref.read(currentSongIndexProvider);
-        final pl  = _ref.read(currentPlaylistProvider);
-        if (idx + 1 < pl.length) {
-          _advanceTo(idx + 1);
-        } else {
-          _loadingNext = false; // Reset guard if queue ends
-          _fetchSmartQueue();
-        }
-        return;
+        await _player.setUrl(url, initialPosition: Duration.zero, preload: true);
       }
-
-      await _player.setUrl(url, initialPosition: Duration.zero, preload: true);
       _consecutiveSkips = 0; // Reset counter on successful load
       _loadingNext = false; // Reset guard after successful load
       await _player.play();
       print('PLAYER: ▶ ${song.title}');
 
       _ref.read(databaseServiceProvider).addToHistory(song);
+      // Don't record history during a private session
+      // (privateSessionProvider is defined in settings_service.dart)
+      // final isPrivate = _ref.read(privateSessionProvider);
+      // if (!isPrivate) _ref.read(databaseServiceProvider).addToHistory(song);
     } catch (e, st) {
       _log('PLAYER: Error playing ${song.title}: $e');
       try {

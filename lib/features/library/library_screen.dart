@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/database_service.dart';
+import '../../core/services/download_service.dart';
+import '../../core/services/api_service.dart';
+import '../../core/services/audius_service.dart';
 import '../../core/services/player_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/providers/music_providers.dart';
@@ -17,7 +20,7 @@ import '../../shared/widgets/social_share_sheet.dart';
 
 enum _ViewMode { list, grid, compact }
 
-enum _FilterChip { all, playlists, liked, artists, albums }
+enum _FilterChip { all, playlists, liked, downloads, artists, albums }
 
 // ─── LOCAL STATE PROVIDERS ────────────────────────────────────
 
@@ -382,6 +385,7 @@ class _FilterChips extends StatelessWidget {
     _FilterChip.all: 'All',
     _FilterChip.playlists: 'Playlists',
     _FilterChip.liked: 'Liked Songs',
+    _FilterChip.downloads: 'Downloads',
     _FilterChip.artists: 'Artists',
     _FilterChip.albums: 'Albums',
   };
@@ -457,11 +461,22 @@ class _LibraryBody extends ConsumerWidget {
         ref.watch(playlistsProvider).value ?? [];
     final history =
         ref.watch(historyProvider).value ?? [];
+    final downloaded = ref.watch(downloadedSongsProvider).value ?? [];
 
     // Apply search filter
     List<Song> filteredLiked = searchQuery.isEmpty
         ? liked
         : liked
+            .where((s) =>
+                s.title.toLowerCase().contains(
+                    searchQuery.toLowerCase()) ||
+                s.artist.toLowerCase().contains(
+                    searchQuery.toLowerCase()))
+            .toList();
+
+    List<Song> filteredDownloaded = searchQuery.isEmpty
+        ? downloaded
+        : downloaded
             .where((s) =>
                 s.title.toLowerCase().contains(
                     searchQuery.toLowerCase()) ||
@@ -571,6 +586,37 @@ class _LibraryBody extends ConsumerWidget {
                 title: 'No liked songs',
                 subtitle:
                     'Tap ♥ on any song\nto save it here',
+              ),
+            ),
+        ],
+
+        // ── Downloaded Songs List ──────────────────────────
+        if (filter == _FilterChip.downloads) ...[
+          if (filteredDownloaded.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _SectionLabel(
+                  label: 'Downloaded Songs',
+                  count: filteredDownloaded.length),
+            ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (_, i) => _SongTile(
+                song: filteredDownloaded[i],
+                playlist: filteredDownloaded,
+                index: i,
+                compact: viewMode == _ViewMode.compact,
+                trailing: _SongTileTrailing.more,
+              ),
+              childCount: filteredDownloaded.length,
+            ),
+          ),
+          if (filteredDownloaded.isEmpty)
+            SliverToBoxAdapter(
+              child: _EmptyState(
+                icon: Icons.download_done_rounded,
+                title: 'No downloaded songs',
+                subtitle:
+                    'Download songs to listen offline',
               ),
             ),
         ],
@@ -906,6 +952,14 @@ class _SongTile extends ConsumerWidget {
                 width: imgSize,
                 height: imgSize,
                 fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  width: imgSize,
+                  height: imgSize,
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgTertiary,
+                    borderRadius: BorderRadius.circular(compact ? 6 : 10),
+                  ),
+                ),
                 errorWidget: (_, __, ___) => Container(
                   width: imgSize,
                   height: imgSize,
@@ -1705,6 +1759,35 @@ class _SongOptionsSheet extends StatelessWidget {
           Navigator.pop(context);
           await ref.read(databaseServiceProvider).likeSong(song);
           HapticFeedback.lightImpact();
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.download_rounded, color: Colors.teal, size: 22),
+        title: const Text('Download',
+            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+        contentPadding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        onTap: () async {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('Downloading ${song.title}...'), duration: const Duration(seconds: 2))
+          );
+          try {
+            String url = song.url;
+            if (song.id.startsWith('audius_')) {
+              url = await ref.read(audiusServiceProvider).getStreamUrl(song.id);
+            } else if (url.isEmpty) {
+              url = await ref.read(apiServiceProvider).getStreamUrl(song.id);
+            }
+            await ref.read(downloadServiceProvider).downloadSong(song, resolvedUrl: url);
+            ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text('Downloaded ${song.title} successfully!'))
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red)
+            );
+          }
         },
       ),
       ListTile(

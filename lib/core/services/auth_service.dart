@@ -1,16 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FirebaseAuth    _auth         = FirebaseAuth.instance;
+  final GoogleSignIn    _googleSignIn = GoogleSignIn();
+  final FirebaseFirestore _db         = FirebaseFirestore.instance;
 
   Stream<User?> get userStream => _auth.authStateChanges();
-  User? get currentUser => _auth.currentUser;
-  bool get isLoggedIn => _auth.currentUser != null;
+  User? get currentUser        => _auth.currentUser;
+  bool  get isLoggedIn         => _auth.currentUser != null;
 
-  // Google Sign In
+  // ── Google Sign In ────────────────────────────────────────────
   Future<UserCredential?> signInWithGoogle() async {
     try {
       final googleUser = await _googleSignIn.signIn();
@@ -18,28 +20,32 @@ class AuthService {
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        idToken:     googleAuth.idToken,
       );
-      return await _auth.signInWithCredential(credential);
+      final result = await _auth.signInWithCredential(credential);
+      await _ensureUserDoc(result.user);
+      return result;
     } catch (e) {
       print('Google sign in error: $e');
       return null;
     }
   }
 
-  // Email sign up
+  // ── Email sign up ─────────────────────────────────────────────
   Future<UserCredential?> signUpWithEmail(
       String email, String password) async {
     try {
-      return await _auth.createUserWithEmailAndPassword(
+      final result = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
+      await _ensureUserDoc(result.user);
+      return result;
     } catch (e) {
       print('Sign up error: $e');
       return null;
     }
   }
 
-  // Email sign in
+  // ── Email sign in ─────────────────────────────────────────────
   Future<UserCredential?> signInWithEmail(
       String email, String password) async {
     try {
@@ -51,7 +57,7 @@ class AuthService {
     }
   }
 
-  // Password reset
+  // ── Password reset ────────────────────────────────────────────
   Future<bool> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -62,10 +68,85 @@ class AuthService {
     }
   }
 
-  // Sign out
+  // ── Sign out ──────────────────────────────────────────────────
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
+  }
+
+  // ── Delete account ────────────────────────────────────────────
+  /// Wipes all Firestore data for the user, then deletes the
+  /// Firebase Auth account. Called from settings_screen.dart.
+  /// If the session is too old Firebase will throw
+  /// [requires-recent-login] — the caller should catch this and
+  /// prompt the user to re-authenticate before retrying.
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final uid = user.uid;
+
+    // 1. Delete all Firestore collections owned by this user
+    await Future.wait([
+      _deleteCollection('users/$uid/history'),
+      _deleteCollection('users/$uid/liked'),
+      _deleteCollection('users/$uid/playlists'),
+    ]);
+
+    // 2. Delete top-level user documents
+    await Future.wait([
+      _db.doc('users/$uid').delete().catchError((_) {}),
+      _db.doc('user_settings/$uid').delete().catchError((_) {}),
+    ]);
+
+    // 3. Delete Firebase Storage profile photo
+    try {
+      // If you store photos at profile_photos/{uid}.jpg uncomment:
+      // await FirebaseStorage.instance
+      //     .ref('profile_photos/$uid.jpg')
+      //     .delete();
+    } catch (_) {}
+
+    // 4. Delete the Firebase Auth account itself (must be last)
+    await user.delete();
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+
+  /// Creates a minimal user document on first sign-in so that
+  /// Firestore queries never have to deal with a missing doc.
+  Future<void> _ensureUserDoc(User? user) async {
+    if (user == null) return;
+    final ref = _db.doc('users/${user.uid}');
+    final snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({
+        'uid':         user.uid,
+        'email':       user.email ?? '',
+        'displayName': user.displayName ?? '',
+        'photoURL':    user.photoURL ?? '',
+        'createdAt':   FieldValue.serverTimestamp(),
+        'plan':        'free',
+      });
+    }
+  }
+
+  /// Batch-deletes all documents in a sub-collection.
+  /// Firestore does not cascade-delete sub-collections automatically.
+  Future<void> _deleteCollection(String path) async {
+    try {
+      const batchSize = 100;
+      var query = _db.collection(path).limit(batchSize);
+      while (true) {
+        final snap = await query.get();
+        if (snap.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final doc in snap.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        if (snap.docs.length < batchSize) break;
+      }
+    } catch (_) {}
   }
 }
 

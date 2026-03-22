@@ -1611,6 +1611,8 @@ class _StandardCardState extends State<_StandardCard> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
+      // Absorb vertical scroll to prevent phantom taps during list scrolling
+      onVerticalDragStart: (_) => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.93 : 1.0,
@@ -1759,6 +1761,7 @@ class _WideCardState extends State<_WideCard> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
+      onVerticalDragStart: (_) => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.95 : 1.0,
@@ -1897,6 +1900,7 @@ class _RankedCardState extends State<_RankedCard> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
+      onVerticalDragStart: (_) => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.93 : 1.0,

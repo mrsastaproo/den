@@ -8,9 +8,12 @@ import '../../core/services/social_service.dart';
 import 'integrated_bottom_shell.dart';
 import 'ambient_background.dart';
 
+import 'dynamic_island.dart';
+
 class MainScaffold extends ConsumerStatefulWidget {
   final Widget child;
   const MainScaffold({super.key, required this.child});
+
 
   @override
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
@@ -69,7 +72,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
         backgroundColor: Colors.transparent,
         extendBody: true,
         extendBodyBehindAppBar: true,
-        body: widget.child,
+        body: Stack(
+          children: [
+            widget.child,
+            const DynamicIsland(),
+          ],
+        ),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Place this file at:
+    android/app/src/main/res/xml/network_security_config.xml
+
+    Allows HTTPS to all domains (default for release).
+    JioSaavn + Audius + Firebase all use HTTPS so no cleartext needed.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -22,12 +22,24 @@ class Song {
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
+    // image can be a plain String URL or a List of {quality, url} objects
+    String imageUrl = '';
+    final rawImage = json['image'];
+    if (rawImage is String) {
+      imageUrl = rawImage;
+    } else if (rawImage is List && rawImage.isNotEmpty) {
+      // Pick the last (highest quality) entry
+      final last = rawImage.last;
+      if (last is Map) {
+        imageUrl = (last['url'] ?? last['link'] ?? '').toString();
+      }
+    }
     return Song(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       artist: json['artist'] ?? '',
       album: json['album'] ?? '',
-      image: json['image'] ?? '',
+      image: imageUrl,
       url: json['url'] ?? '',
       duration: json['duration']?.toString() ?? '0',
       year: json['year']?.toString() ?? '',
