@@ -790,7 +790,7 @@ class PlaybackSettingsApplier {
     // AVAudioSession on iOS or AudioAttributes on Android.
     final enabled = ref.read(normalizationEnabledProvider);
     // Placeholder — integrate with audio_session when needed
-    _ = enabled;
+    var _ = enabled;
   }
 
   Future<void> applyGapless() async {

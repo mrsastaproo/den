@@ -17,6 +17,7 @@ import '../../core/services/api_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/song.dart';
 import 'social_share_sheet.dart';
+import '../../core/services/download_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDERS
@@ -580,6 +581,8 @@ class _PlayerBody extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
+            _DownloadButton(song: song),
+            const SizedBox(width: 12),
             _LikeButton(isLiked: liked, onTap: onLike),
           ],
         ),
@@ -902,6 +905,108 @@ class _LikeButtonState extends State<_LikeButton>
             size: 20,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DownloadButton extends ConsumerStatefulWidget {
+  final Song song;
+  const _DownloadButton({required this.song});
+
+  @override
+  ConsumerState<_DownloadButton> createState() => _DownloadButtonState();
+}
+
+class _DownloadButtonState extends ConsumerState<_DownloadButton> {
+  bool _isDownloading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final downloadedAsync = ref.watch(downloadedSongsProvider);
+    final isDownloaded = downloadedAsync.value?.any((s) => s.id == widget.song.id) ?? false;
+
+    return GestureDetector(
+      onTap: _isDownloading ? null : () async {
+        if (isDownloaded) return;
+        setState(() => _isDownloading = true);
+        final progressNotifier = ValueNotifier<double>(0.0);
+
+        // Show progress dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _DownloadProgressDialog(
+            progressNotifier: progressNotifier,
+            title: widget.song.title,
+          ),
+        );
+
+        try {
+          String url = widget.song.url;
+          if (url.isEmpty) {
+            if (widget.song.id.startsWith('audius_')) {
+              url = await ref.read(audiusServiceProvider).getStreamUrl(widget.song.id);
+            } else {
+              url = await ref.read(apiServiceProvider).getStreamUrl(widget.song.id);
+            }
+          }
+
+          if (url.isEmpty) throw Exception('Could not resolve stream URL');
+
+          await ref.read(downloadServiceProvider).downloadSong(
+                widget.song,
+                resolvedUrl: url,
+                onProgress: (p) => progressNotifier.value = p,
+              );
+
+          ref.refresh(downloadedSongsProvider);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Download failed: $e')),
+            );
+          }
+        } finally {
+          if (mounted) {
+            Navigator.of(context).pop(); // Dismiss dialog
+            setState(() => _isDownloading = false);
+          }
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isDownloaded
+              ? AppTheme.pink.withOpacity(0.18)
+              : Colors.white.withOpacity(0.07),
+          border: Border.all(
+            color: isDownloaded
+                ? AppTheme.pink.withOpacity(0.55)
+                : Colors.white.withOpacity(0.12),
+            width: 1.2,
+          ),
+        ),
+        child: _isDownloading
+            ? const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white70,
+                  ),
+                ),
+              )
+            : Icon(
+                isDownloaded ? Icons.download_done_rounded : Icons.download_rounded,
+                color: isDownloaded ? AppTheme.pink : Colors.white.withOpacity(0.45),
+                size: 20,
+              ),
       ),
     );
   }
@@ -1865,6 +1970,83 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
           },
         );
       },
+    );
+  }
+}
+
+class _DownloadProgressDialog extends StatelessWidget {
+  final ValueNotifier<double> progressNotifier;
+  final String title;
+
+  const _DownloadProgressDialog({
+    required this.progressNotifier,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141424),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Downloading',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 13,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ValueListenableBuilder<double>(
+              valueListenable: progressNotifier,
+              builder: (context, progress, _) {
+                return Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        color: AppTheme.pink,
+                        minHeight: 6,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${(progress * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        color: AppTheme.pink,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

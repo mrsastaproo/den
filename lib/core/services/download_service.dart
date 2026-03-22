@@ -36,7 +36,7 @@ class DownloadService {
     return box.containsKey(songId);
   }
 
-  Future<void> downloadSong(Song song, {String? resolvedUrl}) async {
+  Future<void> downloadSong(Song song, {String? resolvedUrl, Function(double)? onProgress}) async {
     if (await isDownloaded(song.id)) return;
 
     try {
@@ -53,7 +53,7 @@ class DownloadService {
         path,
         onReceiveProgress: (received, total) {
           if (total != -1) {
-            print('Download ${song.id}: ${(received / total * 100).toStringAsFixed(0)}%');
+            onProgress?.call(received / total);
           }
         },
       );

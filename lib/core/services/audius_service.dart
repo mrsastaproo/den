@@ -101,5 +101,4 @@ class AudiusService {
     }
   }
 }
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-final audiusServiceProvider = Provider<AudiusService>((ref) => AudiusService());
+
