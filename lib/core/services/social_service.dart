@@ -136,7 +136,23 @@ class SocialService {
         .collection('received_requests')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => {'uid': d.id, ...d.data()}).toList());
+        .asyncMap((snap) async {
+          final List<Map<String, dynamic>> results = [];
+          for (var d in snap.docs) {
+            final data = d.data();
+            final fromUid = data['fromUid'] ?? d.id;
+            final userDoc = await _db.collection('users').doc(fromUid).get();
+            final userData = userDoc.data() ?? {};
+            results.add({
+              'uid': fromUid,
+              ...data,
+              'username': userData['username'] ?? fromUid,
+              'displayName': userData['displayName'] ?? 'User',
+              'photoUrl': userData['photoUrl'],
+            });
+          }
+          return results;
+        });
   }
 
   Stream<List<Map<String, dynamic>>> getFriends() {
@@ -146,7 +162,22 @@ class SocialService {
         .doc(userId)
         .collection('friends')
         .snapshots()
-        .map((snap) => snap.docs.map((d) => {'uid': d.id, ...d.data()}).toList());
+        .asyncMap((snap) async {
+          final List<Map<String, dynamic>> results = [];
+          for (var d in snap.docs) {
+            final friendUid = d.id;
+            final userDoc = await _db.collection('users').doc(friendUid).get();
+            final userData = userDoc.data() ?? {};
+            results.add({
+              'uid': friendUid,
+              ...d.data(),
+              'username': userData['username'] ?? friendUid,
+              'displayName': userData['displayName'],
+              'photoUrl': userData['photoUrl'],
+            });
+          }
+          return results;
+        });
   }
 }
 

@@ -1995,7 +1995,7 @@ class _SheetOption extends StatelessWidget {
 
 // ─── CONFIRM DIALOG ───────────────────────────────────────────
 
-class _ConfirmDialog extends StatelessWidget {
+class _ConfirmDialog extends StatefulWidget {
   final String title, message, confirmLabel;
   final bool isDestructive;
   final VoidCallback onConfirm;
@@ -2007,6 +2007,13 @@ class _ConfirmDialog extends StatelessWidget {
     required this.isDestructive,
     required this.onConfirm,
   });
+
+  @override
+  State<_ConfirmDialog> createState() => _ConfirmDialogState();
+}
+
+class _ConfirmDialogState extends State<_ConfirmDialog> {
+  bool _isProcessing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -2028,13 +2035,13 @@ class _ConfirmDialog extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
+                Text(widget.title,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w800)),
                 const SizedBox(height: 12),
-                Text(message,
+                Text(widget.message,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.6),
                     fontSize: 14,
@@ -2065,12 +2072,15 @@ class _ConfirmDialog extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: GestureDetector(
-                        onTap: onConfirm,
+                        onTap: _isProcessing ? null : () {
+                          setState(() => _isProcessing = true);
+                          widget.onConfirm();
+                        },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               vertical: 13),
                           decoration: BoxDecoration(
-                            gradient: isDestructive
+                            gradient: widget.isDestructive
                                 ? const LinearGradient(colors: [
                                     Color(0xFFFF4444),
                                     Color(0xFFCC0000),
@@ -2079,7 +2089,7 @@ class _ConfirmDialog extends StatelessWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Center(
-                            child: Text(confirmLabel,
+                            child: Text(widget.confirmLabel,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700))),

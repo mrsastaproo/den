@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/models/song.dart';
+import '../../core/services/api_service.dart';
+import '../../core/services/database_service.dart';
+import '../../core/services/player_service.dart';
+import '../../core/providers/music_providers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String otherUid;
@@ -77,8 +83,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (message.type == 'song')
-              _buildSongCard(message.metadata)
+            if (message.type != 'text')
+              _buildMediaCard(message.type, message.metadata)
             else
               Text(
                 message.content,
@@ -90,33 +96,96 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildSongCard(Map<String, dynamic>? metadata) {
+  Widget _buildMediaCard(String type, Map<String, dynamic>? metadata) {
     if (metadata == null) return const SizedBox();
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.black26,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          if (metadata['image'] != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(metadata['image'], width: 40, height: 40, fit: BoxFit.cover),
-            ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    
+    final title = metadata['title'] ?? metadata['name'] ?? 'Media';
+    final subtitle = metadata['artist'] ?? '${metadata['songCount'] ?? 0} tracks';
+    final imageUrl = metadata['image'] ?? metadata['coverImage'];
+
+    return GestureDetector(
+      onTap: () async {
+        try {
+          // Provide instant feedback
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Loading $title...')),
+          );
+          
+          List<Song> queue = [];
+          if (type == 'song') {
+            queue = [Song.fromJson(metadata)];
+          } else if (type == 'playlist') {
+            // For playlists, check database first, fallback to search API
+            final id = metadata['id'] as String?;
+            if (id != null) {
+              queue = await ref.read(databaseServiceProvider).getPlaylistSongs(id).first;
+            }
+          } else {
+            // Arrays for artist/album fallback to broad search
+            queue = await ref.read(apiServiceProvider).searchSongs(title, limit: 10);
+          }
+
+          if (queue.isEmpty) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not find tracks for this media.')));
+            return;
+          }
+
+          ref.read(currentPlaylistProvider.notifier).state = queue;
+          ref.read(currentSongIndexProvider.notifier).state = 0;
+          playQueue(ref, queue, 0);
+
+        } catch (e) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Playback failed: $e')));
+        }
+      },
+      child: Container(
+        width: 200,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black26,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(metadata['title'] ?? 'Title', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                Text(metadata['artist'] ?? 'Artist', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                Icon(
+                  type == 'song' ? Icons.music_note_rounded :
+                  type == 'playlist' ? Icons.queue_music_rounded :
+                  type == 'artist' ? Icons.person_rounded : Icons.album_rounded,
+                  color: AppTheme.pink,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(type.toUpperCase(), style: TextStyle(color: AppTheme.pink, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (imageUrl != null && imageUrl.toString().isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(imageUrl: imageUrl, width: 40, height: 40, fit: BoxFit.cover, errorWidget: (c, e, _) => Container(width: 40, height: 40, color: Colors.white12, child: const Icon(Icons.music_note, color: Colors.white))),
+                  )
+                else
+                  Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.album, color: Colors.white)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.play_circle_fill_rounded, color: Colors.white54, size: 28),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -13,6 +13,7 @@ import '../../core/services/api_service.dart';
 import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/social_share_sheet.dart';
 
 // ─── PROVIDERS ────────────────────────────────────────────────
 
@@ -1949,6 +1950,10 @@ class _SongOptionsSheet extends StatelessWidget {
                       final idx = ref.read(currentSongIndexProvider);
                       final nl = [...pl]..insert(idx + 1, song);
                       ref.read(currentPlaylistProvider.notifier).state = nl;
+                    } else if (o.$2 == 'Share') {
+                      if (context.mounted) Navigator.pop(context);
+                      SocialShareSheet.show(context, type: 'song', metadata: song.toJson());
+                      return;
                     }
                     if (context.mounted) Navigator.pop(context);
                     HapticFeedback.selectionClick();

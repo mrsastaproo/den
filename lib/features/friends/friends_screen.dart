@@ -202,7 +202,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
           itemCount: friends.length,
           itemBuilder: (c, i) => ListTile(
             leading: const CircleAvatar(backgroundColor: AppTheme.purple, child: Icon(Icons.person)),
-            title: Text(friends[i]['uid'], style: const TextStyle(color: Colors.white)),
+            title: Text(friends[i]['username'] ?? friends[i]['uid'], style: const TextStyle(color: Colors.white)),
             trailing: const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.pink),
             onTap: () => context.push('/chat/${friends[i]['uid']}'),
           ),
@@ -223,7 +223,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         return ListView.builder(
           itemCount: requests.length,
           itemBuilder: (c, i) => ListTile(
-            title: Text(requests[i]['fromUid'], style: const TextStyle(color: Colors.white)),
+            title: Text(requests[i]['username'] ?? requests[i]['fromUid'], style: const TextStyle(color: Colors.white)),
             trailing: IconButton(
               icon: const Icon(Icons.check_circle_rounded, color: AppTheme.pink),
               onPressed: () => ref.read(socialServiceProvider).acceptFriendRequest(requests[i]['fromUid']),

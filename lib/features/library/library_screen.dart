@@ -11,6 +11,7 @@ import '../../core/providers/music_providers.dart';
 import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/social_share_sheet.dart';
 
 // ─── VIEW MODE ────────────────────────────────────────────────
 
@@ -1748,7 +1749,10 @@ class _SongOptionsSheet extends StatelessWidget {
             style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
         contentPadding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        onTap: () { Navigator.pop(context); HapticFeedback.selectionClick(); },
+        onTap: () {
+          Navigator.pop(context);
+          SocialShareSheet.show(context, type: 'song', metadata: song.toJson());
+        },
       ),
     ];
   }
@@ -1989,7 +1993,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 onTap: () {
                   Navigator.pop(context);
-                  HapticFeedback.selectionClick();
+                  SocialShareSheet.show(context, type: 'playlist', metadata: playlist);
                 },
               ),
               // Download

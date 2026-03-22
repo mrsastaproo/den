@@ -13,8 +13,10 @@ import '../../core/services/database_service.dart';
 import '../../core/services/lyrics_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/chat_service.dart';
+import '../../core/services/api_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/song.dart';
+import 'social_share_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDERS
@@ -1306,53 +1308,7 @@ class _BottomBar extends ConsumerWidget {
 }
 
 void _showShareSheet(BuildContext context, WidgetRef ref, Song song) {
-  // Import social service if missing in top of file (assuming it's available)
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (c) => Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.95),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Share with Friends', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ref.watch(friendsListProvider).when(
-              loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.pink)),
-              error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Colors.white70))),
-              data: (friends) {
-                if (friends.isEmpty) {
-                  return const Center(child: Text('No friends yet', style: TextStyle(color: Colors.white30)));
-                }
-                return ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: friends.length,
-                  itemBuilder: (c, i) => ListTile(
-                    leading: const CircleAvatar(backgroundColor: AppTheme.purple, child: Icon(Icons.person, color: Colors.white)),
-                    title: Text(friends[i]['uid'], style: const TextStyle(color: Colors.white)),
-                    trailing: const Icon(Icons.send_rounded, color: AppTheme.pink),
-                    onTap: () {
-                      // Trigger sharing
-                      ref.read(chatServiceProvider).shareSong(friends[i]['uid'], song);
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Song shared with ${friends[i]['uid'].substring(0,5)}...')),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+  SocialShareSheet.show(context, type: 'song', metadata: song.toJson());
 }
 
 class _BarChip extends StatefulWidget {

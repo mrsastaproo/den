@@ -99,13 +99,14 @@ class ChatService {
     await batch.commit();
   }
 
-  /// Share a song to a friend
-  Future<void> shareSong(String otherUid, Song song) async {
+  /// Share any media (song, playlist, album, artist) to a friend
+  Future<void> shareMedia(String otherUid, String type, Map<String, dynamic> metadata) async {
+    final title = metadata['title'] ?? metadata['name'] ?? 'media';
     await sendMessage(
       otherUid,
-      'Shared a song: ${song.title}',
-      type: 'song',
-      metadata: song.toJson(),
+      'Shared a $type: $title',
+      type: type,
+      metadata: metadata,
     );
   }
 
