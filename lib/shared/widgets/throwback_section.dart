@@ -4,12 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/providers/music_providers.dart';
-import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
-import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/providers/music_providers.dart';
 
 class ThrowbackSection extends ConsumerWidget {
   const ThrowbackSection({super.key});

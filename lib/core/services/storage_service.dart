@@ -183,8 +183,8 @@ final storageStatsProvider = FutureProvider<StorageStats>((ref) async {
     svc.getDownloadSizeBytes(),
   ]);
   return StorageStats(
-    cacheSizeBytes:      results[0] as int,
-    downloadedSongCount: results[1] as int,
-    downloadSizeBytes:   results[2] as int,
+    cacheSizeBytes:      results[0],
+    downloadedSongCount: results[1],
+    downloadSizeBytes:   results[2],
   );
 });

@@ -14,13 +14,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
 
 // ─── SHARED PREFS KEY REGISTRY ───────────────────────────────────────────────
@@ -51,7 +49,9 @@ class _K {
   // ── Content & Language ──────────────────────────────────────────
   static const musicLanguage     = 'music_language';
   static const explicitContent   = 'explicit_content';
+  // ignore: unused_field
   static const contentPrefs      = 'content_prefs';      // JSON list of genre strings
+  // ignore: unused_field
   static const blockedArtists    = 'blocked_artists';    // JSON list of artist IDs
 
   // ── Appearance ──────────────────────────────────────────────────

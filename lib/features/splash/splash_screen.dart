@@ -43,6 +43,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   late final AnimationController _botAnimCtrl;
   late final AnimationController _botEnterCtrl;
+  // ignore: unused_field
   late final Animation<double>   _botEnter;
 
   late final AnimationController _textCtrl;

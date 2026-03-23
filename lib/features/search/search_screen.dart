@@ -7,7 +7,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers/music_providers.dart';
-import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/providers/queue_meta.dart';
@@ -15,7 +14,7 @@ import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
 import '../../core/services/download_service.dart';
-import '../../core/services/audius_service.dart';
+
 
 // ─── PROVIDERS ────────────────────────────────────────────────
 
@@ -1931,16 +1930,16 @@ class _SongOptionsSheet extends StatelessWidget {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: (o.$3 as Color).withOpacity(0.12),
+                      color: o.$3.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                          color: (o.$3 as Color).withOpacity(0.2),
+                          color: o.$3.withOpacity(0.2),
                           width: 0.6),
                     ),
-                    child: Icon(o.$1 as IconData,
-                        color: o.$3 as Color, size: 18),
+                    child: Icon(o.$1,
+                        color: o.$3, size: 18),
                   ),
-                  title: Text(o.$2 as String,
+                  title: Text(o.$2,
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,

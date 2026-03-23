@@ -529,6 +529,7 @@ class AdminService {
 
   // ── ADMIN ACTIVITY LOG ─────────────────────────────────────
 
+  // ignore: unused_element
   Future<void> _logActivity(String action, Map<String, dynamic> details) async {
     await _db.collection('admin').doc('logs').collection('activity').add({
       'action': action,

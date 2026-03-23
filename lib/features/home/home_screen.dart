@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/providers/music_providers.dart';
-import '../../core/services/player_service.dart';
+
 import '../../core/providers/queue_meta.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';

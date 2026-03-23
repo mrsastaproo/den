@@ -151,6 +151,7 @@ class WrappedService {
       ..sort((a, b) => b.value.compareTo(a.value));
     final peakHourNum = sortedHours.isNotEmpty ? sortedHours.first.key : 20;
     final peakHourStr = _formatHour(peakHourNum);
+    // ignore: unused_local_variable
     final hourMap = {
       for (final e in hourCount.entries) e.key.toString(): e.value
     };

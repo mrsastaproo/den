@@ -41,6 +41,7 @@ class PlayerService {
 
   bool     _crossfadeEnabled  = false;
   Duration _crossfadeDuration = const Duration(seconds: 3);
+  // ignore: unused_field
   bool     _gaplessEnabled    = true;
 
   PlayerService(this._api, this._ref) {
@@ -90,10 +91,14 @@ class PlayerService {
       if (_skipInProgress) return;
 
       final playlist  = _ref.read(currentPlaylistProvider);
-      final idx       = _ref.read(currentSongIndexProvider) ?? 0;
+      final idx       = _ref.read(currentSongIndexProvider);
       final remaining = playlist.length - idx - 1;
 
       if (remaining <= 2) {
+        // ENFORCE AUTOPLAY SETTING
+        final autoplay = _ref.read(autoplayEnabledProvider);
+        if (!autoplay) return;
+
         final now = DateTime.now();
         if (_lastPrefetchAt != null &&
             now.difference(_lastPrefetchAt!).inSeconds < 10) return;
@@ -144,7 +149,7 @@ class PlayerService {
       return;
     }
     final playlist = _ref.read(currentPlaylistProvider);
-    final idx      = _ref.read(currentSongIndexProvider) ?? 0;
+    final idx      = _ref.read(currentSongIndexProvider);
     if (idx + 1 < playlist.length) {
       _doSkip(playlist[idx + 1], idx + 1);
     } else {
@@ -179,7 +184,7 @@ class PlayerService {
     // Show new song instantly (title, artwork, palette).
     // Audio loads in background. If it fails, we revert.
     final prevSong  = _ref.read(currentSongProvider);
-    final prevIndex = _ref.read(currentSongIndexProvider) ?? 0;
+    final prevIndex = _ref.read(currentSongIndexProvider);
     _ref.read(currentSongIndexProvider.notifier).state = index;
     _ref.read(currentSongProvider.notifier).state      = song;
     updateOverlay();
@@ -344,7 +349,7 @@ class PlayerService {
   void skipNext() {
     HapticFeedback.selectionClick();
     final playlist = _ref.read(currentPlaylistProvider);
-    final idx      = _ref.read(currentSongIndexProvider) ?? 0;
+    final idx      = _ref.read(currentSongIndexProvider);
     if (playlist.isEmpty) return;
 
     _consecutiveErrors = 0;
@@ -372,7 +377,7 @@ class PlayerService {
     }
 
     final playlist = _ref.read(currentPlaylistProvider);
-    final idx      = _ref.read(currentSongIndexProvider) ?? 0;
+    final idx      = _ref.read(currentSongIndexProvider);
     if (playlist.isEmpty) return;
 
     final prev = idx <= 0 ? playlist.length - 1 : idx - 1;
@@ -477,12 +482,12 @@ class PlayerService {
       _ref.read(currentPlaylistProvider.notifier).state = newList;
       _log('+${fresh.length} songs queued');
       if (!prefetch) {
-        final idx  = _ref.read(currentSongIndexProvider) ?? 0;
+        final idx  = _ref.read(currentSongIndexProvider);
         final next = idx + 1;
         if (next < newList.length) _doSkip(newList[next], next);
       }
     } else if (!prefetch) {
-      final idx = _ref.read(currentSongIndexProvider) ?? 0;
+      final idx = _ref.read(currentSongIndexProvider);
       final pl  = _ref.read(currentPlaylistProvider);
       if (idx + 1 < pl.length) _doSkip(pl[idx + 1], idx + 1);
     }

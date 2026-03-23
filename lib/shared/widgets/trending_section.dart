@@ -5,7 +5,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/music_providers.dart';
-import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
@@ -119,7 +118,7 @@ class _TrendingCardState extends State<_TrendingCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnim;
-  bool _isPressed = false;
+
 
   @override
   void initState() {
@@ -151,16 +150,13 @@ class _TrendingCardState extends State<_TrendingCard>
 
     return GestureDetector(
       onTapDown: (_) {
-        setState(() => _isPressed = true);
         _controller.forward();
       },
       onTapUp: (_) {
-        setState(() => _isPressed = false);
         _controller.reverse();
         widget.onTap();
       },
       onTapCancel: () {
-        setState(() => _isPressed = false);
         _controller.reverse();
       },
       child: AnimatedBuilder(

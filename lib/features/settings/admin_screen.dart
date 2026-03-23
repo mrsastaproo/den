@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/auth_service.dart';
 

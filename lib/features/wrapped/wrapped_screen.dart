@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
-import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../core/theme/app_theme.dart';

@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'firebase_options.dart';
-import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/services/appearance_service.dart';
 import 'core/services/settings_service.dart';

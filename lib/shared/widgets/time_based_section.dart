@@ -2,11 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/providers/music_providers.dart';
-import '../../core/services/player_service.dart';
 import '../../core/services/database_service.dart';
-import '../../core/services/api_service.dart';
 import '../../core/models/song.dart';
 
 class TimeBasedSection extends ConsumerWidget {

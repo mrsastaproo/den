@@ -1,5 +1,5 @@
 import 'dart:ui';
-import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,11 +8,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:palette_generator/palette_generator.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
-import '../../core/providers/queue_meta.dart';
+
 import '../../core/services/database_service.dart';
 import '../../core/services/lyrics_service.dart';
-import '../../core/services/social_service.dart';
-import '../../core/services/chat_service.dart';
+
 import '../../core/services/api_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -975,6 +974,7 @@ class _DownloadButtonState extends ConsumerState<_DownloadButton> {
                 onProgress: (p) => progressNotifier.value = p,
               );
 
+          // ignore: unused_result
           ref.refresh(downloadedSongsProvider);
         } catch (e) {
           if (mounted) {
@@ -1857,16 +1857,16 @@ class _OptionsSheet extends StatelessWidget {
                   leading: Container(
                     width: 38, height: 38,
                     decoration: BoxDecoration(
-                      color: (o.$3 as Color)
+                      color: o.$3
                           .withOpacity(0.1),
                       borderRadius:
                           BorderRadius.circular(10),
                     ),
-                    child: Icon(o.$1 as IconData,
-                        color: o.$3 as Color, size: 18),
+                    child: Icon(o.$1,
+                        color: o.$3, size: 18),
                   ),
                   title: Text(
-                    o.$2 as String,
+                    o.$2,
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,

@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
-import '../../core/providers/queue_meta.dart';
+
 import '../../core/theme/app_theme.dart';
 import 'player_screen.dart';
 
@@ -40,14 +40,9 @@ class MiniPlayer extends ConsumerWidget {
       ref.read(playerServiceProvider).skipPrev();
     }
 
-    // ── Ghost-tap fix ─────────────────────────────────────────
-    // Track pointer-down position so we can reject "taps" that
-    // were actually scroll-end events (finger moved > 8px).
-    Offset? _tapDownPos;
 
-    return Listener(
-      onPointerDown: (e) => _tapDownPos = e.localPosition,
-      child: GestureDetector(
+
+    return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
           HapticFeedback.lightImpact();
@@ -262,7 +257,6 @@ class MiniPlayer extends ConsumerWidget {
         ),
       ),
     )  // GestureDetector
-    ) // Listener
         .animate()
         .fadeIn(duration: 400.ms)
         .slideY(
@@ -274,41 +268,6 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-// ─── MINI ICON BUTTON ─────────────────────────────────────────
-
-class _MiniIconBtn extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final VoidCallback onTap;
-
-  const _MiniIconBtn({
-    required this.icon,
-    required this.size,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      // AbsorbPointer stops the tap from reaching the outer
-      // GestureDetector that opens PlayerScreen, so skip buttons
-      // never accidentally trigger a screen open.
-      onTap: () {
-        onTap();
-      },
-      behavior: HitTestBehavior.opaque,
-      // Use a bigger hit area for easier tapping
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Icon(
-          icon,
-          color: Colors.white.withOpacity(0.7),
-          size: size,
-        ),
-      ),
-    );
-  }
-}
 
 // ─── MINI PLAY/PAUSE BUTTON ───────────────────────────────────
 

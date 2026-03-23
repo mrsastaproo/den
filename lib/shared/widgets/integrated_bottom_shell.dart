@@ -6,7 +6,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/providers/music_providers.dart';
-import 'mini_player.dart'; // For FullPlayerSheet
 import '../../core/services/player_service.dart';
 import 'player_screen.dart';
 
