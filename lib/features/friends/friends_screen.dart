@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/services/social_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -44,11 +45,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0A0A12), Color(0xFF070710), Color(0xFF030308)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+          gradient: AppTheme.bgGradient,
         ),
         child: profileAsync.when(
           loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.pink, strokeWidth: 2)),
@@ -79,10 +76,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.white.withOpacity(0.07), Colors.white.withOpacity(0.03)],
+                    colors: [Colors.white.withValues(alpha: 0.07), Colors.white.withValues(alpha: 0.03)],
                   ),
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -97,14 +94,14 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                     Text(
                       'Pick a unique @username so friends can find and share music with you.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 14, height: 1.5),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 14, height: 1.5),
                     ),
                     const SizedBox(height: 28),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                       ),
                       child: TextField(
                         controller: _usernameController,
@@ -114,7 +111,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                           hintText: 'yourhandle',
                           prefixText: '@ ',
                           prefixStyle: const TextStyle(color: AppTheme.pink, fontWeight: FontWeight.bold),
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
@@ -143,7 +140,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: AppTheme.pink.withOpacity(0.35), blurRadius: 20, offset: const Offset(0, 8))],
+                          boxShadow: [BoxShadow(color: AppTheme.pink.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8))],
                         ),
                         child: const Center(child: Text('Claim Handle', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16))),
                       ),
@@ -221,7 +218,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
               _GlowButton(
                 icon: Icons.person_add_alt_1_rounded,
                 onTap: () => _showAddFriendSheet(context),
-              ),
+              ).animate().scale(delay: 200.ms, duration: 400.ms, curve: Curves.easeOutBack),
             ],
           ),
           const SizedBox(height: 16),
@@ -232,21 +229,21 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  border: Border.all(color: AppTheme.neonBlue.withValues(alpha: 0.1)),
                 ),
                 child: TextField(
                   controller: _searchController,
                   onChanged: _searchUsers,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'Search friends by @username...',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                    prefixIcon: Icon(Icons.search_rounded, color: Colors.white.withOpacity(0.4), size: 20),
+                    hintText: 'Search for handles...',
+                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
+                    prefixIcon: Icon(Icons.search_rounded, color: AppTheme.neonBlue.withValues(alpha: 0.4), size: 20),
                     suffixIcon: _activeQuery.isNotEmpty
                         ? IconButton(
-                            icon: Icon(Icons.close_rounded, color: Colors.white.withOpacity(0.4), size: 20),
+                            icon: Icon(Icons.close_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
                             onPressed: () {
                               _searchController.clear();
                               _searchUsers('');
@@ -271,14 +268,17 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       child: Container(
         height: 42,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
+            gradient: AppTheme.cyberGradient,
             borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(color: AppTheme.neonBlue.withValues(alpha: 0.3), blurRadius: 10),
+            ],
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
@@ -300,7 +300,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                     Container(
                       width: 18, height: 18,
                       decoration: const BoxDecoration(
-                        color: AppTheme.pink,
+                        color: AppTheme.neonPurple,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -339,7 +339,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
               '/chat/${friends[i]['uid']}',
               extra: {'username': friends[i]['username'], 'profileUrl': friends[i]['photoUrl']},
             ),
-          ),
+          ).animate(delay: (i * 50).ms).fadeIn(duration: 400.ms).slideX(begin: 0.1, end: 0),
         );
       },
     );
@@ -431,12 +431,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ShaderMask(
-            shaderCallback: (b) => AppTheme.primaryGradient.createShader(b),
-            child: Icon(icon, size: 52, color: Colors.white),
-          ),
+          Icon(icon, size: 52, color: AppTheme.neonBlue.withValues(alpha: 0.2)).animate(onPlay: (c) => c.repeat(reverse: true)).shimmer(color: AppTheme.neonBlue.withValues(alpha: 0.2), duration: 2500.ms),
           const SizedBox(height: 16),
-          Text(text, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 15, height: 1.5)),
+          Text(text, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 15, height: 1.5)),
         ],
       ),
     );
@@ -457,7 +454,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
           decoration: BoxDecoration(
             color: const Color(0xFF121220),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -475,13 +472,13 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                     const SizedBox(height: 12),
                     const Text('Add a Friend', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
-                    Text("Enter their exact @handle to send a request.", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+                    Text("Enter their exact @handle to send a request.", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13)),
                     const SizedBox(height: 20),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                       ),
                       child: TextField(
                         controller: ctrl,
@@ -491,7 +488,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                           hintText: 'username',
                           prefixText: '@ ',
                           prefixStyle: const TextStyle(color: AppTheme.pink, fontWeight: FontWeight.bold),
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
@@ -527,7 +524,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: AppTheme.pink.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 6))],
+                          boxShadow: [BoxShadow(color: AppTheme.pink.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -581,7 +578,7 @@ class _FriendCard extends ConsumerWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF0E0E1A),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -590,11 +587,24 @@ class _FriendCard extends ConsumerWidget {
                 ListTile(
                   leading: Container(
                     width: 40, height: 40,
-                    decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.person_remove_rounded, color: Colors.redAccent, size: 20),
+                    decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.block_flipped, color: Colors.redAccent, size: 20),
                   ),
-                  title: Text('Remove @$username', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
-                  subtitle: Text('Remove from your friends list', style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 12)),
+                  title: const Text('Block User', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                  subtitle: Text('Remove friend and block completely', style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(c);
+                    ref.read(socialServiceProvider).blockUser(data['uid'] ?? '');
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.person_remove_rounded, color: Colors.white70, size: 20),
+                  ),
+                  title: Text('Remove @$username', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  subtitle: Text('Remove from your friends list', style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12)),
                   onTap: () {
                     Navigator.pop(c);
                     ref.read(socialServiceProvider).removeFriend(data['uid'] ?? '');
@@ -611,9 +621,9 @@ class _FriendCard extends ConsumerWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
+          color: Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.07)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
         ),
         child: Row(
           children: [
@@ -647,15 +657,36 @@ class _FriendCard extends ConsumerWidget {
                 children: [
                   Text('@$username', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
                   const SizedBox(height: 2),
-                  Text(isOnline ? '🟢 Online' : '⚫ Offline', style: TextStyle(color: isOnline ? Colors.greenAccent.withOpacity(0.8) : Colors.white30, fontSize: 12)),
+                  if (liveData?['nowPlaying'] != null)
+                    Row(
+                      children: [
+                        Icon(Icons.music_note_rounded, size: 10, color: AppTheme.neonBlue.withValues(alpha: 0.8)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Listening to ${liveData!['nowPlaying']['title']}',
+                            style: TextStyle(color: AppTheme.neonBlue.withValues(alpha: 0.7), fontSize: 11, fontWeight: FontWeight.w500),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2000.ms, color: Colors.white24),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      isOnline ? '🟢 Online' : '⚫ Offline',
+                      style: TextStyle(color: isOnline ? AppTheme.neonGreen.withValues(alpha: 0.8) : Colors.white30, fontSize: 12),
+                    ),
                 ],
               ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
+                gradient: AppTheme.cyberGradient,
                 borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: AppTheme.neonBlue.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
               ),
               child: const Row(
                 children: [
@@ -689,9 +720,9 @@ class _RequestCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.pink.withOpacity(0.2)),
+        border: Border.all(color: AppTheme.pink.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -707,7 +738,7 @@ class _RequestCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('@$username', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-                Text('Wants to be your friend', style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                Text('Wants to be your friend', style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 12)),
               ],
             ),
           ),
@@ -716,7 +747,7 @@ class _RequestCard extends StatelessWidget {
             onTap: () { HapticFeedback.lightImpact(); onDecline(); },
             child: Container(
               width: 38, height: 38,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle),
               child: const Icon(Icons.close_rounded, color: Colors.white38, size: 18),
             ),
           ),
@@ -759,9 +790,9 @@ class _SearchResultCardState extends State<_SearchResultCard> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Row(
         children: [
@@ -778,7 +809,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
               children: [
                 Text('@$username', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
                 if (displayName.isNotEmpty)
-                  Text(displayName, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                  Text(displayName, style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 12)),
               ],
             ),
           ),
@@ -792,7 +823,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 gradient: _sent ? null : AppTheme.primaryGradient,
-                color: _sent ? Colors.white.withOpacity(0.08) : null,
+                color: _sent ? Colors.white.withValues(alpha: 0.08) : null,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(

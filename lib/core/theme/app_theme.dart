@@ -31,11 +31,15 @@ class AppTheme {
   static const Color purple       = Color(0xFFD4B8FF);  // Soft baby purple
   static const Color pinkDeep     = Color(0xFFFF85A1);  // Deeper pink
   static const Color purpleDeep   = Color(0xFFB794FF);  // Deeper purple
+  static const Color neonGreen    = Color(0xFF39FF14);  // Gaming neon green
+  static const Color neonBlue     = Color(0xFF00F3FF);  // Gaming neon cyan/blue
+  static const Color neonPurple   = Color(0xFFBC13FE);  // Gaming neon purple
 
   // ─── Glass Colors ──────────────────────────────────
   static const Color glassWhite   = Color(0x14FFFFFF);  // 8% white
   static const Color glassBorder  = Color(0x1FFFFFFF);  // 12% white
   static const Color glassShimmer = Color(0x0AFFFFFF);  // 4% white
+  static const Color glassBlack   = Color(0xB3000000);  // 70% black (for contrast)
 
   // ─── Text Colors ───────────────────────────────────
   static const Color textPrimary   = Color(0xFFFFFFFF);
@@ -50,9 +54,15 @@ class AppTheme {
   );
 
   static const LinearGradient bgGradient = LinearGradient(
-    colors: [Color(0xFF080808), Color(0xFF0D0D0D), Color(0xFF111111)],
+    colors: [Color(0xFF0D0D12), Color(0xFF08080A), Color(0xFF050505)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
+  );
+
+  static const LinearGradient cyberGradient = LinearGradient(
+    colors: [neonBlue, neonPurple],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 
   static const LinearGradient pinkGradient = LinearGradient(

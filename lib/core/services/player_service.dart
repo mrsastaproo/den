@@ -14,6 +14,7 @@ import 'database_service.dart';
 import 'audius_service.dart';
 import 'download_service.dart';
 import 'settings_service.dart';
+import 'social_service.dart';
 import 'audio_handler.dart';
 
 void _log(String msg) => print('[DEN] $msg');
@@ -301,6 +302,12 @@ class PlayerService {
       final isPrivate = _ref.read(privateSessionProvider);
       if (!isPrivate) {
         _ref.read(databaseServiceProvider).addToHistory(song);
+        _ref.read(socialServiceProvider).updatePresence(true, nowPlaying: {
+          'id': song.id,
+          'title': song.title,
+          'artist': song.artist,
+          'image': song.image,
+        });
       }
 
     } catch (e) {
@@ -547,7 +554,10 @@ class PlayerService {
   Future<void> seekTo(Duration position) async =>
       _player.seek(position);
 
-  Future<void> stop() async => _player.stop();
+  Future<void> stop() async {
+    await _player.stop();
+    _ref.read(socialServiceProvider).updatePresence(true, nowPlaying: null);
+  }
 
   void dispose() => _player.dispose();
 }

@@ -9,6 +9,7 @@ class Message {
   final String type; // 'text', 'song', 'playlist'
   final Map<String, dynamic>? metadata;
   final DateTime createdAt;
+  final List<String> readBy; // List of UIDs who read the message
 
   Message({
     required this.id,
@@ -17,6 +18,7 @@ class Message {
     required this.type,
     this.metadata,
     required this.createdAt,
+    this.readBy = const [],
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -28,6 +30,7 @@ class Message {
       type: data['type'] ?? 'text',
       metadata: data['metadata'] as Map<String, dynamic>?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      readBy: List<String>.from(data['readBy'] ?? []),
     );
   }
 
@@ -38,6 +41,7 @@ class Message {
       'type': type,
       if (metadata != null) 'metadata': metadata,
       'createdAt': FieldValue.serverTimestamp(),
+      'readBy': [senderId], // Sender has read their own message
     };
   }
 }
@@ -138,6 +142,49 @@ class ChatService {
         .snapshots()
         .map((snap) => snap.docs.map((d) => Message.fromFirestore(d)).toList());
   }
+
+  // ─── TYPING INDICATORS ─────────────────────────────────────
+
+  Future<void> setTypingStatus(String otherUid, bool isTyping) async {
+    if (userId == null) return;
+    final chatId = _getChatId(otherUid);
+    await _db.collection('chats').doc(chatId).update({
+      'typing.$userId': isTyping,
+    });
+  }
+
+  Stream<bool> listenTypingStatus(String otherUid) {
+    if (userId == null) return Stream.value(false);
+    final chatId = _getChatId(otherUid);
+    return _db.collection('chats').doc(chatId).snapshots().map((snap) {
+      final data = snap.data();
+      if (data == null || data['typing'] == null) return false;
+      return (data['typing'] as Map<String, dynamic>)[otherUid] == true;
+    });
+  }
+
+  // ─── READ RECEIPTS ──────────────────────────────────────────
+
+  Future<void> markAsRead(String otherUid) async {
+    if (userId == null) return;
+    final chatId = _getChatId(otherUid);
+    final messages = await _db
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .where('senderId', isEqualTo: otherUid)
+        .get();
+
+    final batch = _db.batch();
+    for (var doc in messages.docs) {
+      final readBy = List<String>.from(doc.data()['readBy'] ?? []);
+      if (!readBy.contains(userId)) {
+        readBy.add(userId!);
+        batch.update(doc.reference, {'readBy': readBy});
+      }
+    }
+    await batch.commit();
+  }
 }
 
 // ─── PROVIDERS ────────────────────────────────────────────────
@@ -149,4 +196,8 @@ final chatServiceProvider = Provider<ChatService>((ref) {
 
 final chatMessagesProvider = StreamProvider.family<List<Message>, String>((ref, otherUid) {
   return ref.watch(chatServiceProvider).listenMessages(otherUid);
+});
+
+final typingStatusProvider = StreamProvider.family<bool, String>((ref, otherUid) {
+  return ref.watch(chatServiceProvider).listenTypingStatus(otherUid);
 });

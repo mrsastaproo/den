@@ -147,6 +147,33 @@ class SocialService {
     await batch.commit();
   }
 
+  // ─── BLOCKING ──────────────────────────────────────────────
+
+  Future<void> blockUser(String targetUid) async {
+    if (userId == null) return;
+    await _db.collection('users').doc(userId).collection('blocked').doc(targetUid).set({
+      'blockedAt': FieldValue.serverTimestamp(),
+    });
+    // Also remove as friend if they were one
+    await removeFriend(targetUid);
+  }
+
+  Future<void> unblockUser(String targetUid) async {
+    if (userId == null) return;
+    await _db.collection('users').doc(userId).collection('blocked').doc(targetUid).delete();
+  }
+
+  Stream<bool> isBlocked(String targetUid) {
+    if (userId == null) return Stream.value(false);
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('blocked')
+        .doc(targetUid)
+        .snapshots()
+        .map((snap) => snap.exists);
+  }
+
   /// Listen for incoming friend requests
   Stream<List<Map<String, dynamic>>> getIncomingRequests() {
     if (userId == null) return Stream.value([]);
@@ -202,21 +229,29 @@ class SocialService {
 
   // ─── PRESENCE ──────────────────────────────────────────────────
 
-  Future<void> updateOnlineStatus(bool isOnline) async {
+  /// Update online state with optional status (Online, Away, Busy) and current song info
+  Future<void> updatePresence(bool isOnline, {String? status, Map<String, dynamic>? nowPlaying}) async {
     if (userId == null) return;
     try {
       await _db.collection('users').doc(userId).update({
         'isOnline': isOnline,
+        'presenceStatus': status ?? (isOnline ? 'Online' : 'Offline'),
         'lastSeen': FieldValue.serverTimestamp(),
+        if (nowPlaying != null) 'nowPlaying': nowPlaying,
       });
     } catch (e) {
       // Ignore if document not created yet
     }
   }
 
+  Future<void> updateOnlineStatus(bool isOnline) async {
+    await updatePresence(isOnline);
+  }
+
   Stream<Map<String, dynamic>?> getUserProfileStream(String targetUid) {
     return _db.collection('users').doc(targetUid).snapshots().map((s) => s.data());
   }
+
 }
 
 // ─── PROVIDERS ────────────────────────────────────────────────
@@ -240,4 +275,8 @@ final userProfileProvider = StreamProvider<Map<String, dynamic>?>((ref) {
 
 final otherUserProfileProvider = StreamProvider.family<Map<String, dynamic>?, String>((ref, targetUid) {
   return ref.watch(socialServiceProvider).getUserProfileStream(targetUid);
+});
+
+final isBlockedProvider = StreamProvider.family<bool, String>((ref, targetUid) {
+  return ref.watch(socialServiceProvider).isBlocked(targetUid);
 });
