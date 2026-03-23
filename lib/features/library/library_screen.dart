@@ -14,6 +14,7 @@ import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
+import 'spotify_import_sheet.dart';
 
 // ─── VIEW MODE ────────────────────────────────────────────────
 
@@ -1178,6 +1179,7 @@ class _PlaylistListTile extends ConsumerWidget {
 
             // More
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => _showPlaylistOptions(context, ref),
               child: Padding(
                 padding: const EdgeInsets.all(8),
@@ -1860,7 +1862,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
         text: playlist['name'] as String? ?? '');
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogCtx) => Dialog(
         backgroundColor: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -1904,7 +1906,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                   const SizedBox(height: 20),
                   Row(children: [
                     Expanded(child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => Navigator.pop(dialogCtx),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(
@@ -1922,7 +1924,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                           final id = playlist['id'] as String? ?? '';
                           await ref.read(databaseServiceProvider)
                               .renamePlaylist(id, ctrl.text.trim());
-                          if (context.mounted) Navigator.pop(context);
+                          if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                           HapticFeedback.mediumImpact();
                         }
                       },
@@ -1949,7 +1951,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
   void _confirmDelete(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogCtx) => Dialog(
         backgroundColor: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -1976,7 +1978,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                   const SizedBox(height: 24),
                   Row(children: [
                     Expanded(child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => Navigator.pop(dialogCtx),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(
@@ -1992,7 +1994,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                       onTap: () async {
                         final id = playlist['id'] as String? ?? '';
                         await ref.read(databaseServiceProvider).deletePlaylist(id);
-                        if (context.mounted) Navigator.pop(context);
+                        if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                         HapticFeedback.mediumImpact();
                       },
                       child: Container(
@@ -2170,6 +2172,22 @@ class _AddSheet extends StatelessWidget {
                 subtitle: 'Organise playlists into folders',
                 colors: [AppTheme.purple, AppTheme.purpleDeep],
                 onTap: () => Navigator.pop(context),
+              ),
+              const SizedBox(height: 10),
+              _AddOption(
+                icon: Icons.music_note_rounded,
+                label: 'Import from Spotify',
+                subtitle: 'Paste a link to copy a playlist',
+                colors: const [Color(0xFF1DB954), Color(0xFF128C3E)], // Spotify Green
+                onTap: () {
+                  Navigator.pop(context);
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const SpotifyImportSheet(),
+                  );
+                },
               ),
             ],
           ),
