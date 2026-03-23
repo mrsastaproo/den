@@ -43,8 +43,8 @@ class _AiScreenState extends ConsumerState<AiScreen> {
     });
   }
 
-  void _send() {
-    final text = _controller.text.trim();
+  void _send([String? quickReply]) {
+    final text = quickReply ?? _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
     _focusNode.unfocus();
@@ -56,8 +56,10 @@ class _AiScreenState extends ConsumerState<AiScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(playlistGeneratorProvider);
 
-    // Auto-scroll when messages update
     ref.listen(playlistGeneratorProvider, (_, __) => _scrollToBottom());
+
+    final isLoading = state.status == GeneratorStatus.thinking ||
+        state.status == GeneratorStatus.searching;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -72,19 +74,19 @@ class _AiScreenState extends ConsumerState<AiScreen> {
               shaderCallback: (bounds) =>
                   AppTheme.primaryGradient.createShader(bounds),
               child: const Text(
-                'DEN AI',
+                'ARIA',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
+                  letterSpacing: 2,
                 ),
               ),
             ),
             Text(
-              'Playlist Generator',
+              'Your Music Curator ✨',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.45),
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
               ),
@@ -95,64 +97,53 @@ class _AiScreenState extends ConsumerState<AiScreen> {
           if (state.messages.isNotEmpty)
             IconButton(
               icon: Icon(Icons.refresh_rounded,
-                  color: Colors.white.withOpacity(0.6)),
+                  color: Colors.white.withValues(alpha: 0.6)),
               onPressed: () {
                 HapticFeedback.lightImpact();
                 ref.read(playlistGeneratorProvider.notifier).reset();
               },
+              tooltip: 'Start over',
             ),
         ],
       ),
       body: Column(
         children: [
-          // ── Chat area ──────────────────────────────────────────
+          // ── Chat / Empty area ──────────────────────────────────────
           Expanded(
             child: state.messages.isEmpty
-                ? _EmptyState(onSuggestionTap: (s) {
-                    _controller.text = s;
-                    _send();
-                  })
+                ? _EmptyState(onSuggestionTap: _send)
                 : ListView.builder(
                     controller: _scrollController,
                     padding: EdgeInsets.only(
                       top: MediaQuery.of(context).padding.top + 80,
-                      bottom: 16,
+                      bottom: 12,
                       left: 16,
                       right: 16,
                     ),
-                    itemCount: state.messages.length +
-                        (state.status == GeneratorStatus.thinking ||
-                                state.status == GeneratorStatus.searching
-                            ? 1
-                            : 0),
+                    itemCount: state.messages.length + (isLoading ? 1 : 0),
                     itemBuilder: (context, i) {
-                      // Loading bubble
                       if (i == state.messages.length) {
-                        return _ThinkingBubble(
-                            message: state.statusMessage);
+                        return _ThinkingBubble(message: state.statusMessage);
                       }
                       final msg = state.messages[i];
-                      return msg.isUser
-                          ? _UserBubble(text: msg.text)
-                          : _AiBubble(
-                              text: msg.text,
-                              playlist: msg.playlist,
-                              onPlay: (songs) =>
-                                  _playPlaylist(songs),
-                              onSave: (playlist) =>
-                                  _savePlaylist(playlist),
-                            );
+                      if (msg.isUser) return _UserBubble(text: msg.text);
+
+                      return _AiBubble(
+                        message: msg,
+                        onQuickReply: _send,
+                        onPlay: _playPlaylist,
+                        onSave: _savePlaylist,
+                      );
                     },
                   ),
           ),
 
-          // ── Input bar ──────────────────────────────────────────
+          // ── Input bar ──────────────────────────────────────────────
           _InputBar(
             controller: _controller,
             focusNode: _focusNode,
-            isLoading: state.status == GeneratorStatus.thinking ||
-                state.status == GeneratorStatus.searching,
-            onSend: _send,
+            isLoading: isLoading,
+            onSend: () => _send(),
           ),
         ],
       ),
@@ -166,9 +157,9 @@ class _AiScreenState extends ConsumerState<AiScreen> {
     ref.read(currentSongIndexProvider.notifier).state = 0;
     ref.read(currentSongProvider.notifier).state = songs.first;
     ref.read(queueMetaProvider.notifier).state = const QueueMeta(
-          context: QueueContext.general,
-          searchQuery: '',
-        );
+      context: QueueContext.general,
+      searchQuery: '',
+    );
     ref.read(playerServiceProvider).playSong(songs.first);
   }
 
@@ -177,17 +168,17 @@ class _AiScreenState extends ConsumerState<AiScreen> {
     final id = await ref
         .read(playlistGeneratorProvider.notifier)
         .savePlaylistToLibrary(playlist);
-
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: id != null ? AppTheme.purple : Colors.red.shade800,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         content: Text(
           id != null
-              ? '✓ "${playlist.name}" saved to your library!'
-              : 'Failed to save — try again.',
+              ? '✓ "${playlist.name}" library mein save ho gayi!'
+              : 'Save nahi hua — phir try kar.',
           style: const TextStyle(color: Colors.white),
         ),
       ),
@@ -195,21 +186,21 @@ class _AiScreenState extends ConsumerState<AiScreen> {
   }
 }
 
-// ─── Empty state with suggestion chips ───────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   final Function(String) onSuggestionTap;
   const _EmptyState({required this.onSuggestionTap});
 
   static const _suggestions = [
-    '🎧 Chill lo-fi beats for studying',
-    '🔥 90s hip hop bangers',
-    '💃 Bollywood party songs',
-    '😢 Heartbreak sad songs',
-    '🌅 Morning motivation workout',
-    '🌙 Late night chill vibes',
-    '🎸 Rock classics mix',
-    '💕 Romantic Hindi love songs',
+    '🎧  Studying ke liye chill songs',
+    '🔥  90s hip hop bangers',
+    '💃  Bollywood party songs',
+    '😢  Heartbreak sad Punjabi',
+    '🌅  Morning workout motivation',
+    '🌙  Late night chill vibes',
+    '💕  Romantic Hindi love songs',
+    '😤  Attitude wale Punjabi songs',
   ];
 
   @override
@@ -225,43 +216,46 @@ class _EmptyState extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ShaderMask(
-            shaderCallback: (b) =>
-                AppTheme.primaryGradient.createShader(b),
+            shaderCallback: (b) => AppTheme.primaryGradient.createShader(b),
             child: const Text(
-              'What\'s your vibe?',
+              'Kya sun-na hai aaj? 🎵',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 28,
+                fontSize: 26,
                 fontWeight: FontWeight.w700,
+                height: 1.2,
               ),
             ),
           ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2, end: 0),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
-            'Describe the mood, genre, or occasion and I\'ll build you a perfect playlist.',
+            'Bata apna mood, occasion ya genre — main banaunga perfect playlist sirf tere liye.',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 14,
-              height: 1.5,
+              height: 1.6,
             ),
           ).animate().fadeIn(duration: 500.ms, delay: 100.ms),
           const SizedBox(height: 32),
           Text(
-            'TRY ASKING',
+            'KUCH IDEAS 👇',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.5,
             ),
           ).animate().fadeIn(delay: 200.ms),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: _suggestions.asMap().entries.map((e) {
               return GestureDetector(
-                onTap: () => onSuggestionTap(e.value),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSuggestionTap(e.value.replaceAll(RegExp(r'^[\S]+\s+'), '').trim());
+                },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: BackdropFilter(
@@ -271,17 +265,17 @@ class _EmptyState extends StatelessWidget {
                           horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(colors: [
-                          Colors.white.withOpacity(0.07),
-                          AppTheme.purple.withOpacity(0.08),
+                          Colors.white.withValues(alpha: 0.07),
+                          AppTheme.purple.withValues(alpha: 0.08),
                         ]),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.1)),
+                        border:
+                            Border.all(color: Colors.white.withValues(alpha: 0.1)),
                       ),
                       child: Text(
                         e.value,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 13,
                         ),
                       ),
@@ -298,7 +292,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ─── Chat bubbles ─────────────────────────────────────────────────────────────
+// ─── User bubble ──────────────────────────────────────────────────────────────
 
 class _UserBubble extends StatelessWidget {
   final String text;
@@ -310,7 +304,8 @@ class _UserBubble extends StatelessWidget {
       alignment: Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12, left: 60),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           gradient: AppTheme.primaryGradient,
           borderRadius: const BorderRadius.only(
@@ -322,22 +317,25 @@ class _UserBubble extends StatelessWidget {
         ),
         child: Text(
           text,
-          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+          style: const TextStyle(
+              color: Colors.white, fontSize: 14, height: 1.4),
         ),
       ),
     ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1, end: 0);
   }
 }
 
+// ─── AI bubble (text + optional playlist + optional quick replies) ────────────
+
 class _AiBubble extends StatelessWidget {
-  final String text;
-  final GeneratedPlaylist? playlist;
+  final ChatMessage message;
+  final Function(String) onQuickReply;
   final Function(List<Song>) onPlay;
   final Function(GeneratedPlaylist) onSave;
 
   const _AiBubble({
-    required this.text,
-    this.playlist,
+    required this.message,
+    required this.onQuickReply,
     required this.onPlay,
     required this.onSave,
   });
@@ -347,14 +345,15 @@ class _AiBubble extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12, right: 40),
+        margin: const EdgeInsets.only(bottom: 16, right: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // AI avatar + text
+            // Avatar + text bubble
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ARIA avatar
                 Container(
                   width: 32,
                   height: 32,
@@ -379,9 +378,9 @@ class _AiBubble extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
+                          color: Colors.white.withValues(alpha: 0.07),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.1)),
+                              color: Colors.white.withValues(alpha: 0.1)),
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(4),
                             topRight: Radius.circular(18),
@@ -390,11 +389,11 @@ class _AiBubble extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          text,
+                          message.text,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                             fontSize: 14,
-                            height: 1.5,
+                            height: 1.55,
                           ),
                         ),
                       ),
@@ -404,21 +403,84 @@ class _AiBubble extends StatelessWidget {
               ],
             ),
 
-            // Playlist card
-            if (playlist != null) ...[
+            // Playlist card (indented to align with bubble)
+            if (message.playlist != null) ...[
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.only(left: 42),
+                child: _PlaylistCard(
+                  playlist: message.playlist!,
+                  onPlay: () => onPlay(message.playlist!.songs),
+                  onSave: () => onSave(message.playlist!),
+                ),
+              ),
+            ],
+
+            // Quick reply chips
+            if (message.quickReplies != null &&
+                message.quickReplies!.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _PlaylistCard(
-                playlist: playlist!,
-                onPlay: () => onPlay(playlist!.songs),
-                onSave: () => onSave(playlist!),
+              Padding(
+                padding: const EdgeInsets.only(left: 42),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: message.quickReplies!.map((reply) {
+                    return _QuickReplyChip(
+                      label: reply,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onQuickReply(reply);
+                      },
+                    );
+                  }).toList(),
+                ),
               ),
             ],
           ],
         ),
       ),
-    ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1, end: 0);
+    ).animate().fadeIn(duration: 350.ms).slideX(begin: -0.08, end: 0);
   }
 }
+
+// ─── Quick reply chip ─────────────────────────────────────────────────────────
+
+class _QuickReplyChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickReplyChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.purple.withValues(alpha: 0.5)),
+          gradient: LinearGradient(colors: [
+            AppTheme.purple.withValues(alpha: 0.12),
+            AppTheme.pink.withValues(alpha: 0.06),
+          ]),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Thinking bubble ──────────────────────────────────────────────────────────
 
 class _ThinkingBubble extends StatelessWidget {
   final String message;
@@ -429,31 +491,33 @@ class _ThinkingBubble extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12, left: 42),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 12, left: 42, right: 60),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.07),
+          color: Colors.white.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(18),
-          border:
-              Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 20,
-              height: 20,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation(AppTheme.purple),
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              message,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 13,
+            Flexible(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 13,
+                ),
               ),
             ),
           ],
@@ -463,7 +527,7 @@ class _ThinkingBubble extends StatelessWidget {
   }
 }
 
-// ─── Playlist card shown inside AI bubble ─────────────────────────────────────
+// ─── Playlist card ────────────────────────────────────────────────────────────
 
 class _PlaylistCard extends StatelessWidget {
   final GeneratedPlaylist playlist;
@@ -493,25 +557,25 @@ class _PlaylistCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppTheme.purple.withOpacity(0.2),
-                AppTheme.pink.withOpacity(0.1),
-                Colors.white.withOpacity(0.05),
+                AppTheme.purple.withValues(alpha: 0.2),
+                AppTheme.pink.withValues(alpha: 0.1),
+                Colors.white.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.12)),
+            border:
+                Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with artwork grid
+              // Header: artwork + info
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    // 2x2 artwork grid
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: SizedBox(
@@ -523,13 +587,14 @@ class _PlaylistCard extends StatelessWidget {
                                 physics:
                                     const NeverScrollableScrollPhysics(),
                                 children: previewImages
-                                    .map((url) => CachedNetworkImage(memCacheWidth: 400, 
+                                    .map((url) => CachedNetworkImage(
+                                          memCacheWidth: 200,
                                           imageUrl: url,
                                           fit: BoxFit.cover,
                                           errorWidget: (_, __, ___) =>
                                               Container(
                                                   color: AppTheme.purple
-                                                      .withOpacity(0.3)),
+                                                      .withValues(alpha: 0.3)),
                                         ))
                                     .toList(),
                               )
@@ -537,8 +602,10 @@ class _PlaylistCard extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   gradient: AppTheme.primaryGradient,
                                 ),
-                                child: const Icon(Icons.queue_music_rounded,
-                                    color: Colors.white, size: 32),
+                                child: const Icon(
+                                    Icons.queue_music_rounded,
+                                    color: Colors.white,
+                                    size: 32),
                               ),
                       ),
                     ),
@@ -561,7 +628,7 @@ class _PlaylistCard extends StatelessWidget {
                           Text(
                             '${songs.length} songs',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 12,
                             ),
                           ),
@@ -569,7 +636,7 @@ class _PlaylistCard extends StatelessWidget {
                           Text(
                             playlist.description,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               fontSize: 11,
                               height: 1.3,
                             ),
@@ -583,14 +650,24 @@ class _PlaylistCard extends StatelessWidget {
                 ),
               ),
 
+              // Divider
+              Divider(
+                  height: 1,
+                  color: Colors.white.withValues(alpha: 0.08),
+                  indent: 16,
+                  endIndent: 16),
+              const SizedBox(height: 8),
+
               // Song preview list (first 4)
               ...songs.take(4).map((song) => Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 0, 16, 10),
                     child: Row(
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: CachedNetworkImage(memCacheWidth: 400, 
+                          child: CachedNetworkImage(
+                            memCacheWidth: 120,
                             imageUrl: song.image,
                             width: 38,
                             height: 38,
@@ -598,7 +675,10 @@ class _PlaylistCard extends StatelessWidget {
                             errorWidget: (_, __, ___) => Container(
                               width: 38,
                               height: 38,
-                              color: Colors.white.withOpacity(0.1),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
                               child: const Icon(Icons.music_note,
                                   color: Colors.white54, size: 16),
                             ),
@@ -607,7 +687,8 @@ class _PlaylistCard extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 song.title,
@@ -622,7 +703,8 @@ class _PlaylistCard extends StatelessWidget {
                               Text(
                                 song.artist,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.4),
+                                  color:
+                                      Colors.white.withValues(alpha: 0.4),
                                   fontSize: 11,
                                 ),
                                 maxLines: 1,
@@ -637,11 +719,11 @@ class _PlaylistCard extends StatelessWidget {
 
               if (songs.length > 4)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                   child: Text(
                     '+${songs.length - 4} more songs',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 12,
                     ),
                   ),
@@ -659,10 +741,12 @@ class _PlaylistCard extends StatelessWidget {
                           height: 44,
                           decoration: BoxDecoration(
                             gradient: AppTheme.primaryGradient,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius:
+                                BorderRadius.circular(12),
                           ),
                           child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
                             children: [
                               Icon(Icons.play_arrow_rounded,
                                   color: Colors.white, size: 20),
@@ -687,14 +771,16 @@ class _PlaylistCard extends StatelessWidget {
                         height: 44,
                         width: 44,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius:
+                              BorderRadius.circular(12),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.15)),
+                              color:
+                                  Colors.white.withValues(alpha: 0.15)),
                         ),
                         child: Icon(
                           Icons.library_add_rounded,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           size: 20,
                         ),
                       ),
@@ -736,10 +822,10 @@ class _InputBar extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(28),
               border:
-                  Border.all(color: Colors.white.withOpacity(0.12)),
+                  Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: Row(
               children: [
@@ -747,15 +833,18 @@ class _InputBar extends StatelessWidget {
                   child: TextField(
                     controller: controller,
                     focusNode: focusNode,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 14),
                     maxLines: null,
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => onSend(),
                     enabled: !isLoading,
                     decoration: InputDecoration(
-                      hintText: 'Describe your perfect playlist...',
+                      hintText: isLoading
+                          ? 'ARIA is thinking...'
+                          : 'Bata apna mood ya genre...',
                       hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                           fontSize: 14),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
@@ -774,8 +863,8 @@ class _InputBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: isLoading
                             ? LinearGradient(colors: [
-                                Colors.white.withOpacity(0.1),
-                                Colors.white.withOpacity(0.1),
+                                Colors.white.withValues(alpha: 0.1),
+                                Colors.white.withValues(alpha: 0.1),
                               ])
                             : AppTheme.primaryGradient,
                         shape: BoxShape.circle,
@@ -786,7 +875,7 @@ class _InputBar extends StatelessWidget {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation(
-                                    Colors.white.withOpacity(0.5)),
+                                    Colors.white.withValues(alpha: 0.5)),
                               ),
                             )
                           : const Icon(Icons.arrow_upward_rounded,

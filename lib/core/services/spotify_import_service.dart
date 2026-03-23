@@ -58,10 +58,7 @@ class SpotifyImportService {
   final ApiService _api;
   final DatabaseService _db;
 
-  // App-specific Spotify Credentials
-  final String _clientId = 'db4a233d158d4f1090ea4613cfe61c1e';
-  final String _clientSecret = 'baddd033b6b745a4a8693d9d2ef10397';
-
+  // Note: We bypass Client ID usage via native Embed Scraping
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 20),
     receiveTimeout: const Duration(seconds: 20),
@@ -70,28 +67,6 @@ class SpotifyImportService {
   SpotifyImportService(this._api, this._db);
 
   // ── Obtain Access Token ──────────────────────────────────────────────────
-
-  Future<String?> _getAccessToken() async {
-    try {
-      final credentials = base64.encode(utf8.encode('$_clientId:$_clientSecret'));
-      final res = await _dio.post(
-        'https://accounts.spotify.com/api/token',
-        options: Options(
-          headers: {
-            'Authorization': 'Basic $credentials',
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        ),
-        data: 'grant_type=client_credentials',
-      );
-      if (res.statusCode == 200) {
-        return res.data['access_token'];
-      }
-    } catch (e) {
-      print('[SPOTIFY_AUTH_ERROR] $e');
-    }
-    return null;
-  }
 
   // ── Streaming Playlist Import ────────────────────────────────────────────
 
@@ -105,63 +80,65 @@ class SpotifyImportService {
       return;
     }
 
-    yield ImportLogEntry(ImportLogType.info, 'Connecting to Spotify servers...');
-    
-    final token = await _getAccessToken();
-    if (token == null) {
-      yield ImportLogEntry(ImportLogType.error, 'Failed to authenticate with Spotify.');
-      return;
-    }
-
-    yield ImportLogEntry(ImportLogType.success, 'Connected securely.');
-    yield ImportLogEntry(ImportLogType.info, 'Fetching playlist details...');
+    yield ImportLogEntry(ImportLogType.info, 'Connecting to Spotify Web Player...');
 
     String playlistName = 'Imported Playlist';
     List<_SpotifyTrack> tracks = [];
 
     try {
+      // We parse the __NEXT_DATA__ from the public Embed player.
+      // This bypasses the stringent Client Credentials Web API blocks (403 limits) 
+      // introduced by Spotify in late 2024.
       final res = await _dio.get(
-        'https://api.spotify.com/v1/playlists/$playlistId',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+        'https://open.spotify.com/embed/playlist/$playlistId',
+        options: Options(headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }),
       );
-
-      playlistName = res.data['name'] ?? 'Imported Playlist';
-      yield ImportLogEntry(ImportLogType.success, 'Found playlist: "$playlistName"');
-
-      yield ImportLogEntry(ImportLogType.info, 'Downloading massive tracklist...');
       
-      var tracksData = res.data['tracks'];
-      while (tracksData != null) {
-        final items = tracksData['items'] as List;
-        for (final item in items) {
-          final trackNode = item['track'];
-          if (trackNode == null) continue; // Skip local/invalid files
-          
-          final title = trackNode['name'] ?? '';
-          final artistsList = trackNode['artists'] as List? ?? [];
-          final artist = artistsList.map((a) => a['name']).join(', ');
-
-          tracks.add(_SpotifyTrack(title: title, artist: artist));
-        }
-
-        final nextUrl = tracksData['next'];
-        if (nextUrl != null) {
-          final nextRes = await _dio.get(
-            nextUrl,
-            options: Options(headers: {'Authorization': 'Bearer $token'}),
-          );
-          tracksData = nextRes.data;
-        } else {
-          tracksData = null; // No more pages
+      final html = res.data.toString();
+      final envMatch = RegExp(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>').firstMatch(html);
+      
+      if (envMatch == null) {
+        yield ImportLogEntry(ImportLogType.error, 'Failed to extract Spotify web payload (Layout changed or Private playlist).');
+        return;
+      }
+      
+      yield ImportLogEntry(ImportLogType.success, 'Bypassed authentication. Reading payload...');
+      
+      final json = jsonDecode(envMatch.group(1)!);
+      final entity = json['props']?['pageProps']?['state']?['data']?['entity'];
+      
+      if (entity == null) {
+        yield ImportLogEntry(ImportLogType.error, 'Playlist data is empty or corrupted.');
+        return;
+      }
+      
+      playlistName = entity['name'] ?? 'Imported Playlist';
+      yield ImportLogEntry(ImportLogType.success, 'Found playlist: "$playlistName"');
+      
+      final trackList = entity['trackList'] as List?;
+      if (trackList == null || trackList.isEmpty) {
+        yield ImportLogEntry(ImportLogType.error, 'No tracks found in the playlist payload.');
+        return;
+      }
+      
+      yield ImportLogEntry(ImportLogType.info, 'Extracting tracklist (Limited to first batches by Web Player rules)...');
+      
+      for (final item in trackList) {
+        final title = item['title'] ?? '';
+        final artist = item['subtitle'] ?? ''; // Subtitle usually contains artist
+        if (title.isNotEmpty) {
+           tracks.add(_SpotifyTrack(title: title, artist: artist));
         }
       }
 
     } on DioException catch (e) {
       yield ImportLogEntry(ImportLogType.error,
-          'Spotify API request failed: ${e.message}');
+          'Connection request failed: ${e.message}');
       return;
     } catch (e) {
-      yield ImportLogEntry(ImportLogType.error, 'Unexpected error: $e');
+      yield ImportLogEntry(ImportLogType.error, 'Unexpected parsing error: $e');
       return;
     }
 

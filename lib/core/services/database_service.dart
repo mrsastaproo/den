@@ -152,6 +152,19 @@ class DatabaseService {
     });
   }
 
+  Future<void> markPlaylistAsDownloaded(String playlistId) async {
+    if (userId == null) return;
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('playlists')
+        .doc(playlistId)
+        .update({
+      'isDownloaded': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> deletePlaylist(String playlistId) async {
     if (userId == null) return;
 

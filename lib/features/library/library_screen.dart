@@ -492,6 +492,10 @@ class _LibraryBody extends ConsumerWidget {
                 .contains(searchQuery.toLowerCase()))
             .toList();
 
+    if (filter == _FilterChip.downloads) {
+      filteredPlaylists = filteredPlaylists.where((p) => p['isDownloaded'] == true).toList();
+    }
+
     return ScrollConfiguration(
       behavior: _NoOverscrollBehavior(),
       child: CustomScrollView(
@@ -509,7 +513,8 @@ class _LibraryBody extends ConsumerWidget {
 
         // ── Playlists ────────────────────────────────────
         if (filter == _FilterChip.all ||
-            filter == _FilterChip.playlists) ...[
+            filter == _FilterChip.playlists ||
+            filter == _FilterChip.downloads) ...[
           if (filteredPlaylists.isNotEmpty)
             SliverToBoxAdapter(
               child: _SectionLabel(
@@ -1772,9 +1777,33 @@ class _SongOptionsSheet extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         onTap: () async {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('Downloading ${song.title}...'), duration: const Duration(seconds: 2))
+          
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => Dialog(
+              backgroundColor: Colors.transparent,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.8), borderRadius: BorderRadius.circular(24)),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.teal),
+                        const SizedBox(height: 20),
+                        Text('Downloading ${song.title}...', style: const TextStyle(color: Colors.white, fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           );
+
           try {
             String url = song.url;
             if (song.id.startsWith('audius_')) {
@@ -1783,13 +1812,11 @@ class _SongOptionsSheet extends StatelessWidget {
               url = await ref.read(apiServiceProvider).getStreamUrl(song.id);
             }
             await ref.read(downloadServiceProvider).downloadSong(song, resolvedUrl: url);
-            ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Downloaded ${song.title} successfully!'))
-            );
+            if (context.mounted) Navigator.pop(context); // pop dialog
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded ${song.title} successfully!')));
           } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red)
-            );
+            if (context.mounted) Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red));
           }
         },
       ),

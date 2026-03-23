@@ -6,7 +6,7 @@ import 'api_service.dart';
 import 'audius_service.dart';
 import 'database_service.dart';
 
-// ─── Result model returned to the UI ──────────────────────────────────────────
+// ─── Models ───────────────────────────────────────────────────────────────────
 
 class GeneratedPlaylist {
   final String name;
@@ -20,9 +20,26 @@ class GeneratedPlaylist {
   });
 }
 
-// ─── State for the UI ─────────────────────────────────────────────────────────
-
 enum GeneratorStatus { idle, thinking, searching, done, error }
+
+// NEW: Message type to distinguish plain chat vs playlist vs quick-replies
+enum MessageType { text, playlist, quickReplies }
+
+class ChatMessage {
+  final String text;
+  final bool isUser;
+  final GeneratedPlaylist? playlist;
+  final List<String>? quickReplies; // Suggestion chips for user to tap
+  final MessageType type;
+
+  const ChatMessage({
+    required this.text,
+    required this.isUser,
+    this.playlist,
+    this.quickReplies,
+    this.type = MessageType.text,
+  });
+}
 
 class GeneratorState {
   final GeneratorStatus status;
@@ -31,12 +48,16 @@ class GeneratorState {
   final String? error;
   final List<ChatMessage> messages;
 
+  // Conversation context carried across turns
+  final Map<String, dynamic> conversationContext;
+
   const GeneratorState({
     this.status = GeneratorStatus.idle,
     this.statusMessage = '',
     this.result,
     this.error,
     this.messages = const [],
+    this.conversationContext = const {},
   });
 
   GeneratorState copyWith({
@@ -45,6 +66,7 @@ class GeneratorState {
     GeneratedPlaylist? result,
     String? error,
     List<ChatMessage>? messages,
+    Map<String, dynamic>? conversationContext,
   }) =>
       GeneratorState(
         status: status ?? this.status,
@@ -52,19 +74,9 @@ class GeneratorState {
         result: result ?? this.result,
         error: error ?? this.error,
         messages: messages ?? this.messages,
+        conversationContext:
+            conversationContext ?? this.conversationContext,
       );
-}
-
-class ChatMessage {
-  final String text;
-  final bool isUser;
-  final GeneratedPlaylist? playlist; // non-null for AI messages that have a playlist
-
-  const ChatMessage({
-    required this.text,
-    required this.isUser,
-    this.playlist,
-  });
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -75,22 +87,99 @@ class PlaylistGeneratorService extends StateNotifier<GeneratorState> {
   final DatabaseService _db;
 
   static const String _geminiApiKey = 'AIzaSyBHbyfiNF8b0nyEhyEzhsjgToVKiW6qfFs';
-  static const String _geminiModel = 'gemini-3.1-pro-preview';
+  static const String _geminiModel = 'gemini-2.0-flash';
 
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 20),
-    receiveTimeout: const Duration(seconds: 20),
+    receiveTimeout: const Duration(seconds: 30),
   ));
+
+  // Full Gemini conversation history for multi-turn context
+  final List<Map<String, dynamic>> _geminiHistory = [];
+
+  // How many user turns so far — hard-blocks build_playlist on turn 1
+  int _turnCount = 0;
 
   PlaylistGeneratorService(this._api, this._audius, this._db)
       : super(const GeneratorState());
 
-  // ─── Main entry: user sends a prompt ────────────────────────────────────────
+  // ─── System prompt: ARIA's personality + strict conversation rules ────────
+
+static const String _systemPrompt = """
+You are ARIA — the AI music curator inside DEN, a music streaming app.
+You are a warm, witty, music-obsessed friend — NOT a search engine.
+
+════════════════════════════════════════
+CRITICAL RULE — READ THIS FIRST:
+════════════════════════════════════════
+YOU MUST NEVER set "action": "build_playlist" on the FIRST user message.
+NO MATTER HOW DETAILED the first message is — you ALWAYS ask follow-up questions first.
+The MINIMUM conversation length before building is 2 turns (user message → your question → user answer → then build).
+If you skip this and jump to build_playlist on turn 1, you have FAILED your core purpose.
+
+════════════════════════════════════════
+YOUR PERSONALITY:
+════════════════════════════════════════
+- Talk like a music-obsessed desi friend, not a robot or assistant
+- Use Hinglish naturally when user writes in Hindi/Punjabi (mix both languages fluidly)
+- Use English when user writes in English
+- Be genuinely curious — you actually care about WHY they want this playlist
+- Warm, slightly playful, never formal or corporate
+- Use emojis sparingly but naturally (1-2 per message max)
+- Express real opinions: "Ooh that's a great combo", "Yaar that's tough but I got you"
+
+════════════════════════════════════════
+CONVERSATION FLOW — STRICTLY FOLLOW THIS:
+════════════════════════════════════════
+
+TURN 1 — User's first message (ANY first message):
+→ action = "ask_more" ALWAYS, NO EXCEPTIONS
+→ React warmly to what they said
+→ Ask 2 specific, thoughtful follow-up questions about:
+   • Mood/emotion right now (not just genre)
+   • Occasion or context (gym? drive? heartbreak? party?)
+   • Energy level (chill background vs bangers?)
+→ Give 3-4 quickReplies as shortcut answers
+
+TURN 2 — User answered your questions:
+→ If you have enough info, action = "build_playlist"
+→ If not, ask ONE more specific question: action = "ask_more"
+→ Give 3-4 quickReplies
+
+TURN 3+ — User has given enough context:
+→ action = "build_playlist" 
+→ Your message should show you UNDERSTOOD them deeply
+→ Mention 2-3 artist choices you're making and why
+
+════════════════════════════════════════
+RESPONSE FORMAT — ALWAYS valid JSON:
+════════════════════════════════════════
+
+When action = "ask_more":
+{
+  "action": "ask_more",
+  "message": "Your warm conversational response",
+  "quickReplies": ["Option 1", "Option 2", "Option 3", "Option 4"]
+}
+
+When action = "build_playlist":
+{
+  "action": "build_playlist",
+  "message": "Excited message explaining your choices",
+  "playlistName": "Creative evocative name (max 5 words)",
+  "description": "One vivid sentence capturing the exact vibe",
+  "jiosaavnQueries": ["query1", "query2", "query3", "query4", "query5", "query6", "query7", "query8"],
+  "audiusGenres": ["genre1"],
+  "useAudius": false,
+  "quickReplies": ["More energy", "Different language", "Older songs"]
+}
+""";
+
+  // ─── Main entry: user sends a message ─────────────────────────────────────
 
   Future<void> handlePrompt(String userPrompt) async {
     if (userPrompt.trim().isEmpty) return;
 
-    // Add user message to chat
     final updatedMessages = [
       ...state.messages,
       ChatMessage(text: userPrompt, isUser: true),
@@ -98,244 +187,197 @@ class PlaylistGeneratorService extends StateNotifier<GeneratorState> {
 
     state = state.copyWith(
       status: GeneratorStatus.thinking,
-      statusMessage: 'Understanding your vibe...',
+      statusMessage: _getDynamicThinkingMessage(userPrompt),
       messages: updatedMessages,
       result: null,
       error: null,
     );
 
     try {
-      // Step 1: Ask Gemini to parse the prompt into search queries
-      final parsed = await _parsePromptWithGemini(userPrompt);
+      _turnCount++;
 
-      state = state.copyWith(
-        status: GeneratorStatus.searching,
-        statusMessage: 'Finding songs for you...',
-      );
+      // Add to Gemini history
+      _geminiHistory.add({
+        'role': 'user',
+        'parts': [{'text': userPrompt}],
+      });
 
-      // Step 2: Run searches in parallel across both music sources
-      final songs = await _fetchSongs(parsed);
+      final response = await _callGemini();
 
-      if (songs.isEmpty) {
-        state = state.copyWith(
-          status: GeneratorStatus.error,
-          error: 'Couldn\'t find songs for that vibe. Try describing it differently!',
-          messages: [
-            ...updatedMessages,
-            const ChatMessage(
-              text: 'Hmm, I couldn\'t find songs matching that. Try something like "chill lo-fi beats" or "90s hip hop".',
-              isUser: false,
-            ),
-          ],
-        );
-        return;
+      // ── HARD OVERRIDE: Never build on turn 1, no matter what Gemini says ──
+      String action = response['action'] as String? ?? 'ask_more';
+      if (_turnCount == 1 && action == 'build_playlist') {
+        action = 'ask_more';
+        // If Gemini gave a build response, rewrite it as a question
+        if (response['message'] == null || (response['message'] as String).length < 20) {
+          response['message'] = "Ooh interesting! Tell me more — what's the vibe you're going for? And are you listening while doing something specific, or just chilling? 🎵";
+          response['quickReplies'] = ['Just chilling', 'Working out 💪', 'Driving 🚗', 'Studying 📚'];
+        }
       }
 
-      final playlist = GeneratedPlaylist(
-        name: parsed['playlistName'] as String? ?? 'My DEN Mix',
-        description: parsed['description'] as String? ?? userPrompt,
-        songs: songs,
-      );
+      final message = response['message'] as String? ?? '';
+      final quickReplies =
+          (response['quickReplies'] as List?)?.cast<String>() ?? [];
 
-      final aiMessage = parsed['reply'] as String? ??
-          'Here\'s your "${playlist.name}" playlist — ${songs.length} songs ready to play!';
+      // Add Gemini's reply to history
+      _geminiHistory.add({
+        'role': 'model',
+        'parts': [{'text': jsonEncode(response)}],
+      });
 
-      state = state.copyWith(
-        status: GeneratorStatus.done,
-        result: playlist,
-        messages: [
-          ...updatedMessages,
-          ChatMessage(text: aiMessage, isUser: false, playlist: playlist),
-        ],
-      );
+      if (action == 'build_playlist') {
+        // Time to actually search for songs
+        state = state.copyWith(
+          status: GeneratorStatus.searching,
+          statusMessage: 'Finding the perfect songs... 🎵',
+        );
+
+        final songs = await _fetchSongs(response);
+
+        if (songs.isEmpty) {
+          final errorMsg = ChatMessage(
+            text:
+                'Yaar, koi song nahi mila us vibe ke liye 😅 Thoda different try kar — like "sad hindi songs" ya "punjabi party"?',
+            isUser: false,
+            quickReplies: ['Sad Hindi songs', 'Punjabi party', 'English chill', 'Bollywood hits'],
+            type: MessageType.quickReplies,
+          );
+          state = state.copyWith(
+            status: GeneratorStatus.done,
+            messages: [...updatedMessages, errorMsg],
+          );
+          return;
+        }
+
+        final playlist = GeneratedPlaylist(
+          name: response['playlistName'] as String? ?? 'My DEN Mix',
+          description: response['description'] as String? ?? userPrompt,
+          songs: songs,
+        );
+
+        final aiMessage = ChatMessage(
+          text: message,
+          isUser: false,
+          playlist: playlist,
+          quickReplies: quickReplies.isNotEmpty ? quickReplies : null,
+          type: MessageType.playlist,
+        );
+
+        state = state.copyWith(
+          status: GeneratorStatus.done,
+          result: playlist,
+          messages: [...updatedMessages, aiMessage],
+        );
+      } else {
+        // ask_more — just send the conversational message with chips
+        final aiMessage = ChatMessage(
+          text: message,
+          isUser: false,
+          quickReplies: quickReplies.isNotEmpty ? quickReplies : null,
+          type: quickReplies.isNotEmpty ? MessageType.quickReplies : MessageType.text,
+        );
+
+        state = state.copyWith(
+          status: GeneratorStatus.done,
+          messages: [...updatedMessages, aiMessage],
+        );
+      }
     } catch (e) {
       print('[PlaylistGenerator] Error: $e');
-      state = state.copyWith(
-        status: GeneratorStatus.error,
-        error: e.toString(),
-        messages: [
-          ...updatedMessages,
-          const ChatMessage(
-            text: 'Something went wrong. Check your connection and try again.',
-            isUser: false,
-          ),
-        ],
-      );
+
+      // Friendly fallback
+      final fallback = await _fallbackResponse(userPrompt, updatedMessages);
+      state = fallback;
     }
   }
 
-  // ─── Step 1: Gemini parses the prompt ───────────────────────────────────────
+  String _getDynamicThinkingMessage(String prompt) {
+    _turnCount; // to suppress unused
+    final w = prompt.toLowerCase();
+    if (w.contains('sad') || w.contains('heartbreak') || w.contains('dard')) {
+      return 'Checking the deep cuts... 💔';
+    }
+    if (w.contains('party') || w.contains('dance') || w.contains('club')) {
+      return 'Scanning for bangers... 🔥';
+    }
+    if (w.contains('gym') || w.contains('workout') || w.contains('hype')) {
+      return 'Fueling up the gears... 😤';
+    }
+    if (w.contains('chill') || w.contains('lofi') || w.contains('relax')) {
+      return 'Setting the mood... 😌';
+    }
+    return 'Analyzing the vibe... ✨';
+  }
 
-  Future<Map<String, dynamic>> _parsePromptWithGemini(String prompt) async {
-    // The full prompt is sent as a single user message — Gemini Flash
-    // handles instruction-following best when it's all in one message.
-    final fullPrompt = """
-You are a world-class music curator AI for DEN, a music streaming app.
-A user wants a playlist. Analyze their request deeply — detect language preference,
-energy level, mood, genre, era, and specific artists they likely want.
+  // ─── Call Gemini with full conversation history ────────────────────────────
 
-YOUR JOB: Return a JSON object that will be used to search JioSaavn (Indian music API)
-and Audius (Western music API) to find EXACTLY the songs the user wants.
+  Future<Map<String, dynamic>> _callGemini() async {
+    final url =
+        'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiApiKey';
 
-CRITICAL RULES FOR jiosaavnQueries:
-1. Generate 8 SPECIFIC queries — each should find DIFFERENT songs
-2. Use REAL popular artist names the user likely wants
-3. Mix: artist-specific queries + mood/vibe queries + era queries
-4. For Punjabi requests: AP Dhillon, Sidhu Moosewala, Shubh, Karan Aujla, Diljit Dosanjh, Imran Khan, Sukha, Gurnam Bhullar
-5. For Hindi requests: Arijit Singh, Badshah, Yo Yo Honey Singh, Divine, Nucleya, Jubin Nautiyal, Atif Aslam
-6. For party/dance: add "DJ remix", "club hits", "dance floor bangers"  
-7. For sad/emotional: add "heartbreak", "judai", "dard", "emotional hits"
-8. For attitude/aggressive: add "attitude", "swag", "beast", "gangster"
-9. NEVER use keyword-only queries like "fast punjabi" — always add artist names or specific descriptors
-10. Include year "2024" or "2023" in some queries for recency
-
-Return ONLY this JSON (no markdown, no explanation, no code fences):
-{
-  "playlistName": "creative name (max 4 words, NOT My Mix)",
-  "description": "one punchy sentence about the exact vibe",
-  "reply": "enthusiastic reply in the user's language vibe — if they asked for Punjabi music be a bit desi/fun",
-  "jiosaavnQueries": ["query1", "query2", "query3", "query4", "query5", "query6", "query7", "query8"],
-  "audiusGenres": ["genre1"],
-  "useAudius": false
-}
-
-useAudius = false for Punjabi/Hindi/Indian music
-useAudius = true for English/Western/K-pop/Spanish music
-
-User request: "$prompt"
-""";
-
-    try {
-      final url = 'https://generativelanguage.googleapis.com/v1beta/models/'
-          + _geminiModel
-          + ':generateContent?key='
-          + _geminiApiKey;
-
-      final response = await _dio.post(
-        url,
-        options: Options(
-          headers: {'content-type': 'application/json'},
-          sendTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(seconds: 15),
-        ),
-        data: {
-          'contents': [
-            {
-              'role': 'user',
-              'parts': [{'text': fullPrompt}]
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.9,
-            'maxOutputTokens': 1024,
-            'candidateCount': 1,
-          },
+    final response = await _dio.post(
+      url,
+      options: Options(
+        headers: {'content-type': 'application/json'},
+        sendTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 25),
+      ),
+      data: {
+        'system_instruction': {
+          'parts': [{'text': _systemPrompt}]
         },
-      );
+        'contents': _geminiHistory,
+        'generationConfig': {
+          'temperature': 0.85,
+          'maxOutputTokens': 1024,
+          'candidateCount': 1,
+          'responseMimeType': 'application/json',
+        },
+      },
+    );
 
-      final candidates = response.data['candidates'] as List?;
-      if (candidates == null || candidates.isEmpty) {
-        throw Exception('No candidates returned from Gemini');
-      }
-
-      final text = candidates.first['content']['parts'].first['text'] as String;
-
-      // Strip any accidental markdown fences
-      String clean = text.trim();
-      if (clean.startsWith('```')) {
-        clean = clean.replaceAll(RegExp(r'^```[a-z]*\n?'), '').replaceAll(RegExp(r'```\$'), '').trim();
-      }
-
-      // Extract JSON if wrapped in other text
-      final jsonStart = clean.indexOf('{');
-      final jsonEnd = clean.lastIndexOf('}');
-      if (jsonStart >= 0 && jsonEnd > jsonStart) {
-        clean = clean.substring(jsonStart, jsonEnd + 1);
-      }
-
-      final parsed = jsonDecode(clean) as Map<String, dynamic>;
-
-      // Validate required fields exist
-      if (parsed['jiosaavnQueries'] == null || parsed['playlistName'] == null) {
-        throw Exception('Invalid response structure from Gemini');
-      }
-
-      print('[PlaylistGenerator] Gemini success: ' + (parsed['playlistName'] ?? ''));
-      print('[PlaylistGenerator] Queries: ' + parsed['jiosaavnQueries'].toString());
-      return parsed;
-
-    } catch (e) {
-      print('[PlaylistGenerator] Gemini error: \$e');
-      // Smart fallback based on prompt keywords
-      final w = prompt.toLowerCase();
-      final isPunjabi = w.contains('punjabi') || w.contains('panjabi') || w.contains('punjab');
-      final isHindi = w.contains('hindi') || w.contains('bollywood') || w.contains('desi');
-      final isSad = w.contains('sad') || w.contains('heartbreak') || w.contains('emotional') || w.contains('dard');
-      final isParty = w.contains('party') || w.contains('dance') || w.contains('club') || w.contains('dj');
-      final isAttitude = w.contains('attitude') || w.contains('aggressive') || w.contains('hard') || w.contains('swag');
-
-      List<String> queries;
-      String name;
-      String reply;
-
-      if (isPunjabi && isAttitude) {
-        name = 'Punjab Attitude Mix';
-        reply = 'Pure Punjabi fire coming your way! 🔥';
-        queries = ['Sidhu Moosewala attitude','AP Dhillon hard hits','Shubh songs 2024','Karan Aujla swag','punjabi gangster songs','attitude punjabi 2024','Diljit Dosanjh beast','Sukha punjabi rap'];
-      } else if (isPunjabi && isSad) {
-        name = 'Dil Toota Punjab';
-        reply = 'Punjabi dard songs coming right up 💔';
-        queries = ['sad punjabi songs','Gurnam Bhullar emotional','AP Dhillon sad','punjabi heartbreak 2024','dard punjabi songs','Sidhu Moosewala emotional','Karan Aujla sad songs','punjabi breakup hits'];
-      } else if (isPunjabi) {
-        name = 'Punjab Vibes';
-        reply = 'Best Punjabi tracks for you! 🎵';
-        queries = ['AP Dhillon hits','Sidhu Moosewala songs','Shubh 2024','Karan Aujla best songs','Diljit Dosanjh hits','punjabi hits 2024','Imran Khan punjabi','Gurnam Bhullar songs'];
-      } else if (isHindi && isSad) {
-        name = 'Broken Dil Sessions';
-        reply = 'Emotional Hindi songs just for you 💙';
-        queries = ['Arijit Singh sad songs','heartbreak hindi 2024','Atif Aslam emotional','Jubin Nautiyal sad','tere bina songs','judai hindi songs','dard bhari songs','hindi breakup 2024'];
-      } else if (isHindi && isParty) {
-        name = 'Bollywood Bangers';
-        reply = 'Party ke liye best Hindi bangers! 💃';
-        queries = ['Badshah party songs','Yo Yo Honey Singh dance','hindi club hits 2024','Bollywood dance floor','DJ remix hindi','party bollywood 2024','Nucleya songs','bass hindi songs'];
-      } else if (isHindi) {
-        name = 'Hindi Hits';
-        reply = 'Best Hindi songs for your vibe! 🎶';
-        queries = ['Arijit Singh hits 2024','hindi top songs 2024','Jubin Nautiyal songs','Atif Aslam best','new hindi songs','Badshah hits','trending hindi 2024','bollywood superhits'];
-      } else {
-        name = '\${prompt.split(' ').take(3).join(' ')} Mix';
-        reply = "Here's your playlist! 🎵";
-        queries = [prompt, '\$prompt songs 2024', '\$prompt hits', '\$prompt best tracks', '\$prompt top songs', '\$prompt playlist', '\$prompt music', 'best \$prompt'];
-      }
-
-      return {
-        'playlistName': name,
-        'description': 'A \$prompt playlist curated for you.',
-        'reply': reply,
-        'jiosaavnQueries': queries,
-        'audiusGenres': ['Pop'],
-        'useAudius': false,
-      };
+    final candidates = response.data['candidates'] as List?;
+    if (candidates == null || candidates.isEmpty) {
+      throw Exception('No response from Gemini');
     }
+
+    String text =
+        candidates.first['content']['parts'].first['text'] as String;
+
+    // Strip markdown fences if present
+    text = text.trim();
+    if (text.startsWith('```')) {
+      text = text
+          .replaceAll(RegExp(r'^```[a-z]*\n?'), '')
+          .replaceAll(RegExp(r'```$'), '')
+          .trim();
+    }
+
+    // Extract JSON object
+    final jsonStart = text.indexOf('{');
+    final jsonEnd = text.lastIndexOf('}');
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      text = text.substring(jsonStart, jsonEnd + 1);
+    }
+
+    return jsonDecode(text) as Map<String, dynamic>;
   }
 
-  // ─── Step 2: Fetch songs from both sources ───────────────────────────────────
+  // ─── Fetch songs from JioSaavn / Audius ───────────────────────────────────
 
   Future<List<Song>> _fetchSongs(Map<String, dynamic> parsed) async {
     final jiosaavnQueries =
         (parsed['jiosaavnQueries'] as List?)?.cast<String>() ?? [];
     final audiusGenres =
         (parsed['audiusGenres'] as List?)?.cast<String>() ?? [];
-    final useAudius = parsed['useAudius'] as bool? ?? true;
+    final useAudius = parsed['useAudius'] as bool? ?? false;
 
     final futures = <Future<List<Song>>>[];
 
-    // JioSaavn searches (always run — covers Hindi content)
     for (final q in jiosaavnQueries) {
       futures.add(_api.searchSongs(q, limit: 8));
     }
 
-    // Audius genre fetch (only for English/Western requests)
     if (useAudius && audiusGenres.isNotEmpty) {
       for (final genre in audiusGenres) {
         futures.add(_audius.fetchByGenre(genre, limit: 15));
@@ -344,24 +386,192 @@ User request: "$prompt"
 
     final results = await Future.wait(futures);
 
-    // Don't fully shuffle — keep JioSaavn results first (most relevant)
-    // Only shuffle within the Audius portion to add variety
     final seen = <String>{};
-    final jiosaavnResults = results.take(jiosaavnQueries.length)
-        .expand((l) => l).toList();
-    final audiusResults = results.skip(jiosaavnQueries.length)
-        .expand((l) => l).toList();
+    final jiosaavnResults =
+        results.take(jiosaavnQueries.length).expand((l) => l).toList();
+    final audiusResults =
+        results.skip(jiosaavnQueries.length).expand((l) => l).toList();
     audiusResults.shuffle();
 
-    final ordered = [...jiosaavnResults, ...audiusResults]
+    return [...jiosaavnResults, ...audiusResults]
         .where((s) => seen.add(s.id))
+        .take(25)
         .toList();
-
-    // Cap at 25 songs — enough for a solid playlist
-    return ordered.take(25).toList();
   }
 
-  // ─── Save to library ─────────────────────────────────────────────────────────
+  // ─── Fallback when Gemini fails ───────────────────────────────────────────
+
+  Future<GeneratorState> _fallbackResponse(
+      String prompt, List<ChatMessage> messages) async {
+
+    // On turn 1, always ask questions first even in fallback
+    if (_turnCount == 1) {
+      return state.copyWith(
+        status: GeneratorStatus.done,
+        messages: [
+          ...messages,
+          ChatMessage(
+            text:
+                "Yaar, thoda bata aur — kaunsa mood hai abhi? Aur kya kar raha hai sun-te waqt? 🎵",
+            isUser: false,
+            quickReplies: ['Chill karna hai 😌', 'Gym / workout 💪', 'Sad mood 💔', 'Party time 🎉'],
+            type: MessageType.quickReplies,
+          ),
+        ],
+      );
+    }
+
+    final w = prompt.toLowerCase();
+
+    final bool isPunjabi = w.contains('punjabi') || w.contains('panjabi');
+    final bool isHindi =
+        w.contains('hindi') || w.contains('bollywood') || w.contains('desi');
+    final bool isSad = w.contains('sad') ||
+        w.contains('heartbreak') ||
+        w.contains('dard') ||
+        w.contains('emotional');
+    final bool isParty =
+        w.contains('party') || w.contains('dance') || w.contains('club');
+    final bool isAttitude =
+        w.contains('attitude') || w.contains('aggressive') || w.contains('swag');
+
+    // Try to build a playlist from the fallback
+    List<String> queries;
+    String name;
+    String reply;
+    List<String> chips;
+
+    if (isPunjabi && isAttitude) {
+      name = 'Punjab Attitude Mix';
+      reply =
+          'Pure Punjabi fire aa rahi hai! 🔥 Tera attitude wala playlist ready hai!';
+      queries = [
+        'Sidhu Moosewala attitude songs',
+        'AP Dhillon hard hits',
+        'Shubh songs 2024',
+        'Karan Aujla swag',
+        'punjabi gangster songs',
+        'attitude punjabi 2024',
+        'Diljit Dosanjh beast mode',
+        'Sukha punjabi rap'
+      ];
+      chips = ['Make it sadder', 'Add more artists', 'English version', 'Save playlist'];
+    } else if (isPunjabi && isSad) {
+      name = 'Dil Toota Punjab';
+      reply = 'Punjabi dard wale songs leke aaya hoon 💔 Sambhal reh yaar...';
+      queries = [
+        'sad punjabi songs',
+        'Gurnam Bhullar emotional',
+        'AP Dhillon sad songs',
+        'punjabi heartbreak 2024',
+        'dard punjabi songs',
+        'Karan Aujla emotional',
+        'punjabi breakup hits',
+        'Shubh sad 2024'
+      ];
+      chips = ['Make it more energetic', 'Add Hindi songs too', 'Just Punjabi', 'Save playlist'];
+    } else if (isHindi && isSad) {
+      name = 'Broken Dil Sessions';
+      reply =
+          'Dil dukha hai? Main hoon na yaar 💙 Ye songs sun, thoda halka feel hoga...';
+      queries = [
+        'Arijit Singh sad songs',
+        'heartbreak hindi 2024',
+        'Atif Aslam emotional',
+        'Jubin Nautiyal sad',
+        'judai hindi songs',
+        'dard bhari hindi songs',
+        'hindi breakup 2024',
+        'Darshan Raval sad'
+      ];
+      chips = ['Add Punjabi songs', 'Make it more upbeat', 'Old classics', 'Save playlist'];
+    } else if (isHindi && isParty) {
+      name = 'Bollywood Bangers';
+      reply = 'Party mode ON! 💃 Bollywood ke best bangers leke aaya hoon!';
+      queries = [
+        'Badshah party songs 2024',
+        'Yo Yo Honey Singh dance',
+        'hindi club hits 2024',
+        'Bollywood dance floor',
+        'DJ remix hindi',
+        'Nucleya songs',
+        'bass hindi songs 2024',
+        'trending bollywood party'
+      ];
+      chips = ['Add Punjabi mix', 'More old songs', 'English remix', 'Save playlist'];
+    } else {
+      // Generic — just try to build something
+      name = 'Your Personal Mix';
+      reply = "Yaar, thoda net slow tha but maine kuch dhundha hai tere liye 🎵";
+      queries = [
+        prompt,
+        '$prompt songs 2024',
+        '$prompt hits',
+        '$prompt best tracks',
+        '$prompt popular songs',
+        'top $prompt',
+        'best $prompt playlist',
+        '$prompt trending'
+      ];
+      chips = ['More like this', 'Different language', 'More energy', 'Save playlist'];
+    }
+
+    try {
+      state = state.copyWith(
+        status: GeneratorStatus.searching,
+        statusMessage: 'Finding songs...',
+        messages: messages,
+      );
+
+      final parsed = {
+        'jiosaavnQueries': queries,
+        'audiusGenres': ['Pop'],
+        'useAudius': false,
+        'playlistName': name,
+        'description': 'Curated for your vibe.',
+      };
+
+      final songs = await _fetchSongs(parsed);
+
+      if (songs.isNotEmpty) {
+        final playlist = GeneratedPlaylist(
+          name: name,
+          description: 'A $prompt playlist curated just for you.',
+          songs: songs,
+        );
+        return state.copyWith(
+          status: GeneratorStatus.done,
+          result: playlist,
+          messages: [
+            ...messages,
+            ChatMessage(
+              text: reply,
+              isUser: false,
+              playlist: playlist,
+              quickReplies: chips,
+              type: MessageType.playlist,
+            ),
+          ],
+        );
+      }
+    } catch (_) {}
+
+    return state.copyWith(
+      status: GeneratorStatus.error,
+      messages: [
+        ...messages,
+        ChatMessage(
+          text:
+              'Yaar connection mein kuch dikkat aa gayi 😅 Ek baar phir try kar!',
+          isUser: false,
+          quickReplies: ['Try again', 'Punjabi songs', 'Hindi hits', 'Chill vibes'],
+          type: MessageType.quickReplies,
+        ),
+      ],
+    );
+  }
+
+  // ─── Save to library ──────────────────────────────────────────────────────
 
   Future<String?> savePlaylistToLibrary(GeneratedPlaylist playlist) async {
     try {
@@ -371,7 +581,6 @@ User request: "$prompt"
       );
       if (playlistId.isEmpty) return null;
 
-      // Add songs in batches to avoid hammering Firestore
       for (final song in playlist.songs) {
         await _db.addSongToPlaylist(playlistId, song);
       }
@@ -384,6 +593,8 @@ User request: "$prompt"
   }
 
   void reset() {
+    _geminiHistory.clear();
+    _turnCount = 0;
     state = const GeneratorState();
   }
 }
