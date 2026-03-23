@@ -13,6 +13,7 @@ import '../../shared/widgets/main_scaffold.dart';
 import '../../features/friends/friends_screen.dart';
 import '../../features/friends/chat_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import 'package:den/features/notifications/notification_inbox_screen.dart';
 import '../services/auth_service.dart';
 import '../services/admin_service.dart';
 
@@ -150,6 +151,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const SettingsScreen(),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          ),
+          GoRoute(
+            path: '/notifications',
+            pageBuilder: (c, s) => CustomTransitionPage(
+              child: const NotificationInboxScreen(),
               transitionsBuilder: (_, a, __, c) =>
                   FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),

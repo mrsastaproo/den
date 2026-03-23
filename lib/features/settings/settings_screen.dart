@@ -830,9 +830,9 @@ class _DownloadsSection extends ConsumerWidget {
     );
   }
 
-  void _showClearDownloadsDialog(BuildContext context, WidgetRef ref) {
+  void _showClearDownloadsDialog(BuildContext screenContext, WidgetRef ref) {
     showDialog(
-      context: context,
+      context: screenContext,
       builder: (dialogContext) => _ConfirmDialog(
         title: 'Clear Downloads',
         message:
@@ -1171,10 +1171,10 @@ class _PrivacySection extends ConsumerWidget {
     );
   }
 
-  void _showClearHistoryDialog(BuildContext context, WidgetRef ref) {
+  void _showClearHistoryDialog(BuildContext screenContext, WidgetRef ref) {
     showDialog(
-      context: context,
-      builder: (_) => _ConfirmDialog(
+      context: screenContext,
+      builder: (dialogContext) => _ConfirmDialog(
         title: 'Clear Listening History',
         message:
             'This will remove all songs from your recent history. This cannot be undone.',
@@ -1182,7 +1182,7 @@ class _PrivacySection extends ConsumerWidget {
         isDestructive: true,
         onConfirm: () async {
           await ref.read(databaseServiceProvider).clearHistory();
-          if (context.mounted) Navigator.pop(context);
+          if (dialogContext.mounted) Navigator.pop(dialogContext);
           HapticFeedback.mediumImpact();
         },
       ),
@@ -1207,7 +1207,7 @@ class _PrivacySection extends ConsumerWidget {
                     'Minimal — only what\'s needed'),
                 const SizedBox(height: 12),
                 const _InfoRow(
-                    'Third Parties', 'JioSaavn API, Firebase'),
+                    'Third Parties', 'Den Driod API, Firebase'),
                 const SizedBox(height: 12),
                 const _InfoRow(
                     'Data Storage', 'Encrypted on Firebase'),
@@ -1451,9 +1451,9 @@ class _AboutSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const _InfoRow('Built with', 'Flutter 3.x'),
+            const _InfoRow('Built with', 'DEN TEAM'),
             const SizedBox(height: 8),
-            const _InfoRow('Music API', 'JioSaavn'),
+            const _InfoRow('Music API', 'Densi API'),
             const SizedBox(height: 8),
             const _InfoRow('Auth & Storage', 'Firebase'),
             const SizedBox(height: 8),
@@ -1478,8 +1478,7 @@ class _AdminPanelEntry extends ConsumerWidget {
       child: GestureDetector(
         onTap: () {
           HapticFeedback.mediumImpact();
-          Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AdminScreen()));
+          context.push('/admin');
         },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -1613,18 +1612,17 @@ class _SignOutButton extends ConsumerWidget {
     ).animate().fadeIn(duration: 400.ms, delay: 500.ms);
   }
 
-  void _confirmSignOut(BuildContext context, WidgetRef ref) {
+  void _confirmSignOut(BuildContext screenContext, WidgetRef ref) {
     showDialog(
-      context: context,
+      context: screenContext,
       builder: (dialogContext) => _ConfirmDialog(
         title: 'Sign Out',
         message: 'Are you sure you want to sign out of DEN?',
         confirmLabel: 'Sign Out',
         isDestructive: false,
         onConfirm: () async {
-          Navigator.pop(dialogContext);
-          await Future.delayed(const Duration(milliseconds: 300));
           await ref.read(authServiceProvider).signOut();
+          if (dialogContext.mounted) Navigator.pop(dialogContext);
         },
       ),
     );
@@ -1657,9 +1655,9 @@ class _DeleteAccountButton extends ConsumerWidget {
     ).animate().fadeIn(duration: 400.ms, delay: 600.ms);
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref) {
+  void _confirmDelete(BuildContext screenContext, WidgetRef ref) {
     showDialog(
-      context: context,
+      context: screenContext,
       builder: (dialogContext) => _ConfirmDialog(
         title: 'Delete Account',
         message:
@@ -1669,9 +1667,10 @@ class _DeleteAccountButton extends ConsumerWidget {
         onConfirm: () async {
           try {
             await ref.read(authServiceProvider).deleteAccount();
+            if (dialogContext.mounted) Navigator.pop(dialogContext);
           } catch (e) {
             if (dialogContext.mounted) Navigator.pop(dialogContext);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            ScaffoldMessenger.of(screenContext).showSnackBar(SnackBar(
               content: Text('Error: $e',
                   style: const TextStyle(color: Colors.white)),
               backgroundColor: Colors.red.shade900,
@@ -2233,7 +2232,7 @@ class _SheetOption extends StatelessWidget {
 class _ConfirmDialog extends StatefulWidget {
   final String title, message, confirmLabel;
   final bool isDestructive;
-  final VoidCallback onConfirm;
+  final Future<void> Function() onConfirm; // Changed to Future Function
 
   const _ConfirmDialog({
     required this.title,
@@ -2321,7 +2320,7 @@ class _ConfirmDialogState extends State<_ConfirmDialog> {
                           : () async {
                               setState(() => _loading = true);
                               try {
-                                widget.onConfirm();
+                                await widget.onConfirm(); // Await added
                               } finally {
                                 if (mounted) {
                                   setState(() => _loading = false);

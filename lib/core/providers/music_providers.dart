@@ -1,28 +1,97 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/audius_service.dart';
 import '../services/player_service.dart';
+import '../services/database_service.dart' as db;
 import '../providers/queue_meta.dart';
 import '../models/song.dart';
 
 // ─── API PROVIDERS ────────────────────────────────────────────
 
 final audiusServiceProvider = Provider<AudiusService>((ref) => AudiusService());
+// Seed that changes on every app restart to provide variety
+final sessionSeedProvider = Provider<int>((ref) => math.Random().nextInt(1000000));
 
 // ─── JIOSAAVN SECTIONS ────────────────────────────────────────
 
-final trendingProvider = FutureProvider<List<Song>>((ref) async =>
-    ref.read(apiServiceProvider).getTrending());
+final trendingProvider = FutureProvider<List<Song>>((ref) async {
+  final seed = ref.watch(sessionSeedProvider);
+  final timer = Timer(const Duration(minutes: 30), () => ref.invalidateSelf());
+  ref.onDispose(() => timer.cancel());
 
-final newReleasesProvider = FutureProvider<List<Song>>((ref) async =>
-    ref.read(apiServiceProvider).getNewReleases());
+  final api = ref.read(apiServiceProvider);
+  
+  // 1. Fetch Global Trending (Small baseline)
+  final globalSongs = await api.getTrending();
+  
+  // 2. Personalize: Watch history
+  final historyAsync = ref.watch(db.historyProvider);
+  final history = historyAsync.value ?? [];
+  final List<Song> personalizedSongs = [];
+  
+  if (history.isNotEmpty) {
+    // Get unique artists from recent history (up to 4)
+    final topArtists = history.map((s) => s.artist).toSet().take(4).toList();
+    for (final artist in topArtists) {
+      final extra = await api.getArtistSongs(artist);
+      personalizedSongs.addAll(extra.take(10));
+    }
+  }
 
-final topChartsProvider = FutureProvider<List<Song>>((ref) async =>
-    ref.read(apiServiceProvider).getTopCharts());
+  // 3. Merge and Shuffle
+  final allSongs = [...personalizedSongs, ...globalSongs];
+  allSongs.shuffle(math.Random(seed));
+  
+  final seen = <String>{};
+  return allSongs.where((s) => seen.add(s.id)).take(30).toList();
+});
 
-final throwbackProvider = FutureProvider<List<Song>>((ref) async =>
-    ref.read(apiServiceProvider).getThrowback());
+final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
+  final seed = ref.watch(sessionSeedProvider);
+  final timer = Timer(const Duration(minutes: 30), () => ref.invalidateSelf());
+  ref.onDispose(() => timer.cancel());
+
+  final api = ref.read(apiServiceProvider);
+  
+  final globalSongs = await api.getNewReleases();
+  
+  final likedAsync = ref.watch(db.likedSongsProvider);
+  final liked = likedAsync.value ?? [];
+  final List<Song> personalizedSongs = [];
+
+  if (liked.isNotEmpty) {
+    final topArtists = liked.map((s) => s.artist).toSet().take(3).toList();
+    for (final artist in topArtists) {
+       final extra = await api.getArtistSongs(artist);
+       personalizedSongs.addAll(extra.take(8));
+    }
+  }
+
+  final allSongs = [...personalizedSongs, ...globalSongs];
+  allSongs.shuffle(math.Random(seed + 777));
+  
+  final seen = <String>{};
+  return allSongs.where((s) => seen.add(s.id)).take(20).toList();
+});
+
+final topChartsProvider = FutureProvider<List<Song>>((ref) async {
+  final seed = ref.watch(sessionSeedProvider);
+  final songs = await ref.read(apiServiceProvider).getTopCharts();
+  songs.shuffle(math.Random(seed + 2));
+  return songs;
+});
+
+final throwbackProvider = FutureProvider<List<Song>>((ref) async {
+  // Changes based on the hour for variety
+  final hour = DateTime.now().hour;
+  final seed = ref.watch(sessionSeedProvider) ^ hour;
+  
+  final songs = await ref.read(apiServiceProvider).getThrowback();
+  songs.shuffle(math.Random(seed));
+  return songs;
+});
 
 final timeBasedSongsProvider = FutureProvider<List<Song>>((ref) async =>
     ref.read(apiServiceProvider).getTimeBased());
@@ -241,9 +310,17 @@ List<String> _buildTitleQueries(String query) {
 }
 
 final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
-  final query = ref.watch(searchQueryProvider);
+  final query = ref.watch(searchQueryProvider).trim();
   final seed  = ref.watch(searchShuffleSeedProvider);
   if (query.isEmpty) return [];
+
+  // Keep results for 5 mins to make navigation snappy
+  final link = ref.keepAlive();
+  Timer? timer;
+  ref.onDispose(() => timer?.cancel());
+  ref.onCancel(() {
+    timer = Timer(const Duration(minutes: 5), () => link.close());
+  });
 
   final api    = ref.read(apiServiceProvider);
   final audius = ref.read(audiusServiceProvider);
@@ -263,21 +340,22 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   }
 
   // ── Fire JioSaavn requests in parallel ──────────────────────
-  // Always include: exact query p1, exact query p2, broad search
-  // Plus up to 6 of the computed variants
   final jioFutures = <Future<List<Song>>>[
     api.searchSongs(query, page: 1, limit: 20),
-    api.searchSongs(query, page: 2, limit: 20),
-    api.searchBroad(query),               // hits /search endpoint
   ];
 
-  // Add computed variants (skip duplicates of main query)
-  final extras = queriesToFire
-      .where((q) => q.toLowerCase() != query.toLowerCase())
-      .take(6)
-      .toList();
-  for (final q in extras) {
-    jioFutures.add(api.searchSongs(q, page: 1, limit: 20));
+  // Only fire deep parallel searches for meaningful queries
+  if (query.length >= 3) {
+    jioFutures.add(api.searchSongs(query, page: 2, limit: 20));
+    jioFutures.add(api.searchBroad(query));
+
+    final extras = queriesToFire
+        .where((q) => q.toLowerCase() != query.toLowerCase())
+        .take(isTitle ? 4 : 2) // Fewer extras to keep it fast
+        .toList();
+    for (final q in extras) {
+      jioFutures.add(api.searchSongs(q, page: 1, limit: 20));
+    }
   }
 
   // Audius parallel fetch
@@ -340,8 +418,8 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
     rest = all.sublist(1);
   }
 
-  // Shuffle rest with a fresh seed every search
-  rest.shuffle(math.Random(seed ^ DateTime.now().millisecondsSinceEpoch));
+  // Shuffle rest with the provider seed for stability
+  rest.shuffle(math.Random(seed));
 
   return [pinned, ...rest].take(50).toList();
 });

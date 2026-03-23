@@ -15,6 +15,21 @@ import '../../core/services/auth_service.dart';
 // Active tab provider
 final _adminTabProvider = StateProvider<int>((ref) => 0);
 
+Future<bool> _confirm(BuildContext context, String message) async {
+  return await showDialog<bool>(
+    context: context,
+    builder: (ctx) => _AdminDialog(
+      title: 'Confirm',
+      message: message,
+      confirmLabel: 'Yes',
+      isDestructive: false,
+      onConfirm: () => Navigator.pop(ctx, true),
+    ),
+  ) ?? false;
+}
+
+String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
+
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
 
@@ -39,6 +54,7 @@ class AdminScreen extends ConsumerWidget {
       _TabData('Users', Icons.people_rounded),
       _TabData('Content', Icons.library_music_rounded),
       _TabData('Announcements', Icons.campaign_rounded),
+      _TabData('Notifications', Icons.notifications_active_rounded),
       _TabData('Config', Icons.settings_rounded),
       _TabData('Logs', Icons.receipt_long_rounded),
     ];
@@ -78,8 +94,9 @@ class AdminScreen extends ConsumerWidget {
                       1 => const _UsersTab(),
                       2 => const _ContentTab(),
                       3 => const _AnnouncementsTab(),
-                      4 => const _ConfigTab(),
-                      5 => const _LogsTab(),
+                      4 => const _NotificationsTab(),
+                      5 => const _ConfigTab(),
+                      6 => const _LogsTab(),
                       _ => const _DashboardTab(),
                     },
                   ),
@@ -428,7 +445,7 @@ class _DashboardTab extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    'Last updated: ${_formatDate(s.lastUpdated!)}',
+                    'Last updated: ${_fmtDate(s.lastUpdated!)}',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.25),
                       fontSize: 11),
@@ -457,6 +474,30 @@ class _DashboardTab extends ConsumerWidget {
               icon: Icons.campaign_rounded,
               color: const Color(0xFFF7971E),
               onTap: () => ref.read(_adminTabProvider.notifier).state = 3,
+            ),
+            _QuickAction(
+              label: 'Refresh All Stats',
+              icon: Icons.sync_rounded,
+              color: const Color(0xFF6C63FF),
+              onTap: () async {
+                final confirmed = await _confirm(context,
+                  'Sync all user statistics? This will recalculate counts for every user.');
+                if (!confirmed) return;
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Starting global sync... Stay on this screen.')));
+                }
+
+                await ref.read(adminServiceProvider).syncAllUsersStats();
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('All user stats refreshed!')));
+                }
+
+                await ref.read(adminServiceProvider).refreshStats();
+              },
             ),
             _QuickAction(
               label: 'Manage Users',
@@ -513,10 +554,6 @@ class _DashboardTab extends ConsumerWidget {
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
     return '$n';
-  }
-
-  String _formatDate(DateTime d) {
-    return '${d.day}/${d.month}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -655,6 +692,24 @@ class _UserTileState extends ConsumerState<_UserTile> {
                   ))
                 : _initials(u),
           ),
+          // Online Indicator Dot
+          Transform.translate(
+            offset: const Offset(-10, 16),
+            child: Container(
+              width: 12, height: 12,
+              decoration: BoxDecoration(
+                color: u.isOnline ? const Color(0xFF11D47B) : Colors.grey,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF070707), width: 2),
+                boxShadow: u.isOnline ? [
+                  BoxShadow(
+                    color: const Color(0xFF11D47B).withOpacity(0.4),
+                    blurRadius: 4, spreadRadius: 1,
+                  )
+                ] : [],
+              ),
+            ),
+          ),
           const SizedBox(width: 12),
 
           // Info
@@ -694,6 +749,26 @@ class _UserTileState extends ConsumerState<_UserTile> {
                           letterSpacing: 0.8,
                         )),
                     ),
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (u.isOnline ? const Color(0xFF11D47B) : Colors.white).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: (u.isOnline ? const Color(0xFF11D47B) : Colors.white).withOpacity(0.2),
+                      ),
+                    ),
+                    child: Text(
+                      u.isOnline ? 'ACTIVE' : 'OFFLINE',
+                      style: TextStyle(
+                        color: u.isOnline ? const Color(0xFF11D47B) : Colors.white.withOpacity(0.5),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
                 ]),
                 const SizedBox(height: 2),
                 Text(u.email,
@@ -731,6 +806,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
                   onSelected: (action) => _handleAction(context, action),
                   itemBuilder: (_) => [
                     _menuItem('view', Icons.visibility_rounded, 'View Details'),
+                    _menuItem('sync', Icons.sync_rounded, 'Sync Stats'),
                     if (!u.isBanned)
                       _menuItem('ban', Icons.block_rounded, 'Ban User',
                           color: const Color(0xFFFF4444))
@@ -777,14 +853,29 @@ class _UserTileState extends ConsumerState<_UserTile> {
       ));
   }
 
-  String _fmtDate(DateTime d) =>
-      '${d.day}/${d.month}/${d.year}';
-
   Future<void> _handleAction(BuildContext context, String action) async {
     final svc = ref.read(adminServiceProvider);
+    final u = widget.user; // Get user here for use in cases
     switch (action) {
       case 'view':
-        _showUserDetails(context);
+        _showUserDetails(context, u);
+        break;
+      case 'sync':
+        setState(() => _loading = true);
+        try {
+          await ref.read(adminServiceProvider).syncUserStats(u.uid);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Stats synced successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Sync failed: $e')));
+          }
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
         break;
       case 'ban':
         _showBanDialog(context, svc);
@@ -800,8 +891,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
     }
   }
 
-  void _showUserDetails(BuildContext context) {
-    final u = widget.user;
+  void _showUserDetails(BuildContext context, AdminUser u) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1463,6 +1553,92 @@ class _AnnouncementsTab extends ConsumerWidget {
             );
           }
           if (context.mounted) Navigator.pop(context);
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TAB 4 — NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────
+
+class _NotificationsTab extends ConsumerWidget {
+  const _NotificationsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+      physics: const BouncingScrollPhysics(),
+      children: [
+        _AdminSectionHeader(
+            title: 'Push Notifications', icon: Icons.notifications_active_rounded),
+        const SizedBox(height: 10),
+        _GlassCard(children: [
+          _QuickAction(
+            label: 'Send New Broadcast',
+            icon: Icons.send_rounded,
+            color: const Color(0xFF6C63FF),
+            onTap: () => _showBroadcastForm(context, ref),
+          ),
+        ]),
+        const SizedBox(height: 24),
+        _AdminSectionHeader(
+            title: 'Broadcast History', icon: Icons.history_rounded),
+        const SizedBox(height: 10),
+        _EmptyState(
+          icon: Icons.history_rounded,
+          message: 'Notification history coming soon…',
+        ),
+      ],
+    );
+  }
+
+  void _showBroadcastForm(BuildContext context, WidgetRef ref) {
+    final titleCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    final imgCtrl = TextEditingController();
+    final linkCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AdminFormSheet(
+        title: 'Send Broadcast',
+        fields: [
+          _FormField('Title', titleCtrl, hint: 'Notification heading…'),
+          _FormField('Message Body', bodyCtrl, hint: 'What users will see…', maxLines: 3),
+          _FormField('Image URL (Optional)', imgCtrl, hint: 'https://…'),
+          _FormField('Link/Action (Optional)', linkCtrl, hint: 'den://playlist/…'),
+        ],
+        onSave: () async {
+          if (titleCtrl.text.isEmpty || bodyCtrl.text.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Title and Message are required')),
+            );
+            return;
+          }
+
+          HapticFeedback.mediumImpact();
+          await ref.read(adminServiceProvider).sendBroadcastNotification(
+            title: titleCtrl.text,
+            body: bodyCtrl.text,
+            imageUrl: imgCtrl.text.isEmpty ? null : imgCtrl.text,
+            link: linkCtrl.text.isEmpty ? null : linkCtrl.text,
+          );
+
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Broadcast triggered successfully!'),
+                backgroundColor: Color(0xFF11D47B),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         },
       ),
     );

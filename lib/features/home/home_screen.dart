@@ -142,7 +142,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _onRefresh() async {
     HapticFeedback.mediumImpact();
-    final providers = [
+    final List<ProviderBase> providers = [
+      sessionSeedProvider,
       trendingProvider, newReleasesProvider, topChartsProvider, throwbackProvider,
       timeBasedSongsProvider, romanticSongsProvider, partyHitsProvider,
       chillVibesProvider, focusMixProvider, sadSongsProvider, indieHitsProvider,
@@ -185,11 +186,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 delegate: _GlassHeaderDelegate(
                   isScrolledNotifier: _isHeaderScrolled,
                   onSearch: () => context.go('/search'),
-                  onNotification: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No new notifications')),
-                    );
-                  },
+                  onNotification: () => context.push('/notifications'),
                   onSettings: () => context.go('/settings'),
                 ),
               ),

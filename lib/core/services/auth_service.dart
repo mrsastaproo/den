@@ -49,8 +49,10 @@ class AuthService {
   Future<UserCredential?> signInWithEmail(
       String email, String password) async {
     try {
-      return await _auth.signInWithEmailAndPassword(
+      final result = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
+      await _ensureUserDoc(result.user);
+      return result;
     } catch (e) {
       print('Sign in error: $e');
       return null;
@@ -110,6 +112,18 @@ class AuthService {
     await user.delete();
   }
 
+  Future<void> updateLastActive() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      await _db.collection('users').doc(user.uid).update({
+        'lastActive': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Doc might not exist yet, ensureUserDoc will handle it
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────────
 
   /// Creates a minimal user document on first sign-in so that
@@ -118,15 +132,22 @@ class AuthService {
     if (user == null) return;
     final ref = _db.doc('users/${user.uid}');
     final snap = await ref.get();
+    
+    final data = {
+      'uid': user.uid,
+      'email': user.email ?? '',
+      'displayName': user.displayName ?? '',
+      'photoUrl': user.photoURL ?? '', // Unified name
+      'photoURL': user.photoURL ?? '', // Legacy support
+      'lastActive': FieldValue.serverTimestamp(),
+    };
+
     if (!snap.exists) {
-      await ref.set({
-        'uid':         user.uid,
-        'email':       user.email ?? '',
-        'displayName': user.displayName ?? '',
-        'photoURL':    user.photoURL ?? '',
-        'createdAt':   FieldValue.serverTimestamp(),
-        'plan':        'free',
-      });
+      data['createdAt'] = FieldValue.serverTimestamp();
+      data['plan'] = 'free';
+      await ref.set(data);
+    } else {
+      await ref.update(data);
     }
   }
 

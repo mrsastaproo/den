@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 
 
@@ -25,6 +27,8 @@ class MainScaffold extends ConsumerStatefulWidget {
 
 class _MainScaffoldState extends ConsumerState<MainScaffold>
     with WidgetsBindingObserver {
+  
+  Timer? _presenceTimer;
 
   @override
   void initState() {
@@ -32,8 +36,26 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
     _checkOverlayPermission();
     WidgetsBinding.instance.addObserver(this);
 
-    Future.microtask(
-        () => ref.read(socialServiceProvider).updateOnlineStatus(true));
+    Future.microtask(() {
+      ref.read(socialServiceProvider).updateOnlineStatus(true);
+      _startPresenceHeartbeat();
+    });
+  }
+
+  void _startPresenceHeartbeat() {
+    _presenceTimer?.cancel();
+    _presenceTimer = Timer.periodic(const Duration(minutes: 2), (timer) {
+      if (ref.read(isPlayingProvider)) {
+        ref.read(socialServiceProvider).updateOnlineStatus(true);
+      } else {
+        // Even if not playing, if app is in foreground, update last active
+        ref.read(authServiceProvider).updateLastActive();
+      }
+    });
+  }
+
+  void _stopPresenceHeartbeat() {
+    _presenceTimer?.cancel();
   }
 
   void _checkOverlayPermission() async {
@@ -47,6 +69,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
 
   @override
   void dispose() {
+    _stopPresenceHeartbeat();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -55,10 +78,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(socialServiceProvider).updateOnlineStatus(true);
+      _startPresenceHeartbeat();
       // App came back to foreground — dismiss the overlay
       _hideOverlay();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
+      _stopPresenceHeartbeat();
       // App truly went to background (home button / recent apps)
       // NOTE: 'inactive' is intentionally excluded — it fires during
       // in-app interactions (notification shade, dialogs, system UI)

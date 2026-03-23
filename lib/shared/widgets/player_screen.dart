@@ -672,7 +672,7 @@ class _PlayerHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding:
-          const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          const EdgeInsets.fromLTRB(16, 18, 16, 4),
       child: Row(children: [
         _HdrBtn(
             icon: Icons.keyboard_arrow_down_rounded,

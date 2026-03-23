@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,15 +72,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   final _focus = FocusNode();
   final _scrollController = ScrollController();
   bool _focused = false;
-  double _scrollOffset = 0;
+  bool _isScrolled = false;
   late AnimationController _orbCtrl;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _focus.addListener(() => setState(() => _focused = _focus.hasFocus));
-    _scrollController
-        .addListener(() => setState(() => _scrollOffset = _scrollController.offset));
+    _scrollController.addListener(_onScroll);
     _orbCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 7),
@@ -88,11 +89,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _ctrl.dispose();
     _focus.dispose();
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _orbCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    final scrolled = _scrollController.offset > 8;
+    if (scrolled != _isScrolled) {
+      setState(() => _isScrolled = scrolled);
+    }
+  }
+
+  void _onQueryChanged(String q) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        ref.read(searchQueryProvider.notifier).state = q;
+        if (q.trim().isNotEmpty) {
+          ref.read(recentSearchesProvider.notifier).add(q.trim());
+        }
+      }
+    });
   }
 
   void _search(String q) {
@@ -133,10 +155,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   ctrl: _ctrl,
                   focus: _focus,
                   focused: _focused,
-                  scrolled: _scrollOffset > 8,
+                  scrolled: _isScrolled,
                   query: query,
-                  onChanged: (q) =>
-                      ref.read(searchQueryProvider.notifier).state = q,
+                  onChanged: _onQueryChanged,
                   onSubmit: (q) {
                     _search(q);
                     FocusScope.of(context).unfocus();
@@ -716,77 +737,87 @@ class _BrowseBodyState extends State<_BrowseBody> {
         ? recents
         : recents.take(_collapsedMax).toList();
 
-    return ListView(
+    return CustomScrollView(
       controller: widget.scrollController,
-      padding: EdgeInsets.zero,
       physics: const BouncingScrollPhysics(),
-      children: [
-        // ── Recent Searches ───────────────────────────────
-        if (recents.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(children: [
-                  Container(
-                    width: 3,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(2),
+      slivers: [
+        // ── Recent Searches Header ────────────────────────
+        if (recents.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 3,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Recent',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ]),
+                  GestureDetector(
+                    onTap: widget.onClearAll,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      'Clear all',
+                      style: TextStyle(
+                        color: AppTheme.pink.withOpacity(0.8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Recent',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                ]),
-                GestureDetector(
-                  onTap: widget.onClearAll,
-                  behavior: HitTestBehavior.opaque,
-                  child: Text(
-                    'Clear all',
-                    style: TextStyle(
-                      color: AppTheme.pink.withOpacity(0.8),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
-          // Visible tiles (max 5 when collapsed)
-          ...visible.asMap().entries.map(
-            (e) => _RecentTile(
-              query: e.value,
-              onTap: () => widget.onRecentTap(e.value),
-              onRemove: () => widget.onRecentRemove(e.value),
-            )
-                .animate()
-                .fadeIn(
-                    delay: Duration(milliseconds: e.key * 35),
-                    duration: 280.ms)
-                .slideX(
-                  begin: -0.04,
-                  end: 0,
-                  delay: Duration(milliseconds: e.key * 35),
-                  duration: 280.ms,
-                  curve: Curves.easeOutCubic,
-                ),
+        // ── Recent Searches List ──────────────────────────
+        if (recents.isNotEmpty)
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index >= visible.length) return null;
+                final q = visible[index];
+                return _RecentTile(
+                  query: q,
+                  onTap: () => widget.onRecentTap(q),
+                  onRemove: () => widget.onRecentRemove(q),
+                )
+                    .animate()
+                    .fadeIn(
+                        delay: Duration(milliseconds: index * 35),
+                        duration: 280.ms)
+                    .slideX(
+                      begin: -0.04,
+                      end: 0,
+                      delay: Duration(milliseconds: index * 35),
+                      duration: 280.ms,
+                      curve: Curves.easeOutCubic,
+                    );
+              },
+              childCount: visible.length,
+            ),
           ),
 
-          // ── See more / Show less button ─────────────────
-          if (hasMore)
-            GestureDetector(
+        // ── See More Button ───────────────────────────────
+        if (recents.isNotEmpty && hasMore)
+          SliverToBoxAdapter(
+            child: GestureDetector(
               onTap: () {
                 HapticFeedback.selectionClick();
                 setState(() => _expanded = !_expanded);
@@ -839,18 +870,23 @@ class _BrowseBodyState extends State<_BrowseBody> {
                 ),
               ),
             ).animate().fadeIn(duration: 220.ms),
+          ),
 
-          const SizedBox(height: 10),
-          Divider(
-              color: Colors.white.withOpacity(0.05),
-              indent: 20,
-              endIndent: 20),
-        ],
+        if (recents.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Divider(
+                  color: Colors.white.withOpacity(0.05),
+                  indent: 20,
+                  endIndent: 20),
+            ),
+          ),
 
-        // ── Browse categories ─────────────────────────────
-        _BrowseGrid(onTap: widget.onCategoryTap),
+        // ── Browse Categories ─────────────────────────────
+        _SliverBrowseGrid(onTap: widget.onCategoryTap),
 
-        const SizedBox(height: 180),
+        const SliverToBoxAdapter(child: SizedBox(height: 180)),
       ],
     );
   }
@@ -936,9 +972,9 @@ class _RecentTileState extends State<_RecentTile> {
 
 // ─── BROWSE GRID ──────────────────────────────────────────────
 
-class _BrowseGrid extends StatelessWidget {
+class _SliverBrowseGrid extends StatelessWidget {
   final ValueChanged<String> onTap;
-  const _BrowseGrid({required this.onTap});
+  const _SliverBrowseGrid({required this.onTap});
 
   // Real Unsplash images — each matched to the genre's mood
   static const _cats = [
@@ -1042,59 +1078,62 @@ class _BrowseGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
-          child: Row(children: [
-            Container(
-              width: 3,
-              height: 16,
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(2),
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+            child: Row(children: [
+              Container(
+                width: 3,
+                height: 16,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Browse',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.4,
+              const SizedBox(width: 10),
+              const Text(
+                'Browse',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                ),
               ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'all genres',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.32),
-                fontSize: 18,
-                fontWeight: FontWeight.w400,
-                letterSpacing: -0.4,
+              const SizedBox(width: 6),
+              Text(
+                'all genres',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.32),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: -0.4,
+                ),
               ),
-            ),
-          ]),
+            ]),
+          ),
         ),
-        Padding(
+        SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
               childAspectRatio: 1.55,
             ),
-            itemCount: _cats.length,
-            itemBuilder: (_, i) => _CategoryCard(
-              cat: _cats[i],
-              delay: i * 45,
-              onTap: () => onTap(_cats[i].query),
+            delegate: SliverChildBuilderDelegate(
+              (context, i) {
+                if (i >= _SliverBrowseGrid._cats.length) return null;
+                return _CategoryCard(
+                  cat: _SliverBrowseGrid._cats[i],
+                  delay: i * 45,
+                  onTap: () => onTap(_SliverBrowseGrid._cats[i].query),
+                );
+              },
+              childCount: _SliverBrowseGrid._cats.length,
             ),
           ),
         ),
@@ -1289,157 +1328,159 @@ class _ResultsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return results.when(
-      loading: _buildShimmer,
-      error: (e, _) => Center(
-          child: Text('Error: $e',
-              style: TextStyle(color: Colors.red.shade400))),
-      data: (songs) {
-        if (songs.isEmpty) return _EmptyResults(query: query);
-
-        return CustomScrollView(
-          controller: scrollController,
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-                child: Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: Colors.white.withOpacity(0.09),
-                          width: 0.8),
-                    ),
-                    child: Text(
-                      '${songs.length} results',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.42),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'for "$query"',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.28),
-                        fontSize: 12,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ]),
-              ).animate().fadeIn(duration: 280.ms),
+    return CustomScrollView(
+      controller: scrollController,
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        results.when(
+          loading: () => SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (_, i) => _buildShimmerItem(),
+              childCount: 8,
             ),
-
-            SliverToBoxAdapter(
-              child: _TopResultCard(
-                song: songs.first,
-                onTap: () => playQueue(ref, songs, 0,
-                    meta: QueueMeta(
-                      context: QueueContext.search,
-                      searchQuery: query,
-                    )),
-              )
-                  .animate()
-                  .fadeIn(duration: 380.ms)
-                  .slideY(
-                      begin: 0.05,
-                      end: 0,
-                      duration: 380.ms,
-                      curve: Curves.easeOutCubic),
+          ),
+          error: (e, _) => SliverFillRemaining(
+            child: Center(
+              child: Text('Error: $e',
+                  style: TextStyle(color: Colors.red.shade400)),
             ),
+          ),
+          data: (songs) {
+            if (songs.isEmpty) {
+              return SliverFillRemaining(
+                child: _EmptyResults(query: query),
+              );
+            }
 
-            if (songs.length > 1)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
-                  child: Row(children: [
-                    Container(
-                      width: 3,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(2),
+            return SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                    child: Row(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.09),
+                              width: 0.8),
+                        ),
+                        child: Text(
+                          '${songs.length} results',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.42),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Songs',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.88),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'for "$query"',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.28),
+                            fontSize: 12,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ]),
-                ).animate().fadeIn(duration: 280.ms),
-              ),
-
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (ctx, i) {
-                  final song = songs[i + 1];
-                  return _SongResultTile(
-                    song: song,
-                    index: i + 1,
-                    onTap: () => playQueue(ref, songs, i + 1,
+                    ]),
+                  ).animate().fadeIn(duration: 280.ms),
+                ),
+                SliverToBoxAdapter(
+                  child: _TopResultCard(
+                    song: songs.first,
+                    onTap: () => playQueue(ref, songs, 0,
                         meta: QueueMeta(
                           context: QueueContext.search,
                           searchQuery: query,
                         )),
-                    onMore: () =>
-                        _showOptions(ctx, ref, song, songs, i + 1),
-                  )
-                      .animate()
-                      .fadeIn(
-                          delay: Duration(milliseconds: i * 22),
-                          duration: 260.ms)
-                      .slideX(
-                        begin: 0.03,
-                        end: 0,
-                        delay: Duration(milliseconds: i * 22),
-                        duration: 260.ms,
-                        curve: Curves.easeOutCubic,
-                      );
-                },
-                childCount: songs.length > 1 ? songs.length - 1 : 0,
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 180)),
-          ],
-        );
-      },
+                  ).animate().fadeIn(duration: 380.ms).slideY(
+                      begin: 0.05,
+                      end: 0,
+                      duration: 380.ms,
+                      curve: Curves.easeOutCubic),
+                ),
+                if (songs.length > 1)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+                      child: Row(children: [
+                        Container(
+                          width: 3,
+                          height: 13,
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Songs',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.88),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ]),
+                    ).animate().fadeIn(duration: 280.ms),
+                  ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      final song = songs[i + 1];
+                      return _SongResultTile(
+                        song: song,
+                        index: i + 1,
+                        onTap: () => playQueue(ref, songs, i + 1,
+                            meta: QueueMeta(
+                              context: QueueContext.search,
+                              searchQuery: query,
+                            )),
+                        onMore: () =>
+                            _showOptions(ctx, ref, song, songs, i + 1),
+                      )
+                          .animate()
+                          .fadeIn(
+                              delay: Duration(milliseconds: i * 22),
+                              duration: 260.ms)
+                          .slideX(
+                            begin: 0.03,
+                            end: 0,
+                            delay: Duration(milliseconds: i * 22),
+                            duration: 260.ms,
+                            curve: Curves.easeOutCubic,
+                          );
+                    },
+                    childCount: songs.length > 1 ? songs.length - 1 : 0,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 180)),
+      ],
     );
   }
 
-  Widget _buildShimmer() {
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, kDenBottomPadding + 40),
-      itemCount: 8,
-      itemBuilder: (_, i) => Container(
-        height: 70,
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(16),
-        ),
-      )
-          .animate(onPlay: (c) => c.repeat())
-          .shimmer(
-              duration: 1400.ms,
-              color: Colors.white.withOpacity(0.045)),
-    );
+  Widget _buildShimmerItem() {
+    return Container(
+      height: 70,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+      ),
+    ).animate(onPlay: (c) => c.repeat()).shimmer(
+        duration: 1400.ms, color: Colors.white.withOpacity(0.045));
   }
 
   void _showOptions(BuildContext ctx, WidgetRef ref, Song song,

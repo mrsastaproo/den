@@ -13,6 +13,8 @@ import 'core/services/settings_service.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/api_service.dart';
 import 'core/services/audio_handler.dart';
+import 'core/services/notification_service.dart';
+
 void main() async {
   print('[DEN] main() started');
   WidgetsFlutterBinding.ensureInitialized();
@@ -116,7 +118,12 @@ class _DenAppState extends ConsumerState<DenApp> {
       final authState = ref.read(authStateProvider).value;
       if (authState != null) {
         await ref.read(settingsServiceProvider).pullFromCloud();
+        // Update last active heartbeat
+        ref.read(authServiceProvider).updateLastActive();
       }
+
+      // Initialize Push Notifications
+      ref.read(notificationServiceProvider).initialize();
 
       // Warm up JioSaavn API
       ref.read(apiServiceProvider).warmUp();

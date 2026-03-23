@@ -236,7 +236,7 @@ class SocialService {
       await _db.collection('users').doc(userId).update({
         'isOnline': isOnline,
         'presenceStatus': status ?? (isOnline ? 'Online' : 'Offline'),
-        'lastSeen': FieldValue.serverTimestamp(),
+        'lastActive': FieldValue.serverTimestamp(),
         if (nowPlaying != null) 'nowPlaying': nowPlaying,
       });
     } catch (e) {

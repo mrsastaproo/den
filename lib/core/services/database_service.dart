@@ -13,23 +13,19 @@ class DatabaseService {
 
   Future<void> likeSong(Song song) async {
     if (userId == null) return;
-    await _db
-        .collection('users')
-        .doc(userId)
-        .collection('liked_songs')
-        .doc(song.id)
-        .set(song.toJson()
-          ..['likedAt'] = FieldValue.serverTimestamp());
+    final batch = _db.batch();
+    batch.set(_db.collection('users').doc(userId).collection('liked_songs').doc(song.id), 
+      song.toJson()..['likedAt'] = FieldValue.serverTimestamp());
+    batch.update(_db.collection('users').doc(userId), {'likedSongs': FieldValue.increment(1)});
+    await batch.commit();
   }
 
   Future<void> unlikeSong(String songId) async {
     if (userId == null) return;
-    await _db
-        .collection('users')
-        .doc(userId)
-        .collection('liked_songs')
-        .doc(songId)
-        .delete();
+    final batch = _db.batch();
+    batch.delete(_db.collection('users').doc(userId).collection('liked_songs').doc(songId));
+    batch.update(_db.collection('users').doc(userId), {'likedSongs': FieldValue.increment(-1)});
+    await batch.commit();
   }
 
   Future<bool> isSongLiked(String songId) async {
@@ -72,27 +68,37 @@ class DatabaseService {
 
   Future<void> addToHistory(Song song) async {
     if (userId == null) return;
-    await _db
-        .collection('users')
-        .doc(userId)
-        .collection('history')
-        .doc(song.id)
-        .set(song.toJson()
-          ..['playedAt'] = FieldValue.serverTimestamp());
+    final batch = _db.batch();
+    batch.set(_db.collection('users').doc(userId).collection('history').doc(song.id), 
+      song.toJson()..['playedAt'] = FieldValue.serverTimestamp());
+    batch.update(_db.collection('users').doc(userId), {'totalPlays': FieldValue.increment(1)});
+    await batch.commit();
   }
 
   Future<void> clearHistory() async {
     if (userId == null) return;
-    final snap = await _db
-        .collection('users')
-        .doc(userId)
-        .collection('history')
-        .get();
-    final batch = _db.batch();
-    for (final doc in snap.docs) {
-      batch.delete(doc.reference);
+    
+    // We fetch in chunks and delete in batches of 400 
+    // (well within Firestore's 500-limit) to handle large histories.
+    while (true) {
+      final snap = await _db
+          .collection('users')
+          .doc(userId)
+          .collection('history')
+          .limit(400)
+          .get();
+          
+      if (snap.docs.isEmpty) break;
+      
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      
+      // If we got fewer than 400, we're done.
+      if (snap.docs.length < 400) break;
     }
-    await batch.commit();
   }
 
   Future<void> removeFromHistory(String songId) async {
@@ -123,11 +129,10 @@ class DatabaseService {
   Future<String> createPlaylist(String name,
       {String? description}) async {
     if (userId == null) return '';
-    final doc = await _db
-        .collection('users')
-        .doc(userId)
-        .collection('playlists')
-        .add({
+    final playlistDoc = _db.collection('users').doc(userId).collection('playlists').doc();
+    final batch = _db.batch();
+    
+    batch.set(playlistDoc, {
       'name': name,
       'description': description ?? '',
       'createdAt': FieldValue.serverTimestamp(),
@@ -135,7 +140,10 @@ class DatabaseService {
       'songCount': 0,
       'coverImage': '',
     });
-    return doc.id;
+    
+    batch.update(_db.collection('users').doc(userId), {'playlists': FieldValue.increment(1)});
+    await batch.commit();
+    return playlistDoc.id;
   }
 
   Future<void> renamePlaylist(
@@ -187,6 +195,9 @@ class DatabaseService {
         .doc(userId)
         .collection('playlists')
         .doc(playlistId));
+        
+    // Decrement the counter
+    batch.update(_db.collection('users').doc(userId), {'playlists': FieldValue.increment(-1)});
 
     await batch.commit();
   }
@@ -301,7 +312,7 @@ class DatabaseService {
           .collection('playlists')
           .count()
           .get(),
-    ]);
+    ], eagerError: true);
     return {
       'liked': results[0].count ?? 0,
       'played': results[1].count ?? 0,

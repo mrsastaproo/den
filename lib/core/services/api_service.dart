@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
@@ -79,21 +80,69 @@ class ApiService {
 
   // ─── CONTENT FEEDS ────────────────────────────────────────────────
 
-  Future<List<Song>> getTrending() async => _multiSearch([
-    'top hindi songs 2025', 'trending bollywood march 2025',
-  ], limitEach: 15);
+  String _getRandomNoise() {
+    final noise = ['hits', 'best', 'latest', 'fresh', 'viral', 'top', 'new', 'popular'];
+    return noise[math.Random().nextInt(noise.length)];
+  }
 
-  Future<List<Song>> getNewReleases() async => _multiSearch([
-    'new hindi songs 2025', 'latest bollywood 2025',
-  ], limitEach: 5);
+  Future<List<Song>> getTrending() async {
+    final year = DateTime.now().year;
+    
+    // Choose a random pool on every call for maximum freshness
+    final pools = [
+      ['trending bollywood $_getRandomNoise()', 'top hindi songs $year'],
+      ['viral indian hits', 'popular bollywood $_getRandomNoise()'],
+      ['top punjabi $_getRandomNoise()', 'hindi pop viral'],
+      ['bollywood romance $year', 'non stop hindi hits'],
+      ['trending haryanvi songs', 'india viral hits'],
+      ['bollywood blockbuster hits', 'top devotional hindi'],
+    ];
+    
+    final selectedPool = pools[math.Random().nextInt(pools.length)];
+    
+    return _multiSearch([
+      ...selectedPool,
+      'top indian songs $_getRandomNoise()',
+      'trending now hindi',
+    ], limitEach: 25);
+  }
+
+  Future<List<Song>> getNewReleases() async {
+    final year = DateTime.now().year;
+
+    final genrePools = [
+      ['new hindi releases $year', 'fresh indie hindi'],
+      ['latest bollywood hits', 'new punjabi $_getRandomNoise()'],
+      ['fresh indian pop', 'latest soul hindi'],
+      ['new romantic releases', 'fresh acoustic hindi'],
+    ];
+
+    final selectedGenre = genrePools[math.Random().nextInt(genrePools.length)];
+
+    return _multiSearch([
+      ...selectedGenre,
+      'new songs bollywood $year',
+      'latest and greatest hindi',
+    ], limitEach: 15);
+  }
 
   Future<List<Song>> getTopCharts() async => _multiSearch([
-    'top charts hindi 2025', 'bollywood hits number one 2025',
-  ], limitEach: 10);
+    'top 50 hindi songs',
+    'bollywood number one charts',
+    'trending india top songs',
+  ], limitEach: 15);
 
-  Future<List<Song>> getThrowback() async => _multiSearch([
-    'hindi classic songs 2000s hits', 'bollywood 90s best songs',
-  ], limitEach: 8);
+  Future<List<Song>> getThrowback() async {
+    final pools = [
+      ['bollywood classic 90s', 'kishore kumar hits'],
+      ['2000s bollywood hits', 'kk best songs', 'emraan hashmi hits'],
+      ['hindi gazals classic', 'jagjit singh best'],
+      ['retro bollywood 70s 80s', 'r d burman hits'],
+    ];
+    // Rotate pool based on the day of the week
+    final pool = pools[DateTime.now().weekday % pools.length];
+    return _multiSearch(pool, limitEach: 12);
+  }
 
   Future<List<Song>> getTimeBased() async {
     final hour = DateTime.now().hour;
@@ -115,19 +164,20 @@ class ApiService {
   }
 
   Future<List<Song>> getArtistSongs(String artistName) async =>
-      _search('$artistName latest songs 2025', limit: 10);
+      _search('$artistName ${_getRandomNoise()} songs 2025', limit: 15);
 
   Future<List<Song>> getMoodMix(String mood) async {
+    final noise = _getRandomNoise();
     final moodQueries = <String, List<String>>{
-      'Happy':  ['happy bollywood songs', 'fun upbeat hindi'],
-      'Sad':    ['sad hindi songs', 'heartbreak bollywood'],
-      'Hype':   ['party dance hindi songs', 'dj remix bollywood'],
-      'Chill':  ['chill lofi hindi', 'calm soft bollywood'],
-      'Focus':  ['instrumental hindi', 'focus study music hindi'],
-      'Love':   ['romantic love songs hindi', 'bollywood love 2025'],
+      'Happy':  ['happy hollywood $noise', 'fun upbeat hindi'],
+      'Sad':    ['sad hindi $noise', 'heartbreak bollywood'],
+      'Hype':   ['party dance $noise', 'dj remix bollywood'],
+      'Chill':  ['chill lofi $noise', 'calm soft bollywood'],
+      'Focus':  ['instrumental $noise', 'focus study music hindi'],
+      'Love':   ['romantic love $noise', 'bollywood love 2025'],
     };
-    return _multiSearch(moodQueries[mood] ?? ['$mood hindi songs'],
-        limitEach: 8);
+    return _multiSearch(moodQueries[mood] ?? ['$mood $noise hindi'],
+        limitEach: 12);
   }
 
   Future<List<Song>> getRecommendations(Song current) async =>
