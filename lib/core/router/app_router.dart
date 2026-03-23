@@ -12,6 +12,7 @@ import '../../features/wrapped/wrapped_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
 import '../../features/friends/friends_screen.dart';
 import '../../features/friends/chat_screen.dart';
+import '../../features/splash/splash_screen.dart';
 import '../services/auth_service.dart';
 import '../services/admin_service.dart';
 
@@ -19,25 +20,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ValueNotifier<bool>(false);
 
   ref.listen<AsyncValue<dynamic>>(authStateProvider, (prev, next) {
-    refreshNotifier.value = !refreshNotifier.value; // trigger notifyListeners
+    refreshNotifier.value = !refreshNotifier.value;
   });
 
   return GoRouter(
-    initialLocation: '/home',
+    initialLocation: '/splash',          // ← start on splash
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      final path = state.uri.toString();
+
+      // Never redirect away from splash — it navigates itself
+      if (path == '/splash') return null;
+
       final authState = ref.read(authStateProvider);
-      
-      // Do not redirect while the initial auth state is still loading.
-      // This prevents the black screen / flash of login screen on startup.
+
+      // Don't redirect while auth is loading
       if (authState.isLoading) return null;
 
-      final isLoggedIn = authState.value != null;
-      final isLoginRoute = state.uri.toString() == '/login';
-      final isAdminRoute = state.uri.toString() == '/admin';
+      final isLoggedIn  = authState.value != null;
+      final isLoginRoute = path == '/login';
+      final isAdminRoute = path == '/admin';
 
       if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/home';
+      if (isLoggedIn && isLoginRoute)   return '/home';
 
       // Hard guard — redirect non-admins away from /admin
       if (isAdminRoute && !isAdmin(authState.value)) return '/home';
@@ -45,35 +50,54 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+
+      // ── Splash ─────────────────────────────────────────────────────────────
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => SplashScreen(
+          onComplete: () {
+            // After splash, let the redirect logic decide where to go
+            context.go('/home');
+          },
+        ),
+      ),
+
+      // ── Auth ───────────────────────────────────────────────────────────────
       GoRoute(
         path: '/login',
         builder: (c, s) => const LoginScreen(),
       ),
-      // Admin panel — full screen, outside the shell
+
+      // ── Admin (full screen, outside shell) ─────────────────────────────────
       GoRoute(
         path: '/admin',
         builder: (c, s) => const AdminScreen(),
       ),
+
+      // ── Chat (full screen, outside shell) ──────────────────────────────────
       GoRoute(
         path: '/chat/:uid',
         builder: (c, s) {
           final extras = s.extra as Map<String, dynamic>?;
           return ChatScreen(
-            otherUid: s.pathParameters['uid']!,
-            username: extras?['username'],
+            otherUid:   s.pathParameters['uid']!,
+            username:   extras?['username'],
             profileUrl: extras?['profileUrl'],
           );
         },
       ),
+
+      // ── Main shell ─────────────────────────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) =>
-          MainScaffold(child: child),
+            MainScaffold(child: child),
         routes: [
           GoRoute(
             path: '/home',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const HomeScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),
@@ -81,7 +105,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/search',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const SearchScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),
@@ -89,7 +114,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/ai',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const AiScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),
@@ -97,7 +123,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/library',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const LibraryScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),
@@ -105,7 +132,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/friends',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const FriendsScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),
@@ -113,7 +141,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/wrapped',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const WrappedScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),
@@ -121,7 +150,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (c, s) => CustomTransitionPage(
               child: const SettingsScreen(),
-              transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+              transitionsBuilder: (_, a, __, c) =>
+                  FadeTransition(opacity: a, child: c),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           ),

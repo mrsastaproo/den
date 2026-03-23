@@ -36,7 +36,10 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen>
         vsync: this, duration: const Duration(seconds: 2))
       ..repeat();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Give the player a short moment to settle before reading the session ID.
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
       final player = ref.read(playerServiceProvider).player;
       final sessionId = player.androidAudioSessionId;
       ref.read(eqProvider.notifier).attachSession(sessionId);

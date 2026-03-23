@@ -382,8 +382,7 @@ class _PlaybackSection extends ConsumerWidget {
           value: normalize,
           onChanged: (v) {
             ref.read(normalizationEnabledProvider.notifier).set(v);
-            // Normalization is reflected in the URL quality params
-            // picked by api_service — no direct AudioPlayer call needed.
+            ref.read(playerServiceProvider).reapplyNormalization();
             HapticFeedback.selectionClick();
           },
         ),

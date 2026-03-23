@@ -81,104 +81,106 @@ class _DynamicIslandState extends ConsumerState<DynamicIsland>
     const hMargin = 14.0;
 
     return Positioned(
-      top: topPad + 6,
-      left: _expanded ? hMargin
-          : (screenW / 2) - 105,
-      right: _expanded ? hMargin
-          : (screenW / 2) - 105,
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _expanded = !_expanded);
-          HapticFeedback.lightImpact();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 380),
-          curve: Curves.easeOutCubic,
-          height: _expanded ? 90 : 38,
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.92),
-            borderRadius: BorderRadius.circular(
-                _expanded ? 26 : 100),
-            border: Border.all(
-              color: isPlaying
-                  ? AppTheme.pink.withOpacity(0.3)
-                  : Colors.white.withOpacity(0.12),
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: () {
+            setState(() => _expanded = !_expanded);
+            HapticFeedback.lightImpact();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 500),
+            curve: _expanded ? Curves.easeOutBack : Curves.easeOutCubic,
+            margin: EdgeInsets.only(
+              top: 6,
+              left: _expanded ? hMargin : (screenW / 2) - 105,
+              right: _expanded ? hMargin : (screenW / 2) - 105,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 20,
-                spreadRadius: -2,
-                offset: const Offset(0, 8),
+            padding: EdgeInsets.only(top: topPad > 0 ? topPad - 4 : 0),
+            height: _expanded ? 110 : 40 + (topPad > 0 ? topPad - 4 : 0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(_expanded ? 28 : 100),
+              border: Border.all(
+                color: isPlaying
+                    ? AppTheme.pink.withOpacity(0.4)
+                    : Colors.white.withOpacity(0.1),
               ),
-              if (isPlaying)
+              boxShadow: [
                 BoxShadow(
-                  color: AppTheme.pink.withOpacity(0.2),
+                  color: Colors.black.withOpacity(0.6),
                   blurRadius: 24,
-                  spreadRadius: -4,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 10),
                 ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(
-                _expanded ? 26 : 100),
-            child: Stack(
-              children: [
-                // Inner gradient
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.pink.withOpacity(0.06),
-                          AppTheme.purple.withOpacity(0.08),
-                          Colors.transparent,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Main content
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: _expanded ? 14 : 10),
-                  child: _expanded
-                      ? _ExpandedView(
-                          song: song,
-                          isPlaying: isPlaying,
-                          progress: progress,
-                          position: position,
-                          duration: duration,
-                        )
-                      : _CollapsedView(
-                          song: song,
-                          isPlaying: isPlaying,
-                          waveCtrl: _waveCtrl,
-                          spinCtrl: _spinCtrl,
-                        ),
-                ),
-
-                // Progress line at bottom of collapsed pill
-                if (!_expanded && progress > 0)
-                  Positioned(
-                    bottom: 0, left: 0, right: 0,
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                          bottom: Radius.circular(100)),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 2,
-                        backgroundColor:
-                            Colors.white.withOpacity(0.06),
-                        valueColor: AlwaysStoppedAnimation(
-                            AppTheme.pink.withOpacity(0.8)),
-                      ),
-                    ),
+                if (isPlaying)
+                  BoxShadow(
+                    color: AppTheme.pink.withOpacity(0.25),
+                    blurRadius: 30,
+                    spreadRadius: -6,
                   ),
               ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(_expanded ? 28 : 100),
+              child: Stack(
+                children: [
+                  // Glassmorphism reflection
+                  Positioned(
+                    top: -20, left: -20,
+                    child: Container(
+                      width: 100, height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.08),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Main content
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: _expanded ? 16 : 12),
+                    child: _expanded
+                        ? _ExpandedView(
+                            song: song,
+                            isPlaying: isPlaying,
+                            progress: progress,
+                            position: position,
+                            duration: duration,
+                          )
+                        : _CollapsedView(
+                            song: song,
+                            isPlaying: isPlaying,
+                            waveCtrl: _waveCtrl,
+                            spinCtrl: _spinCtrl,
+                          ),
+                  ),
+
+                  // Progress line at bottom of collapsed pill
+                  if (!_expanded && progress > 0)
+                    Positioned(
+                      bottom: 1, left: 20, right: 20,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(100),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 2.2,
+                          backgroundColor: Colors.white.withOpacity(0.08),
+                          valueColor: AlwaysStoppedAnimation(
+                              AppTheme.pink.withOpacity(0.85)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -207,60 +209,9 @@ class _CollapsedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Waveform
-        SizedBox(
-          width: 24,
-          child: AnimatedBuilder(
-            animation: waveCtrl,
-            builder: (_, __) => Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: List.generate(4, (i) {
-                final wave = math.sin(
-                    (waveCtrl.value * 2 * math.pi) + i * 1.3);
-                final h = isPlaying
-                    ? (3.5 + (9.0 * ((wave + 1) / 2)))
-                        .clamp(2.0, 13.0)
-                    : 3.0;
-                return Container(
-                  width: 2.5,
-                  height: h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppTheme.pink, AppTheme.purple],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        // Title
-        Expanded(
-          child: Text(
-            song.title,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        // Spinning art
+        // Art (Left)
         AnimatedBuilder(
           animation: spinCtrl,
           builder: (_, child) => Transform.rotate(
@@ -268,13 +219,14 @@ class _CollapsedView extends StatelessWidget {
             child: child,
           ),
           child: Container(
-            width: 26, height: 26,
+            width: 28, height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
                   color: AppTheme.pink.withOpacity(0.4),
-                  blurRadius: 8,
+                  blurRadius: 10,
+                  spreadRadius: -2,
                 ),
               ],
             ),
@@ -288,9 +240,60 @@ class _CollapsedView extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.music_note,
-                      color: Colors.white, size: 13),
+                      color: Colors.white, size: 14),
                 ),
               ),
+            ),
+          ),
+        ),
+
+        // Title (Center)
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              song.title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ),
+        ),
+
+        // Waveform (Right)
+        SizedBox(
+          width: 26,
+          child: AnimatedBuilder(
+            animation: waveCtrl,
+            builder: (_, __) => Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: List.generate(4, (i) {
+                final wave = math.sin(
+                    (waveCtrl.value * 2 * math.pi) + i * 1.5);
+                final h = isPlaying
+                    ? (4.0 + (10.0 * ((wave + 1) / 2)))
+                        .clamp(3.0, 14.0)
+                    : 4.0;
+                return Container(
+                  width: 3.0,
+                  height: h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppTheme.pink, AppTheme.purple],
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                    ),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                );
+              }),
             ),
           ),
         ),
@@ -330,24 +333,25 @@ class _ExpandedView extends ConsumerWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        const SizedBox(height: 10),
         Expanded(
           child: Row(
             children: [
               // Art
               Container(
-                width: 52, height: 52,
+                width: 58, height: 58,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.pink.withOpacity(0.3),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
+                      color: AppTheme.pink.withOpacity(0.35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                   child: CachedNetworkImage(
                     imageUrl: song.image,
                     fit: BoxFit.cover,
@@ -355,13 +359,13 @@ class _ExpandedView extends ConsumerWidget {
                       decoration: const BoxDecoration(
                           gradient: AppTheme.primaryGradient),
                       child: const Icon(Icons.music_note,
-                          color: Colors.white, size: 24),
+                          color: Colors.white, size: 28),
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
 
               // Info
               Expanded(
@@ -374,25 +378,26 @@ class _ExpandedView extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(song.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 11,
+                        color: Colors.white.withOpacity(0.55),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
 
               // Controls
               Row(
@@ -400,22 +405,22 @@ class _ExpandedView extends ConsumerWidget {
                 children: [
                   _Btn(icon: Icons.skip_previous_rounded,
                       onTap: player.skipPrev),
-                  const SizedBox(width: 2),
+                  const SizedBox(width: 4),
                   GestureDetector(
                     onTap: () {
                       player.togglePlayPause();
-                      HapticFeedback.selectionClick();
+                      HapticFeedback.mediumImpact();
                     },
                     child: Container(
-                      width: 38, height: 38,
+                      width: 42, height: 42,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: AppTheme.primaryGradient,
                         boxShadow: [
                           BoxShadow(
                             color: AppTheme.pink.withOpacity(0.4),
-                            blurRadius: 12,
-                            spreadRadius: -3,
+                            blurRadius: 16,
+                            spreadRadius: -4,
                           ),
                         ],
                       ),
@@ -424,11 +429,11 @@ class _ExpandedView extends ConsumerWidget {
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
                         color: Colors.white,
-                        size: 22,
+                        size: 26,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 2),
+                  const SizedBox(width: 4),
                   _Btn(icon: Icons.skip_next_rounded,
                       onTap: player.skipNext),
                 ],
@@ -439,32 +444,32 @@ class _ExpandedView extends ConsumerWidget {
 
         // Progress
         Padding(
-          padding: const EdgeInsets.only(bottom: 10, top: 4),
+          padding: const EdgeInsets.only(bottom: 12, top: 4),
           child: Column(
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(100),
                 child: LinearProgressIndicator(
                   value: progress,
-                  minHeight: 3,
-                  backgroundColor: Colors.white.withOpacity(0.1),
+                  minHeight: 4,
+                  backgroundColor: Colors.white.withOpacity(0.12),
                   valueColor:
                       const AlwaysStoppedAnimation(AppTheme.pink),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment:
                     MainAxisAlignment.spaceBetween,
                 children: [
                   Text(_fmt(position),
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.35),
-                      fontSize: 9, fontWeight: FontWeight.w600)),
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: 10, fontWeight: FontWeight.w700)),
                   Text(_fmt(duration),
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.35),
-                      fontSize: 9, fontWeight: FontWeight.w600)),
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: 10, fontWeight: FontWeight.w700)),
                 ],
               ),
             ],

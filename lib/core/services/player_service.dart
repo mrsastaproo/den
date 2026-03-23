@@ -2,6 +2,9 @@ import 'package:just_audio/just_audio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
+import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'dart:async';
+
 import '../services/api_service.dart';
 import '../providers/music_providers.dart';
 import '../providers/queue_meta.dart';
@@ -42,6 +45,8 @@ class PlayerService {
 
   PlayerService(this._api, this._ref) {
     _initListeners();
+    _initOverlayListener();
+    _loadSavedSettings();
     // Register lock screen / notification button callbacks
     // after the service is created
     try {
@@ -53,6 +58,14 @@ class PlayerService {
     } catch (_) {}
   }
 
+  Future<void> _loadSavedSettings() async {
+    // Load persisted playback settings so they apply from first track
+    _crossfadeEnabled  = _ref.read(crossfadeEnabledProvider);
+    _crossfadeDuration = Duration(
+        seconds: _ref.read(crossfadeDurationProvider).toInt());
+    _gaplessEnabled    = _ref.read(gaplessPlaybackProvider);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // LISTENERS
   // ─────────────────────────────────────────────────────────────
@@ -60,8 +73,9 @@ class PlayerService {
   void _initListeners() {
     _player.playerStateStream.listen((state) {
       _ref.read(isPlayingProvider.notifier).state = state.playing;
-
+      updateOverlay();
       if (state.processingState == ProcessingState.completed) {
+
         // Never auto-advance during a manual skip
         if (_skipInProgress) return;
 
@@ -86,8 +100,39 @@ class PlayerService {
         _lastPrefetchAt = now;
         _fetchSmartQueue(prefetch: true);
       }
+      updateOverlay();
     });
   }
+
+  void _initOverlayListener() {
+    FlutterOverlayWindow.overlayListener.listen((event) {
+      if (event == 'toggle') togglePlayPauseSync();
+      if (event == 'skipNext') skipNext();
+      if (event == 'skipPrev') skipPrev();
+    });
+  }
+
+  void updateOverlay() async {
+    final song = _ref.read(currentSongProvider);
+    if (song == null) return;
+    final isPlaying = _ref.read(isPlayingProvider);
+    final pos = _player.position;
+    final dur = _player.duration ?? Duration.zero;
+    final progress = dur.inMilliseconds > 0 
+        ? pos.inMilliseconds / dur.inMilliseconds 
+        : 0.0;
+
+    if (await FlutterOverlayWindow.isActive()) {
+      FlutterOverlayWindow.shareData({
+        'title': song.title,
+        'artist': song.artist,
+        'image': song.image,
+        'isPlaying': isPlaying,
+        'progress': progress,
+      });
+    }
+  }
+
 
   // ─────────────────────────────────────────────────────────────
   // AUTO ADVANCE
@@ -103,7 +148,14 @@ class PlayerService {
     if (idx + 1 < playlist.length) {
       _doSkip(playlist[idx + 1], idx + 1);
     } else {
-      _fetchSmartQueue();
+      // End of playlist — only fetch smart queue if Autoplay is ON
+      final autoplay = _ref.read(autoplayEnabledProvider);
+      if (autoplay) {
+        _fetchSmartQueue();
+      } else {
+        _log('Autoplay OFF — stopping at end of playlist');
+        _player.stop();
+      }
     }
   }
 
@@ -130,6 +182,8 @@ class PlayerService {
     final prevIndex = _ref.read(currentSongIndexProvider) ?? 0;
     _ref.read(currentSongIndexProvider.notifier).state = index;
     _ref.read(currentSongProvider.notifier).state      = song;
+    updateOverlay();
+
 
     _loadAndPlay(song, index, prevSong: prevSong, prevIndex: prevIndex)
         .whenComplete(() {
@@ -197,8 +251,38 @@ class PlayerService {
 
       // ── Success ───────────────────────────────────────────
       _consecutiveErrors = 0;
-      await _player.play();
+
+      _player.play(); // DO NOT AWAIT — just_audio's play() completes when the song finishes!
       _log('▶ ${song.title}');
+
+      // ── Crossfade: fade in new track ─────────────────────
+      final normalise = _ref.read(normalizationEnabledProvider);
+      
+      if (_crossfadeEnabled && _crossfadeDuration.inMilliseconds > 0) {
+        final targetVol = normalise ? 0.88 : 1.0;
+        final steps = 20;
+        final stepDur = _crossfadeDuration ~/ steps;
+        // Fire and forget so we don't keep _skipInProgress=true
+        Future.microtask(() async {
+          for (int i = 1; i <= steps; i++) {
+            try { await _player.setVolume((i / steps) * targetVol); } catch (_) {}
+            await Future.delayed(stepDur);
+          }
+          try { await _player.setVolume(targetVol); } catch (_) {}
+        });
+      } else {
+        await _player.setVolume(normalise ? 0.88 : 1.0);
+      }
+
+      // ── Attach EQ to new audio session ───────────────────
+      // Each track gets its own Android AudioSession ID.
+      // We must re-attach the EQ after every successful load.
+      Future.microtask(() async {
+        try {
+          final sid = _player.androidAudioSessionId;
+          await _ref.read(eqProvider.notifier).attachSession(sid);
+        } catch (_) {}
+      });
 
       // Update system media notification (lock screen / notification bar)
       try {
@@ -312,6 +396,30 @@ class PlayerService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // SETTINGS INTEGRATION
+  // ─────────────────────────────────────────────────────────────
+
+  /// Called by settings_screen when crossfade toggle/slider changes.
+  void setCrossfade({required bool enabled, required Duration duration}) {
+    _crossfadeEnabled  = enabled;
+    _crossfadeDuration = duration;
+  }
+
+  /// Called by settings_screen when gapless toggle changes.
+  /// just_audio handles gapless natively when using ConcatenatingAudioSource.
+  /// We store the flag so _loadAndPlay can respect it in the future.
+  void setGapless(bool enabled) {
+    _gaplessEnabled = enabled;
+  }
+
+  /// Re-apply volume to reflect the current normalization setting.
+  /// Called when the normalization toggle changes while a song is playing.
+  void reapplyNormalization() {
+    final normalise = _ref.read(normalizationEnabledProvider);
+    _player.setVolume(normalise ? 0.88 : 1.0).catchError((_) => {});
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // SMART QUEUE
   // ─────────────────────────────────────────────────────────────
 
@@ -386,18 +494,20 @@ class PlayerService {
         ? song.language : '';
     final searchQuery = _ref.read(queueMetaProvider).searchQuery ?? '';
 
-    final futures = <Future<List<Song>>>[_api.getRecommendations(song)];
+    final futures = <Future<List<Song>>>[
+      _api.getRecommendations(song).catchError((_) => <Song>[])
+    ];
     if (artist.isNotEmpty) {
-      futures.add(_api.searchSongs('$artist songs', page: 1));
-      futures.add(_api.getArtistSongs(artist));
+      futures.add(_api.searchSongs('$artist songs', page: 1).catchError((_) => <Song>[]));
+      futures.add(_api.getArtistSongs(artist).catchError((_) => <Song>[]));
     }
     if (lang.isNotEmpty) {
-      futures.add(_api.searchSongs('best $lang songs', page: 1));
+      futures.add(_api.searchSongs('best $lang songs', page: 1).catchError((_) => <Song>[]));
     }
     if (searchQuery.isNotEmpty &&
         searchQuery.toLowerCase() != song.title.toLowerCase()) {
-      futures.add(_api.searchSongs(searchQuery, page: 2));
-      futures.add(_api.searchSongs(searchQuery, page: 3));
+      futures.add(_api.searchSongs(searchQuery, page: 2).catchError((_) => <Song>[]));
+      futures.add(_api.searchSongs(searchQuery, page: 3).catchError((_) => <Song>[]));
     }
 
     final results = await Future.wait(futures);
@@ -430,13 +540,6 @@ class PlayerService {
 
   Future<void> stop() async => _player.stop();
 
-  void setCrossfade({required bool enabled, required Duration duration}) {
-    _crossfadeEnabled  = enabled;
-    _crossfadeDuration = duration;
-  }
-
-  void setGapless(bool enabled) => _gaplessEnabled = enabled;
-  Future<void> attachEqSession() async {}
   void dispose() => _player.dispose();
 }
 

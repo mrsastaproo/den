@@ -14,69 +14,84 @@ import 'core/services/settings_service.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/api_service.dart';
 import 'core/services/audio_handler.dart';
-
 void main() async {
   print('[DEN] main() started');
   WidgetsFlutterBinding.ensureInitialized();
-  print('[DEN] WidgetsFlutterBinding initialized');
 
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-  print('[DEN] Orientations set');
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
+      statusBarColor:            Colors.transparent,
+      statusBarIconBrightness:   Brightness.light,
     ),
   );
 
-  print('[DEN] Initializing Hive...');
+  // ── Hive ──────────────────────────────────────────────────────────────────
   await Hive.initFlutter();
   print('[DEN] Hive initialized');
 
-  print('[DEN] Initializing Firebase...');
+  // ── Firebase ──────────────────────────────────────────────────────────────
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     ).timeout(const Duration(seconds: 15));
-    print('[DEN] Firebase initialized successfully');
+    print('[DEN] Firebase initialized');
   } catch (e) {
-    print('[DEN] Firebase initialization error (might be already initialized or timed out): $e');
+    print('[DEN] Firebase error: $e');
   }
 
-  // ── Init audio_service BEFORE runApp ─────────────────────────────────────
-  // Powers lock screen controls, notification bar media player,
-  // homescreen notification, headset buttons, Android Auto.
-  print('[DEN] Initializing AudioService...');
+  // ── AudioService ──────────────────────────────────────────────────────────
+  // Must be initialised BEFORE runApp().
+  // This is what powers:
+  //   - Notification bar media player (Spotify-style)
+  //   - Lock screen controls with album art
+  //   - Headset / Bluetooth buttons
+  //   - Background playback when app is minimised
   final sharedPlayer = AudioPlayer();
 
   try {
     audioHandler = await AudioService.init(
       builder: () => DenAudioHandler(
         player:            sharedPlayer,
-        onSkipNext:        () {},  // wired after PlayerService init via callbacks
+        onSkipNext:        () {}, // real callbacks wired by PlayerService
         onSkipPrev:        () {},
         onTogglePlayPause: () {},
       ),
       config: const AudioServiceConfig(
+        // ── Android notification channel ──────────────────────────────────
         androidNotificationChannelId:   'com.mrsastaproo.den.audio',
         androidNotificationChannelName: 'DEN Music',
-        androidNotificationOngoing:     true,
-        androidStopForegroundOnPause:   true,
-        notificationColor:              Color(0xFFFFB3C6),
+        androidNotificationIcon:        'mipmap/ic_launcher',
+
+        // Keep notification alive while playing
+        androidNotificationOngoing: true,
+
+        // Stop foreground service when paused (saves battery, like Spotify)
+        androidStopForegroundOnPause: true,
+
+        // Show notification even before user interacts
+        androidShowNotificationBadge: true,
+
+        // Accent colour in the notification (DEN pink)
+        notificationColor: Color(0xFFFFB3C6),
+
+        // ── iOS ───────────────────────────────────────────────────────────
+        // Now Playing info on lock screen / Control Center
       ),
     ).timeout(const Duration(seconds: 10));
     print('[DEN] AudioService initialized');
   } catch (e) {
-    print('[DEN] AudioService initialization error: $e');
+    print('[DEN] AudioService error: $e');
   }
 
-  print('[DEN] Calling runApp()...');
   runApp(const ProviderScope(child: DenApp()));
 }
 
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 class DenApp extends ConsumerStatefulWidget {
   const DenApp({super.key});
 
@@ -89,14 +104,8 @@ class _DenAppState extends ConsumerState<DenApp> {
   @override
   void initState() {
     super.initState();
-    // Pull cross-device settings from Firestore once on startup.
-    // Runs after the first frame so providers are ready.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // ── One-time fix: reset offline_mode if it got stuck true ──
-      // This clears a corrupted SharedPreferences value without
-      // wiping all app data. Safe to keep permanently — it only
-      // resets if offline mode is somehow true on cold launch while
-      // no downloaded songs exist (impossible in normal usage).
+      // Reset stuck offline mode
       final prefs = await SharedPreferences.getInstance();
       final offlineStuck = prefs.getBool('offline_mode') ?? false;
       if (offlineStuck) {
@@ -104,15 +113,16 @@ class _DenAppState extends ConsumerState<DenApp> {
         ref.read(offlineModeProvider.notifier).set(false);
       }
 
+      // Pull cloud settings on startup
       final authState = ref.read(authStateProvider).value;
       if (authState != null) {
         await ref.read(settingsServiceProvider).pullFromCloud();
       }
 
-      // Warm up the JioSaavn API server
+      // Warm up JioSaavn API
       ref.read(apiServiceProvider).warmUp();
 
-      // Re-pull whenever the user signs in
+      // Re-pull settings on sign-in
       ref.listenManual(authStateProvider, (prev, next) async {
         if (next.value != null && prev?.value == null) {
           await ref.read(settingsServiceProvider).pullFromCloud();
@@ -127,27 +137,23 @@ class _DenAppState extends ConsumerState<DenApp> {
     final appearance = ref.watch(appearanceProvider);
 
     return MaterialApp.router(
-      title: 'DEN',
+      title:                    'DEN',
       debugShowCheckedModeBanner: false,
-
-      // Live theme switching (Dark / AMOLED / Auto)
       theme:     appearance.resolvedTheme,
       darkTheme: appearance.resolvedTheme,
-      themeMode: appearance.theme == 'auto' ? ThemeMode.system : ThemeMode.dark,
-
+      themeMode: appearance.theme == 'auto'
+          ? ThemeMode.system
+          : ThemeMode.dark,
       routerConfig: router,
-
-      // Live animation toggling (Full / Reduced / None)
       builder: (context, child) {
-        // Apply font scaling here where View is guaranteed to exist
-        final mediaQueryData = MediaQuery.of(context);
+        final mq = MediaQuery.of(context);
         return MediaQuery(
-          data: mediaQueryData.copyWith(
+          data: mq.copyWith(
             textScaler: TextScaler.linear(appearance.textScaleFactor),
           ),
           child: TickerMode(
             enabled: !appearance.disableAnimations,
-            child: child!,
+            child:   child!,
           ),
         );
       },

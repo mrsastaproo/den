@@ -14,6 +14,7 @@ import '../../core/services/lyrics_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/song.dart';
 import 'social_share_sheet.dart';
@@ -55,7 +56,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Ghost-tap fix: track whether a scroll/swipe is happening ──
   bool _isScrolling  = false;
-  bool _showLyrics   = false;
 
   @override
   void initState() {
@@ -175,6 +175,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final song = ref.watch(currentSongProvider);
     if (song == null) return const SizedBox.shrink();
 
+    final showLyrics = ref.watch(showLyricsProvider);
     final isPlaying = ref.watch(isPlayingStreamProvider).value ?? false;
     final position  = ref.watch(positionStreamProvider).value  ?? Duration.zero;
     final duration  = ref.watch(durationStreamProvider).value  ?? Duration.zero;
@@ -322,8 +323,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       pc: _pc,
                       vinylSpin: _vinylSpin,
                       fmt: _fmt,
-                      showLyrics: _showLyrics,
-                      onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
+                      showLyrics: showLyrics,
+                      onLyricsToggle: () {
+                        final newVal = !showLyrics;
+                        ref.read(showLyricsProvider.notifier).set(newVal);
+                      },
                       onClose: () => Navigator.of(context).pop(),
                       onMore: () =>
                           _showOptionsSheet(context, song),
