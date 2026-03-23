@@ -184,7 +184,7 @@ class _ProfileCard extends ConsumerWidget {
                   backgroundColor: Colors.transparent,
                   child: user?.photoURL != null
                       ? ClipOval(
-                          child: CachedNetworkImage(
+                          child: CachedNetworkImage(memCacheWidth: 400, 
                             imageUrl: user.photoURL,
                             width: 72,
                             height: 72,
@@ -931,8 +931,8 @@ class _ContentSection extends ConsumerWidget {
 }
 
 // ─── 5. APPEARANCE ────────────────────────────────────────────────────────────
-// Kept: Theme · Accent Color
-// Removed: Font Size · Animations · Album Art Style (over-engineering for v1)
+// Kept: Theme · Accent Color · Animations
+// Removed: Font Size · Album Art Style (over-engineering for v1)
 
 class _AppearanceSection extends ConsumerWidget {
   @override
@@ -940,7 +940,7 @@ class _AppearanceSection extends ConsumerWidget {
     final ap = ref.watch(appearanceProvider);
 
     return _Section(
-      title: 'Appearance',
+      title: 'UI & Appearance',
       icon: Icons.palette_rounded,
       delay: 5,
       children: [
@@ -959,6 +959,14 @@ class _AppearanceSection extends ConsumerWidget {
           value: ap.palette.label,
           colors: [AppTheme.pink, AppTheme.purple],
           onTap: () => _showColorSheet(context, ref, ap.accentColor),
+        ),
+        _NavTile(
+          icon: Icons.animation_rounded,
+          label: 'Animations & Effects',
+          subtitle: 'Control background blurs and motion',
+          value: ap.animationsLabel,
+          colors: [AppTheme.pinkDeep, AppTheme.purpleDeep],
+          onTap: () => _showAnimationsSheet(context, ref, ap.animations),
         ),
       ],
     );
@@ -1056,6 +1064,39 @@ class _AppearanceSection extends ConsumerWidget {
               ),
             );
           }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showAnimationsSheet(
+      BuildContext context, WidgetRef ref, String current) {
+    final anims = [
+      {'value': 'full',    'label': 'Full',    'desc': 'All effects and glass blurs'},
+      {'value': 'reduced', 'label': 'Reduced', 'desc': 'Fewer motions'},
+      {'value': 'none',    'label': 'None',    'desc': 'Best for low-end device CPU/RAM'},
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GlassSheet(
+        title: 'Animations',
+        child: Column(
+          children: anims
+              .map((t) => _SheetOption(
+                    label: t['label']!,
+                    subtitle: t['desc']!,
+                    icon: Icons.animation_rounded,
+                    isSelected: t['value'] == current,
+                    onTap: () {
+                      ref
+                          .read(appearanceProvider.notifier)
+                          .setAnimations(t['value']!);
+                      Navigator.pop(context);
+                      HapticFeedback.selectionClick();
+                    },
+                  ))
+              .toList(),
         ),
       ),
     );

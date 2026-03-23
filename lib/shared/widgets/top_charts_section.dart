@@ -238,7 +238,7 @@ class _ChartTileState extends State<_ChartTile>
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
+                      child: CachedNetworkImage(memCacheWidth: 400, 
                         imageUrl: widget.song.image,
                         width: 50, height: 50,
                         fit: BoxFit.cover,

@@ -266,7 +266,7 @@ class _MixResult extends ConsumerWidget {
                           horizontal: 16, vertical: 2),
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: CachedNetworkImage(
+                        child: CachedNetworkImage(memCacheWidth: 400, 
                           imageUrl: song.image,
                           width: 42, height: 42,
                           fit: BoxFit.cover,

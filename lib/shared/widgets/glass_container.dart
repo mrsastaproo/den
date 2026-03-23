@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/appearance_service.dart';
 
-class GlassContainer extends StatelessWidget {
+class GlassContainer extends ConsumerWidget {
   final Widget child;
   final double? width;
   final double? height;
@@ -33,7 +35,30 @@ class GlassContainer extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Low-end device optimization: disable heavy BackdropFilter blurs
+    final disableBlurs = ref.watch(appearanceProvider).disableAnimations;
+
+    final innerContainer = Container(
+      decoration: BoxDecoration(
+        gradient: gradient ?? LinearGradient(
+          colors: [
+            (color ?? AppTheme.glassWhite),
+            AppTheme.glassShimmer,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: borderColor ?? AppTheme.glassBorder,
+          width: borderWidth,
+        ),
+      ),
+      padding: padding,
+      child: child,
+    );
+
     return Container(
       width: width,
       height: height,
@@ -57,28 +82,12 @@ class GlassContainer extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: gradient ?? LinearGradient(
-                colors: [
-                  (color ?? AppTheme.glassWhite),
-                  AppTheme.glassShimmer,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        child: disableBlurs 
+            ? innerContainer 
+            : BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                child: innerContainer,
               ),
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(
-                color: borderColor ?? AppTheme.glassBorder,
-                width: borderWidth,
-              ),
-            ),
-            padding: padding,
-            child: child,
-          ),
-        ),
       ),
     );
   }

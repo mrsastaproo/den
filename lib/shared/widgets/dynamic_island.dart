@@ -231,7 +231,7 @@ class _CollapsedView extends StatelessWidget {
               ],
             ),
             child: ClipOval(
-              child: CachedNetworkImage(
+              child: CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: song.image,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
@@ -352,7 +352,7 @@ class _ExpandedView extends ConsumerWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: CachedNetworkImage(
+                  child: CachedNetworkImage(memCacheWidth: 400, 
                     imageUrl: song.image,
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(

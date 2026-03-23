@@ -229,7 +229,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (song.image.isNotEmpty)
             Opacity(
               opacity: 0.10,
-              child: CachedNetworkImage(
+              child: CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: song.image,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) =>
@@ -819,7 +819,7 @@ class _ArtworkCard extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: CachedNetworkImage(
+              child: CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: song.image,
                 fit: BoxFit.cover,
                 placeholder: (_, __) => Container(
@@ -1688,7 +1688,7 @@ class _QueueTileState extends State<_QueueTile> {
         child: Row(children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(9),
-            child: CachedNetworkImage(
+            child: CachedNetworkImage(memCacheWidth: 400, 
               imageUrl: widget.song.image,
               width: 44, height: 44,
               fit: BoxFit.cover,
@@ -1806,7 +1806,7 @@ class _OptionsSheet extends StatelessWidget {
             Row(children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: CachedNetworkImage(
+                child: CachedNetworkImage(memCacheWidth: 400, 
                   imageUrl: song.image,
                   width: 52, height: 52,
                   fit: BoxFit.cover,

@@ -184,7 +184,7 @@ class _TrendingCardState extends State<_TrendingCard>
               fit: StackFit.expand,
               children: [
                 // Album art
-                CachedNetworkImage(
+                CachedNetworkImage(memCacheWidth: 400, 
                   imageUrl: widget.song.image,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(

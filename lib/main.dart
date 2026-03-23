@@ -150,10 +150,7 @@ class _DenAppState extends ConsumerState<DenApp> {
           data: mq.copyWith(
             textScaler: TextScaler.linear(appearance.textScaleFactor),
           ),
-          child: TickerMode(
-            enabled: !appearance.disableAnimations,
-            child:   child!,
-          ),
+          child: child!,
         );
       },
     );

@@ -687,7 +687,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: CachedNetworkImage(
+                    child: CachedNetworkImage(memCacheWidth: 400, 
                       imageUrl: imageUrl ?? '',
                       width: 52, height: 52, fit: BoxFit.cover,
                       errorWidget: (c, e, _) => Container(
@@ -924,7 +924,7 @@ class _InlineLibraryPickerState extends ConsumerState<_InlineLibraryPicker> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: CachedNetworkImage(
+                child: CachedNetworkImage(memCacheWidth: 400, 
                   imageUrl: s.image,
                   width: 46, height: 46, fit: BoxFit.cover,
                   errorWidget: (c, e, _) => Container(

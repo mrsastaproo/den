@@ -71,7 +71,7 @@ class RecentlyPlayedSection extends ConsumerWidget {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(18),
-                              child: CachedNetworkImage(
+                              child: CachedNetworkImage(memCacheWidth: 400, 
                                 imageUrl: song.image,
                                 width: 72, height: 72,
                                 fit: BoxFit.cover,

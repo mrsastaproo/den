@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 
 // ─────────────────────────────────────────────────────────────
 // OVERLAY ENTRY POINT
@@ -52,11 +54,13 @@ class _DynamicIslandOverlayState extends State<DynamicIslandOverlay>
       ..repeat();
 
     // Listen for data updates from the main app
-    FlutterOverlayWindow.overlayListener.listen((event) {
-      if (event is Map<String, dynamic>) {
-        setState(() => _data = event);
-      }
-    });
+    if (!kIsWeb && Platform.isAndroid) {
+      FlutterOverlayWindow.overlayListener.listen((event) {
+        if (event is Map<String, dynamic>) {
+          setState(() => _data = event);
+        }
+      });
+    }
   }
 
   @override
@@ -69,6 +73,7 @@ class _DynamicIslandOverlayState extends State<DynamicIslandOverlay>
   bool get _isPlaying => (_data?['isPlaying'] as bool?) ?? false;
 
   void _toggleExpand() async {
+    if (kIsWeb || !Platform.isAndroid) return;
     setState(() => _expanded = !_expanded);
     if (_expanded) {
       // Resize overlay to expanded height
@@ -79,7 +84,9 @@ class _DynamicIslandOverlayState extends State<DynamicIslandOverlay>
   }
 
   void _sendCommand(String cmd) {
-    FlutterOverlayWindow.shareData(cmd);
+    if (!kIsWeb && Platform.isAndroid) {
+      FlutterOverlayWindow.shareData(cmd);
+    }
   }
 
   @override
@@ -342,7 +349,7 @@ class _DynamicIslandOverlayState extends State<DynamicIslandOverlay>
       decoration: const BoxDecoration(shape: BoxShape.circle),
       child: ClipOval(
         child: image.isNotEmpty
-            ? CachedNetworkImage(
+            ? CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: image,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) =>
@@ -362,7 +369,7 @@ class _DynamicIslandOverlayState extends State<DynamicIslandOverlay>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: image.isNotEmpty
-            ? CachedNetworkImage(
+            ? CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: image,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) =>

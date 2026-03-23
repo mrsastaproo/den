@@ -205,7 +205,7 @@ class _CenterOrbPlayerState extends State<_CenterOrbPlayer>
           ? ClipOval(
               child: RotationTransition(
                 turns: _spinController,
-                child: CachedNetworkImage(
+                child: CachedNetworkImage(memCacheWidth: 400, 
                   imageUrl: widget.imageUrl!,
                   fit: BoxFit.cover,
                   placeholder: (_, __) => Container(color: Colors.black26),

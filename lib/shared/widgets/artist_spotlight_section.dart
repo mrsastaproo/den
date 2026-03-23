@@ -209,7 +209,7 @@ class ArtistSpotlightSection extends ConsumerWidget {
                               ClipRRect(
                                 borderRadius:
                                   BorderRadius.circular(10),
-                                child: CachedNetworkImage(
+                                child: CachedNetworkImage(memCacheWidth: 400, 
                                   imageUrl: song.image,
                                   width: 44, height: 44,
                                   fit: BoxFit.cover,

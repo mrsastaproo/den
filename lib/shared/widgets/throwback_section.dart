@@ -144,7 +144,7 @@ class _ThrowbackCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedNetworkImage(
+              CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: song.image,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(

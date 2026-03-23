@@ -224,7 +224,7 @@ class _BannerCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             // Album art
-            CachedNetworkImage(
+            CachedNetworkImage(memCacheWidth: 400, 
               imageUrl: song.image,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => AnimatedBuilder(

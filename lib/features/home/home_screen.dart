@@ -982,7 +982,7 @@ class _QuickTileState extends ConsumerState<_QuickTile> {
             fit: StackFit.expand,
             children: [
               // ── Real background photo ──────────────────
-              CachedNetworkImage(
+              CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: item.imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (_, __) => Container(
@@ -1359,7 +1359,7 @@ class _HeroCardState extends State<_HeroCard> {
               fit: StackFit.expand,
               children: [
                 // Album art
-                CachedNetworkImage(
+                CachedNetworkImage(memCacheWidth: 400, 
                   imageUrl: widget.song.image,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(
@@ -1651,7 +1651,7 @@ class _StandardCardState extends State<_StandardCard> {
                 borderRadius: BorderRadius.circular(16),
                 child: Stack(
                   children: [
-                    CachedNetworkImage(
+                    CachedNetworkImage(memCacheWidth: 400, 
                       imageUrl: widget.song.image,
                       width: 148,
                       height: 148,
@@ -1797,7 +1797,7 @@ class _WideCardState extends State<_WideCard> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CachedNetworkImage(
+                CachedNetworkImage(memCacheWidth: 400, 
                   imageUrl: widget.song.image,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(
@@ -1939,7 +1939,7 @@ class _RankedCardState extends State<_RankedCard> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: CachedNetworkImage(
+                    child: CachedNetworkImage(memCacheWidth: 400, 
                       imageUrl: widget.song.image,
                       width: 138,
                       height: 138,
@@ -2444,7 +2444,7 @@ class _FreshDropTileState extends State<_FreshDropTile> {
             // Art
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: CachedNetworkImage(
+              child: CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: widget.song.image,
                 width: 50,
                 height: 50,

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/download_service.dart';
 import '../../core/services/api_service.dart';
@@ -752,7 +753,7 @@ class _LikedSongsBanner extends ConsumerWidget {
                             children: arts
                                 .take(4)
                                 .map((url) =>
-                                    CachedNetworkImage(
+                                    CachedNetworkImage(memCacheWidth: 400, 
                                       imageUrl: url,
                                       fit: BoxFit.cover,
                                       errorWidget: (_,
@@ -945,7 +946,7 @@ class _SongTile extends ConsumerWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(
                   compact ? 6 : 10),
-              child: CachedNetworkImage(
+              child: CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: song.image,
                 width: imgSize,
                 height: imgSize,
@@ -1125,7 +1126,7 @@ class _PlaylistListTile extends ConsumerWidget {
               borderRadius: BorderRadius.circular(
                   compact ? 6 : 10),
               child: hasCover
-                  ? CachedNetworkImage(
+                  ? CachedNetworkImage(memCacheWidth: 400, 
                       imageUrl: playlist['coverImage'],
                       width: imgSize,
                       height: imgSize,
@@ -1269,7 +1270,7 @@ class _PlaylistGridCard extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   hasCover
-                      ? CachedNetworkImage(
+                      ? CachedNetworkImage(memCacheWidth: 400, 
                           imageUrl: playlist['coverImage'],
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) =>
@@ -1481,7 +1482,7 @@ class _PlaylistDetailHeader extends StatelessWidget {
             child: SizedBox(
               width: 160, height: 160,
               child: hasCover
-                  ? CachedNetworkImage(
+                  ? CachedNetworkImage(memCacheWidth: 400, 
                       imageUrl: playlist['coverImage'],
                       fit: BoxFit.cover)
                   : Container(
@@ -1602,68 +1603,70 @@ class _SongOptionsSheet extends StatelessWidget {
             border: Border.all(
                 color: Colors.white.withOpacity(0.08)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(2),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Song info
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
-                      imageUrl: song.image,
-                      width: 48, height: 48,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) =>
-                          Container(
+                const SizedBox(height: 16),
+                // Song info
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(memCacheWidth: 400, 
+                        imageUrl: song.image,
                         width: 48, height: 48,
-                        color: AppTheme.bgTertiary,
-                        child: const Icon(Icons.music_note,
-                            color: AppTheme.pink),
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            Container(
+                          width: 48, height: 48,
+                          color: AppTheme.bgTertiary,
+                          child: const Icon(Icons.music_note,
+                              color: AppTheme.pink),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(song.title,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14),
-                            maxLines: 1,
-                            overflow:
-                                TextOverflow.ellipsis),
-                        Text(song.artist,
-                            style: TextStyle(
-                                color: Colors.white
-                                    .withOpacity(0.5),
-                                fontSize: 12),
-                            maxLines: 1,
-                            overflow:
-                                TextOverflow.ellipsis),
-                      ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(song.title,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14),
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis),
+                          Text(song.artist,
+                              style: TextStyle(
+                                  color: Colors.white
+                                      .withOpacity(0.5),
+                                  fontSize: 12),
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Divider(
-                  color: Colors.white.withOpacity(0.08)),
-              const SizedBox(height: 8),
-              ..._buildOptions(context),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Divider(
+                    color: Colors.white.withOpacity(0.08)),
+                const SizedBox(height: 8),
+                ..._buildOptions(context),
+              ],
+            ),
           ),
         ),
       ),
@@ -1714,7 +1717,7 @@ class _SongOptionsSheet extends StatelessWidget {
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: (pl['coverImage'] as String?)?.isNotEmpty == true
-                                ? CachedNetworkImage(imageUrl: pl['coverImage']!,
+                                ? CachedNetworkImage(memCacheWidth: 400, imageUrl: pl['coverImage']!,
                                     width: 44, height: 44, fit: BoxFit.cover)
                                 : Container(width: 44, height: 44,
                                     decoration: const BoxDecoration(gradient: AppTheme.cardGradient),
@@ -1822,7 +1825,12 @@ class _SongOptionsSheet extends StatelessWidget {
             style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
         contentPadding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        onTap: () { Navigator.pop(context); HapticFeedback.selectionClick(); },
+        onTap: () { 
+          Navigator.pop(context); 
+          HapticFeedback.selectionClick();
+          ref.read(searchQueryProvider.notifier).state = song.artist;
+          context.go('/search');
+        },
       ),
       ListTile(
         leading: Icon(Icons.share_rounded, color: Colors.white.withOpacity(0.7), size: 22),

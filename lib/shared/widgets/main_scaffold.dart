@@ -7,6 +7,8 @@ import '../../core/services/settings_service.dart';
 import 'integrated_bottom_shell.dart';
 import 'ambient_background.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -35,6 +37,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
   }
 
   void _checkOverlayPermission() async {
+    if (kIsWeb || !Platform.isAndroid) return;
     final granted = await FlutterOverlayWindow.isPermissionGranted();
     if (!granted) {
       await FlutterOverlayWindow.requestPermission();
@@ -67,12 +70,14 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
 
 
   void _hideOverlay() async {
+    if (kIsWeb || !Platform.isAndroid) return;
     if (await FlutterOverlayWindow.isActive()) {
       await FlutterOverlayWindow.closeOverlay();
     }
   }
 
   void _showOverlayIfPlaying() async {
+    if (kIsWeb || !Platform.isAndroid) return;
     final isPlaying = ref.read(isPlayingProvider);
     final song = ref.read(currentSongProvider);
     if (!isPlaying || song == null) return;

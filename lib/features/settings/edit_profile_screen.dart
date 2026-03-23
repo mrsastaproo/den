@@ -293,7 +293,7 @@ class _EditProfileScreenState
                                   child: _image != null
                                       ? Image.file(_image!, fit: BoxFit.cover)
                                       : (user?.photoURL?.isNotEmpty ?? false)
-                                          ? CachedNetworkImage(
+                                          ? CachedNetworkImage(memCacheWidth: 400, 
                                               imageUrl: user!.photoURL!,
                                               fit: BoxFit.cover,
                                               errorWidget: (_, __, ___) =>

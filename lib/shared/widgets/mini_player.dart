@@ -137,7 +137,7 @@ class MiniPlayer extends ConsumerWidget {
                           child: ClipRRect(
                             borderRadius:
                                 BorderRadius.circular(12),
-                            child: CachedNetworkImage(
+                            child: CachedNetworkImage(memCacheWidth: 400, 
                               imageUrl: currentSong.image,
                               width: 46,
                               height: 46,

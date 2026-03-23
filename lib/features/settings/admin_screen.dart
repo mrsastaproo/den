@@ -648,7 +648,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
             radius: 22,
             backgroundColor: const Color(0xFF6C63FF).withOpacity(0.3),
             child: u.photoUrl.isNotEmpty
-                ? ClipOval(child: CachedNetworkImage(
+                ? ClipOval(child: CachedNetworkImage(memCacheWidth: 400, 
                     imageUrl: u.photoUrl,
                     width: 44, height: 44, fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => _initials(u),
@@ -1073,7 +1073,7 @@ class _BannerTile extends StatelessWidget {
               if (banner.imageUrl.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
+                  child: CachedNetworkImage(memCacheWidth: 400, 
                     imageUrl: banner.imageUrl,
                     width: 48, height: 48, fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(

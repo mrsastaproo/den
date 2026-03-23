@@ -188,7 +188,7 @@ class _MoodCardState extends State<_MoodCard>
             fit: StackFit.expand,
             children: [
               // ── Background image ──
-              CachedNetworkImage(
+              CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (ctx, _) => Container(

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/appearance_service.dart';
 
-class AmbientBackground extends StatefulWidget {
+class AmbientBackground extends ConsumerStatefulWidget {
   final Widget child;
   const AmbientBackground({super.key, required this.child});
 
   @override
-  State<AmbientBackground> createState() => _AmbientBackgroundState();
+  ConsumerState<AmbientBackground> createState() => _AmbientBackgroundState();
 }
 
-class _AmbientBackgroundState extends State<AmbientBackground>
+class _AmbientBackgroundState extends ConsumerState<AmbientBackground>
     with TickerProviderStateMixin {
   late AnimationController _orb1Controller;
   late AnimationController _orb2Controller;
@@ -68,50 +70,53 @@ class _AmbientBackgroundState extends State<AmbientBackground>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final disableOrbs = ref.watch(appearanceProvider).disableAnimations;
 
     return Stack(
       children: [
         // Pure black base
         Container(color: AppTheme.bgPrimary),
 
-        // Orb 1 — Pink top left
-        AnimatedBuilder(
-          animation: _orb1Position,
-          builder: (_, __) => Positioned(
-            left: size.width * (0.15 + _orb1Position.value.dx),
-            top: size.height * (0.08 + _orb1Position.value.dy),
-            child: _Orb(
-              size: size.width * 0.7,
-              color: AppTheme.pink.withOpacity(0.12),
+        if (!disableOrbs) ...[
+          // Orb 1 — Pink top left
+          AnimatedBuilder(
+            animation: _orb1Position,
+            builder: (_, __) => Positioned(
+              left: size.width * (0.15 + _orb1Position.value.dx),
+              top: size.height * (0.08 + _orb1Position.value.dy),
+              child: _Orb(
+                size: size.width * 0.7,
+                color: AppTheme.pink.withOpacity(0.12),
+              ),
             ),
           ),
-        ),
 
-        // Orb 2 — Purple top right
-        AnimatedBuilder(
-          animation: _orb2Position,
-          builder: (_, __) => Positioned(
-            right: size.width * (0.05 + _orb2Position.value.dx),
-            top: size.height * (0.15 + _orb2Position.value.dy),
-            child: _Orb(
-              size: size.width * 0.6,
-              color: AppTheme.purple.withOpacity(0.10),
+          // Orb 2 — Purple top right
+          AnimatedBuilder(
+            animation: _orb2Position,
+            builder: (_, __) => Positioned(
+              right: size.width * (0.05 + _orb2Position.value.dx),
+              top: size.height * (0.15 + _orb2Position.value.dy),
+              child: _Orb(
+                size: size.width * 0.6,
+                color: AppTheme.purple.withOpacity(0.10),
+              ),
             ),
           ),
-        ),
 
-        // Orb 3 — Pink/Purple mid
-        AnimatedBuilder(
-          animation: _orb3Position,
-          builder: (_, __) => Positioned(
-            left: size.width * (0.2 + _orb3Position.value.dx),
-            top: size.height * (0.4 + _orb3Position.value.dy),
-            child: _Orb(
-              size: size.width * 0.5,
-              color: AppTheme.purpleDeep.withOpacity(0.07),
+          // Orb 3 — Pink/Purple mid
+          AnimatedBuilder(
+            animation: _orb3Position,
+            builder: (_, __) => Positioned(
+              left: size.width * (0.2 + _orb3Position.value.dx),
+              top: size.height * (0.4 + _orb3Position.value.dy),
+              child: _Orb(
+                size: size.width * 0.5,
+                color: AppTheme.purpleDeep.withOpacity(0.07),
+              ),
             ),
           ),
-        ),
+        ],
 
         // Main content
         widget.child,

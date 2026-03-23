@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'dart:async';
 
 import '../services/api_service.dart';
@@ -110,6 +112,7 @@ class PlayerService {
   }
 
   void _initOverlayListener() {
+    if (kIsWeb || !Platform.isAndroid) return;
     FlutterOverlayWindow.overlayListener.listen((event) {
       if (event == 'toggle') togglePlayPauseSync();
       if (event == 'skipNext') skipNext();
@@ -118,6 +121,7 @@ class PlayerService {
   }
 
   void updateOverlay() async {
+    if (kIsWeb || !Platform.isAndroid) return;
     final song = _ref.read(currentSongProvider);
     if (song == null) return;
     final isPlaying = _ref.read(isPlayingProvider);

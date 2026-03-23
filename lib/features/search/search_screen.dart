@@ -1161,7 +1161,7 @@ class _CategoryCardState extends State<_CategoryCard> {
             fit: StackFit.expand,
             children: [
               // ── Real background image ─────────────────────
-              CachedNetworkImage(
+              CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: widget.cat.image,
                 fit: BoxFit.cover,
                 // Fallback gradient if image fails to load
@@ -1536,7 +1536,7 @@ class _TopResultCardState extends State<_TopResultCard> {
                           topLeft: Radius.circular(22),
                           bottomLeft: Radius.circular(22),
                         ),
-                        child: CachedNetworkImage(
+                        child: CachedNetworkImage(memCacheWidth: 400, 
                           imageUrl: widget.song.image,
                           width: 118,
                           height: 118,
@@ -1683,7 +1683,7 @@ class _SongResultTileState extends State<_SongResultTile> {
           Stack(alignment: Alignment.center, children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
+              child: CachedNetworkImage(memCacheWidth: 400, 
                 imageUrl: widget.song.image,
                 width: 54,
                 height: 54,
@@ -1874,7 +1874,7 @@ class _SongOptionsSheet extends StatelessWidget {
               Row(children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
+                  child: CachedNetworkImage(memCacheWidth: 400, 
                     imageUrl: song.image,
                     width: 54,
                     height: 54,

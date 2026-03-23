@@ -577,7 +577,7 @@ class _TopArtistCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: stats.topArtistImage.isNotEmpty
-                ? CachedNetworkImage(
+                ? CachedNetworkImage(memCacheWidth: 400, 
                     imageUrl: stats.topArtistImage,
                     width: 52,
                     height: 52,
@@ -655,7 +655,7 @@ class _TopSongCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: stats.topSongImage.isNotEmpty
-                ? CachedNetworkImage(
+                ? CachedNetworkImage(memCacheWidth: 400, 
                     imageUrl: stats.topSongImage,
                     width: 52,
                     height: 52,
@@ -774,7 +774,7 @@ class _TopSongsList extends StatelessWidget {
                   const SizedBox(width: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: CachedNetworkImage(
+                    child: CachedNetworkImage(memCacheWidth: 400, 
                       imageUrl: s.image,
                       width: 32,
                       height: 32,

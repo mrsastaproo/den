@@ -523,7 +523,7 @@ class _PlaylistCard extends StatelessWidget {
                                 physics:
                                     const NeverScrollableScrollPhysics(),
                                 children: previewImages
-                                    .map((url) => CachedNetworkImage(
+                                    .map((url) => CachedNetworkImage(memCacheWidth: 400, 
                                           imageUrl: url,
                                           fit: BoxFit.cover,
                                           errorWidget: (_, __, ___) =>
@@ -590,7 +590,7 @@ class _PlaylistCard extends StatelessWidget {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: CachedNetworkImage(
+                          child: CachedNetworkImage(memCacheWidth: 400, 
                             imageUrl: song.image,
                             width: 38,
                             height: 38,
