@@ -576,7 +576,6 @@ class PlayerService {
     if (nextIndex >= playlist.length) return;
 
     final nextSong = playlist[nextIndex];
-    if (nextSong.id.startsWith('audius_')) return;
 
     final dl = _ref.read(downloadServiceProvider);
     if (await dl.isDownloaded(nextSong.id)) return;
@@ -585,7 +584,9 @@ class PlayerService {
     _log('Prefetching next track: ${nextSong.title}');
     
     try {
-      final url = await _api.getStreamUrl(nextSong.id, quality: quality);
+      final url = nextSong.id.startsWith('audius_')
+          ? await _audius.getStreamUrl(nextSong.id)
+          : await _api.getStreamUrl(nextSong.id, quality: quality);
       if (url.isNotEmpty) {
         final source = AudioSource.uri(Uri.parse(url));
         if (_playlistSource.length <= 1) {

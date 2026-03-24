@@ -1606,7 +1606,7 @@ class _SupportSection extends StatelessWidget {
           subtitle: 'Get help with your account or app issues',
           value: '',
           colors: [AppTheme.pink, AppTheme.purple],
-          onTap: () => _launchUrl('mailto:support@den.app'),
+          onTap: () => _launchUrl('mailto:support@denmusic.in'),
         ),
         _NavTile(
           icon: Icons.description_rounded,
@@ -1614,7 +1614,7 @@ class _SupportSection extends StatelessWidget {
           subtitle: 'Read our terms and conditions',
           value: '',
           colors: [AppTheme.purple, AppTheme.purpleDeep],
-          onTap: () => _launchUrl('https://den.app/terms'),
+          onTap: () => _launchUrl('https://denmusic.in/terms'),
         ),
         _NavTile(
           icon: Icons.privacy_tip_rounded,
@@ -1622,7 +1622,7 @@ class _SupportSection extends StatelessWidget {
           subtitle: 'How we handle your data',
           value: '',
           colors: [AppTheme.pinkDeep, AppTheme.purple],
-          onTap: () => _launchUrl('https://den.app/privacy'),
+          onTap: () => _launchUrl('https://denmusic.in/privacy'),
         ),
       ],
     );
