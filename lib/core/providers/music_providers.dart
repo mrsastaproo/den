@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/audius_service.dart';
 import '../services/player_service.dart';
 import '../services/database_service.dart' as db;
+import '../services/settings_service.dart';
 import '../providers/queue_meta.dart';
 import '../models/song.dart';
 
@@ -18,13 +19,16 @@ final sessionSeedProvider = Provider<int>((ref) => math.Random().nextInt(1000000
 
 final trendingProvider = FutureProvider<List<Song>>((ref) async {
   final seed = ref.watch(sessionSeedProvider);
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+  
   final timer = Timer(const Duration(minutes: 30), () => ref.invalidateSelf());
   ref.onDispose(() => timer.cancel());
 
   final api = ref.read(apiServiceProvider);
   
-  // 1. Fetch Global Trending (Small baseline)
-  final globalSongs = await api.getTrending();
+  // 1. Fetch Global Trending
+  final globalSongs = await api.getTrending(language: lang);
   
   // 2. Personalize: Watch history
   final historyAsync = ref.watch(db.historyProvider);
@@ -32,7 +36,6 @@ final trendingProvider = FutureProvider<List<Song>>((ref) async {
   final List<Song> personalizedSongs = [];
   
   if (history.isNotEmpty) {
-    // Get unique artists from recent history (up to 4)
     final topArtists = history.map((s) => s.artist).toSet().take(4).toList();
     for (final artist in topArtists) {
       final extra = await api.getArtistSongs(artist);
@@ -40,22 +43,27 @@ final trendingProvider = FutureProvider<List<Song>>((ref) async {
     }
   }
 
-  // 3. Merge and Shuffle
+  // 3. Merge, Filter and Shuffle
   final allSongs = [...personalizedSongs, ...globalSongs];
-  allSongs.shuffle(math.Random(seed));
+  final filtered = showExplicit ? allSongs : allSongs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle(math.Random(seed));
   
   final seen = <String>{};
-  return allSongs.where((s) => seen.add(s.id)).take(30).toList();
+  return filtered.where((s) => seen.add(s.id)).take(30).toList();
 });
+
 
 final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
   final seed = ref.watch(sessionSeedProvider);
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+  
   final timer = Timer(const Duration(minutes: 30), () => ref.invalidateSelf());
   ref.onDispose(() => timer.cancel());
 
   final api = ref.read(apiServiceProvider);
   
-  final globalSongs = await api.getNewReleases();
+  final globalSongs = await api.getNewReleases(language: lang);
   
   final likedAsync = ref.watch(db.likedSongsProvider);
   final liked = likedAsync.value ?? [];
@@ -70,18 +78,24 @@ final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
   }
 
   final allSongs = [...personalizedSongs, ...globalSongs];
-  allSongs.shuffle(math.Random(seed + 777));
+  final filtered = showExplicit ? allSongs : allSongs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle(math.Random(seed + 777));
   
   final seen = <String>{};
-  return allSongs.where((s) => seen.add(s.id)).take(20).toList();
+  return filtered.where((s) => seen.add(s.id)).take(20).toList();
 });
+
 
 final topChartsProvider = FutureProvider<List<Song>>((ref) async {
   final seed = ref.watch(sessionSeedProvider);
-  final songs = await ref.read(apiServiceProvider).getTopCharts();
-  songs.shuffle(math.Random(seed + 2));
-  return songs;
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+  final songs = await ref.read(apiServiceProvider).getTopCharts(language: lang);
+  final filtered = showExplicit ? songs : songs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle(math.Random(seed + 2));
+  return filtered;
 });
+
 
 final throwbackProvider = FutureProvider<List<Song>>((ref) async {
   // Changes based on the hour for variety
@@ -340,23 +354,27 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   }
 
   // ── Fire JioSaavn requests in parallel ──────────────────────
+  final showExplicit = ref.watch(explicitContentProvider);
   final jioFutures = <Future<List<Song>>>[
-    api.searchSongs(query, page: 1, limit: 20),
+    api.searchSongs(query, page: 1, limit: 20, showExplicit: showExplicit),
   ];
+
 
   // Only fire deep parallel searches for meaningful queries
   if (query.length >= 3) {
-    jioFutures.add(api.searchSongs(query, page: 2, limit: 20));
-    jioFutures.add(api.searchBroad(query));
+    jioFutures.add(api.searchSongs(query, page: 2, limit: 20, showExplicit: showExplicit));
+    jioFutures.add(api.searchBroad(query, showExplicit: showExplicit));
+
 
     final extras = queriesToFire
         .where((q) => q.toLowerCase() != query.toLowerCase())
         .take(isTitle ? 4 : 2) // Fewer extras to keep it fast
         .toList();
     for (final q in extras) {
-      jioFutures.add(api.searchSongs(q, page: 1, limit: 20));
+      jioFutures.add(api.searchSongs(q, page: 1, limit: 20, showExplicit: showExplicit));
     }
   }
+
 
   // Audius parallel fetch
   Future<List<Song>> audiusFuture = Future.value([]);

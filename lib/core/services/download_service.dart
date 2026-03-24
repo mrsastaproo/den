@@ -4,10 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/song.dart';
+import 'settings_service.dart';
+import 'api_service.dart';
 
 class DownloadService {
   final Dio _dio = Dio();
+  final Ref _ref;
   Box? _box;
+
+  DownloadService(this._ref);
 
   Future<Box> _getBox() async {
     if (_box != null && _box!.isOpen) return _box!;
@@ -42,10 +47,17 @@ class DownloadService {
     try {
       final path = await getDownloadPath(song.id);
       
-      // 1. Download the file
-      final downloadUrl = resolvedUrl ?? song.url;
+      // 1. Resolve the correct quality URL if not provided
+      String downloadUrl = resolvedUrl ?? '';
+      
       if (downloadUrl.isEmpty) {
-         throw Exception('Song URL is empty');
+        final quality = _ref.read(downloadQualityProvider);
+        _log('Resolving $quality URL for download: ${song.title}');
+        downloadUrl = await _ref.read(apiServiceProvider).getStreamUrl(song.id, quality: quality);
+      }
+
+      if (downloadUrl.isEmpty) {
+         throw Exception('Could not resolve download URL');
       }
 
       await _dio.download(
@@ -61,10 +73,10 @@ class DownloadService {
       // 2. Save metadata to Hive
       final box = await _getBox();
       await box.put(song.id, song.toJson());
-      print('Download complete: ${song.title}');
+      _log('Download complete: ${song.title}');
 
     } catch (e) {
-      print('Error downloading ${song.id}: $e');
+      _log('Error downloading ${song.id}: $e');
       // Cleanup on failure
       final path = await getDownloadPath(song.id);
       final file = File(path);
@@ -120,12 +132,28 @@ class DownloadService {
   }
 
   Future<void> clearAllDownloads() async {
-    final box = await _getBox();
-    await box.clear();
+    try {
+      final dir = await _downloadsDir();
+      if (dir.existsSync()) {
+        await for (final entity in dir.list()) {
+          try {
+            await entity.delete(recursive: true);
+          } catch (e) {
+            _log('Error deleting file ${entity.path}: $e');
+          }
+        }
+      }
+      final box = await _getBox();
+      await box.clear();
+      _log('All downloads cleared from disk and database');
+    } catch (e) {
+      _log('Error clearing downloads: $e');
+    }
   }
+  void _log(String msg) => print('[DOWNLOAD] $msg');
 }
 
-final downloadServiceProvider = Provider<DownloadService>((ref) => DownloadService());
+final downloadServiceProvider = Provider<DownloadService>((ref) => DownloadService(ref));
 
 final downloadedSongsProvider = FutureProvider<List<Song>>((ref) async {
   return ref.watch(downloadServiceProvider).getDownloadedSongs();

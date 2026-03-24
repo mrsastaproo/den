@@ -39,6 +39,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/admin_service.dart';
@@ -51,6 +52,7 @@ import '../../core/services/appearance_service.dart';
 import 'equalizer_screen.dart';
 import 'admin_screen.dart';
 import '../../core/services/player_service.dart';
+
 
 // ─── SETTINGS SCREEN ──────────────────────────────────────────────────────────
 
@@ -80,7 +82,9 @@ class SettingsScreen extends ConsumerWidget {
           SliverToBoxAdapter(child: _NotificationsSection()),
           SliverToBoxAdapter(child: _StorageSection()),
           SliverToBoxAdapter(child: _AboutSection()),
+          SliverToBoxAdapter(child: _SupportSection()),
           SliverToBoxAdapter(child: _AdminPanelEntry()),
+
           SliverToBoxAdapter(child: _SignOutButton()),
           SliverToBoxAdapter(child: _DeleteAccountButton()),
           SliverToBoxAdapter(
@@ -473,7 +477,13 @@ class _PlaybackSection extends ConsumerWidget {
     final autoplay     = ref.watch(autoplayEnabledProvider);
     final gapless      = ref.watch(gaplessPlaybackProvider);
     final lyrics       = ref.watch(showLyricsProvider);
+    final carMode      = ref.watch(carModeProvider);
     final eqPreset     = ref.watch(eqProvider).preset;
+    final sleepService = ref.watch(sleepTimerServiceProvider);
+    final sleepTime    = sleepService.isActive 
+        ? '${sleepService.remaining?.inMinutes ?? 0}m left' 
+        : 'Off';
+
 
     return _Section(
       title: 'Playback',
@@ -564,6 +574,28 @@ class _PlaybackSection extends ConsumerWidget {
             HapticFeedback.selectionClick();
           },
         ),
+        // Sleep Timer
+        _NavTile(
+          icon: Icons.timer_rounded,
+          label: 'Sleep Timer',
+          subtitle: 'Automatically stop music',
+          value: sleepTime,
+          colors: [AppTheme.pink, AppTheme.purple],
+          onTap: () => _showSleepTimerSheet(context, ref),
+        ),
+        // Car Mode
+        _SwitchTile(
+          icon: Icons.car_rental_rounded,
+          label: 'Car Mode',
+          subtitle: 'Simplified UI for safer driving',
+          colors: [AppTheme.purple, AppTheme.purpleDeep],
+          value: carMode,
+          onChanged: (v) {
+            ref.read(carModeProvider.notifier).state = v;
+            HapticFeedback.selectionClick();
+          },
+        ),
+
         // Equalizer → navigate to EQ screen
         _NavTile(
           icon: Icons.equalizer_rounded,
@@ -579,7 +611,58 @@ class _PlaybackSection extends ConsumerWidget {
       ],
     );
   }
+  void _showSleepTimerSheet(BuildContext context, WidgetRef ref) {
+    final opts = [
+      {'label': 'Off',      'val': null},
+      {'label': '5 min',    'val': 5},
+      {'label': '15 min',   'val': 15},
+      {'label': '30 min',   'val': 30},
+      {'label': '45 min',   'val': 45},
+      {'label': '1 hour',   'val': 60},
+      {'label': 'End of track', 'val': -1},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GlassSheet(
+        title: 'Sleep Timer',
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 20),
+          itemCount: opts.length,
+          itemBuilder: (_, i) {
+            final o = opts[i];
+            final isOff = o['val'] == null;
+            return _SheetOption(
+              label: o['label'] as String,
+              subtitle: isOff ? 'Stop timer' : 'Music stops in ${o['label']}',
+              icon: Icons.timer_rounded,
+              isSelected: false, 
+              onTap: () {
+                final val = o['val'] as int?;
+                final service = ref.read(sleepTimerServiceProvider);
+                if (val == null) {
+                  service.cancel();
+                      } else if (val == -1) {
+                        ref.read(sleepTimerProvider.notifier).set('end_of_track');
+                      } else {
+
+                  service.start(Duration(minutes: val), () {
+                    ref.read(playerServiceProvider).player.pause();
+                  });
+                }
+                Navigator.pop(context);
+                HapticFeedback.selectionClick();
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
+
 
 // ─── 2. AUDIO QUALITY ─────────────────────────────────────────────────────────
 
@@ -1357,9 +1440,42 @@ class _StorageSection extends ConsumerWidget {
           value: '$dlSongs songs • $dlSize',
           colors: [AppTheme.pinkDeep, AppTheme.purple],
         ),
+        _NavTile(
+          icon: Icons.delete_sweep_rounded,
+          label: 'Clear Downloads',
+          subtitle: 'Remove all offline music',
+          value: '',
+          colors: [const Color(0xFFFF3366), const Color(0xFF990033)],
+          onTap: () => _showClearDownloadsDialog(context, ref),
+        ),
       ],
     );
   }
+
+  void _showClearDownloadsDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => _ConfirmDialog(
+        title: 'Clear Downloads',
+        message: 'This will permanently remove all downloaded songs from your device. You will need to re-download them for offline play.',
+        confirmLabel: 'Delete All',
+        isDestructive: true,
+        onConfirm: () async {
+          await ref.read(storageServiceProvider).clearDownloads();
+          ref.invalidate(storageStatsProvider);
+          if (dialogContext.mounted) Navigator.pop(dialogContext);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Downloads cleared', style: TextStyle(color: Colors.white)),
+            backgroundColor: Colors.red.shade900,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(milliseconds: 1500),
+          ));
+        },
+      ),
+    );
+  }
+
 
   void _showClearCacheDialog(BuildContext context, WidgetRef ref) {
     showDialog(
@@ -1465,6 +1581,57 @@ class _AboutSection extends StatelessWidget {
   }
 }
 
+// ─── 10. SUPPORT & LEGAL ──────────────────────────────────────────────────────
+
+class _SupportSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return _Section(
+      title: 'Support & Legal',
+      icon: Icons.help_outline_rounded,
+      delay: 10,
+      children: [
+        _NavTile(
+          icon: Icons.support_agent_rounded,
+          label: 'Contact Support',
+          subtitle: 'Get help with your account or app issues',
+          value: '',
+          colors: [AppTheme.pink, AppTheme.purple],
+          onTap: () => _launchUrl('mailto:support@den.app'),
+        ),
+        _NavTile(
+          icon: Icons.description_rounded,
+          label: 'Terms of Service',
+          subtitle: 'Read our terms and conditions',
+          value: '',
+          colors: [AppTheme.purple, AppTheme.purpleDeep],
+          onTap: () => _launchUrl('https://den.app/terms'),
+        ),
+        _NavTile(
+          icon: Icons.privacy_tip_rounded,
+          label: 'Privacy Policy',
+          subtitle: 'How we handle your data',
+          value: '',
+          colors: [AppTheme.pinkDeep, AppTheme.purple],
+          onTap: () => _launchUrl('https://den.app/privacy'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        print('Could not launch $url');
+      }
+    } catch (e) {
+      print('Launch error: $e');
+    }
+  }
+}
 // ─── ADMIN PANEL ENTRY ────────────────────────────────────────────────────────
 
 class _AdminPanelEntry extends ConsumerWidget {

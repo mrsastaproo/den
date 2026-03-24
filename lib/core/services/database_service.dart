@@ -289,6 +289,81 @@ class DatabaseService {
             snap.docs.map((d) => Song.fromJson(d.data())).toList());
   }
 
+  // ─── ARTISTS & ALBUMS ───────────────────────────────────────
+
+  Future<void> followArtist(String artistId, String name, String image) async {
+    if (userId == null) return;
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('followed_artists')
+        .doc(artistId)
+        .set({
+      'id': artistId,
+      'name': name,
+      'image': image,
+      'followedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> unfollowArtist(String artistId) async {
+    if (userId == null) return;
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('followed_artists')
+        .doc(artistId)
+        .delete();
+  }
+
+  Stream<List<Map<String, dynamic>>> getFollowedArtists() {
+    if (userId == null) return Stream.value([]);
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('followed_artists')
+        .orderBy('followedAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => d.data()).toList());
+  }
+
+  Future<void> saveAlbum(String albumId, String name, String artist, String image) async {
+    if (userId == null) return;
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('saved_albums')
+        .doc(albumId)
+        .set({
+      'id': albumId,
+      'name': name,
+      'artist': artist,
+      'image': image,
+      'savedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> unsaveAlbum(String albumId) async {
+    if (userId == null) return;
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('saved_albums')
+        .doc(albumId)
+        .delete();
+  }
+
+  Stream<List<Map<String, dynamic>>> getSavedAlbums() {
+    if (userId == null) return Stream.value([]);
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('saved_albums')
+        .orderBy('savedAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => d.data()).toList());
+  }
+
   // ─── USER STATS ────────────────────────────────────────────
 
   Future<Map<String, int>> getUserStats() async {
@@ -352,6 +427,38 @@ final songLikedProvider =
       .doc(userId)
       .collection('liked_songs')
       .doc(songId)
+      .snapshots()
+      .map((snap) => snap.exists);
+});
+
+final followedArtistsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(databaseServiceProvider).getFollowedArtists();
+});
+
+final savedAlbumsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(databaseServiceProvider).getSavedAlbums();
+});
+
+final isArtistFollowedProvider = StreamProvider.family<bool, String>((ref, artistId) {
+  final userId = ref.watch(authStateProvider).value?.uid;
+  if (userId == null) return Stream.value(false);
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('followed_artists')
+      .doc(artistId)
+      .snapshots()
+      .map((snap) => snap.exists);
+});
+
+final isAlbumSavedProvider = StreamProvider.family<bool, String>((ref, albumId) {
+  final userId = ref.watch(authStateProvider).value?.uid;
+  if (userId == null) return Stream.value(false);
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('saved_albums')
+      .doc(albumId)
       .snapshots()
       .map((snap) => snap.exists);
 });

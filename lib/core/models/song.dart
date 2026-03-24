@@ -8,8 +8,10 @@ class Song {
   final String duration;
   final String year;
   final String language;
+  final bool isExplicit;
 
   Song({
+
     required this.id,
     required this.title,
     required this.artist,
@@ -19,7 +21,9 @@ class Song {
     required this.duration,
     required this.year,
     required this.language,
+    required this.isExplicit,
   });
+
 
   factory Song.fromJson(Map<String, dynamic> json) {
     // image can be a plain String URL or a List of {quality, url} objects
@@ -44,7 +48,9 @@ class Song {
       duration: json['duration']?.toString() ?? '0',
       year: json['year']?.toString() ?? '',
       language: json['language'] ?? '',
+      isExplicit: json['isExplicit'] ?? json['explicit'] ?? false,
     );
+
   }
 
   factory Song.fromSumitApi(Map<String, dynamic> json) {
@@ -70,8 +76,10 @@ class Song {
     duration: json['duration']?.toString() ?? '0',
     year: json['year']?.toString() ?? '',
     language: json['language'] ?? '',
+    isExplicit: json['explicitContent'] == true || json['explicit'] == true,
   );
 }
+
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -83,5 +91,6 @@ class Song {
     'duration': duration,
     'year': year,
     'language': language,
+    'isExplicit': isExplicit,
   };
-}
+}

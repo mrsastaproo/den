@@ -12,6 +12,7 @@ import '../../core/providers/music_providers.dart';
 import '../../core/providers/queue_meta.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/models/song.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -19,28 +20,41 @@ import '../../core/models/song.dart';
 // ─────────────────────────────────────────────────────────────
 // Extra section providers
 final romanticSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
   final songs = await ref.read(apiServiceProvider).getMoodMix('Love');
-  songs.shuffle();
-  return songs;
+  final filtered = showExplicit ? songs : songs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle();
+  return filtered;
 });
 
 final partyHitsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
   final songs = await ref.read(apiServiceProvider).getMoodMix('Hype');
-  songs.shuffle();
-  return songs;
+  final filtered = showExplicit ? songs : songs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle();
+  return filtered;
 });
 
 final chillVibesProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
   final songs = await ref.read(apiServiceProvider).getMoodMix('Chill');
-  songs.shuffle();
-  return songs;
+  final filtered = showExplicit ? songs : songs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle();
+  return filtered;
 });
 
 final focusMixProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
   final songs = await ref.read(apiServiceProvider).getMoodMix('Focus');
-  songs.shuffle();
-  return songs;
+  final filtered = showExplicit ? songs : songs.where((s) => !s.isExplicit).toList();
+  filtered.shuffle();
+  return filtered;
 });
+
 
 final sadSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final songs = await ref.read(apiServiceProvider).getMoodMix('Sad');
@@ -49,45 +63,59 @@ final sadSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
 });
 
 final indieHitsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+  
   final songs = await ref.read(apiServiceProvider).getMoodMix('Focus');
   final extra = await ref.read(apiServiceProvider)
-      .searchSongs('indie pop hindi english 2025');
+      .searchSongs('indie pop $lang 2025', showExplicit: showExplicit);
   final seen = <String>{};
   final merged = [...songs, ...extra]
       .where((s) => seen.add(s.id))
+      .where((s) => showExplicit || !s.isExplicit)
       .toList();
   merged.shuffle();
   return merged;
 });
 
+
 final devotionalProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+  
   final futures = await Future.wait([
-    ref.read(apiServiceProvider).searchSongs('bhajan hindi 2025'),
-    ref.read(apiServiceProvider).searchSongs('devotional songs hindi'),
-    ref.read(apiServiceProvider).searchSongs('aarti kirtan bhajan'),
+    ref.read(apiServiceProvider).searchSongs('bhajan $lang 2025', showExplicit: showExplicit),
+    ref.read(apiServiceProvider).searchSongs('devotional songs $lang', showExplicit: showExplicit),
+    ref.read(apiServiceProvider).searchSongs('aarti kirtan bhajan', showExplicit: showExplicit),
   ]);
   final seen = <String>{};
   final songs = futures
       .expand((l) => l)
       .where((s) => seen.add(s.id))
+      .where((s) => showExplicit || !s.isExplicit)
       .toList();
   songs.shuffle();
   return songs;
 });
 
+
 final punjabiBangerProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final showExplicit = ref.watch(explicitContentProvider);
   final songs = await ref.read(apiServiceProvider)
-      .searchSongs('punjabi hits diljit ap dhillon 2025');
+      .searchSongs('punjabi hits diljit ap dhillon 2025', showExplicit: showExplicit);
   songs.shuffle();
   return songs;
 });
 
+
 final workoutBangerProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+  final showExplicit = ref.watch(explicitContentProvider);
   final songs = await ref.read(apiServiceProvider)
-      .searchSongs('workout gym motivation energy songs');
+      .searchSongs('workout gym motivation energy songs', showExplicit: showExplicit);
   songs.shuffle();
   return songs;
 });
+
 
 // ─────────────────────────────────────────────────────────────
 // HOME SCREEN

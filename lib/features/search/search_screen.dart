@@ -14,6 +14,7 @@ import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
+import '../../shared/widgets/playlist_selector_sheet.dart';
 import '../../core/services/download_service.dart';
 
 
@@ -1958,9 +1959,11 @@ class _SongOptionsSheet extends StatelessWidget {
               const SizedBox(height: 8),
               ...[
                 (Icons.favorite_rounded, 'Like Song', AppTheme.pink),
-                (Icons.download_rounded, 'Download', Colors.teal), // [ADD]
+                (Icons.download_rounded, 'Download', Colors.teal),
                 (Icons.playlist_add_rounded, 'Add to Playlist', AppTheme.purple),
                 (Icons.queue_music_rounded, 'Play Next', AppTheme.pinkDeep),
+                (Icons.person_add_rounded, 'Follow Artist', Colors.blue),
+                (Icons.album_rounded, 'Save Album', Colors.orange),
                 (Icons.person_rounded, 'Go to Artist', Colors.white54),
                 (Icons.share_rounded, 'Share', Colors.white54),
               ].map(
@@ -1988,6 +1991,37 @@ class _SongOptionsSheet extends StatelessWidget {
                   onTap: () async {
                     if (o.$2 == 'Like Song') {
                       await ref.read(databaseServiceProvider).likeSong(song);
+                    } else if (o.$2 == 'Add to Playlist') {
+                      if (context.mounted) Navigator.pop(context);
+                      PlaylistSelectorSheet.show(context, song);
+                      return;
+                    } else if (o.$2 == 'Follow Artist') {
+                      await ref.read(databaseServiceProvider).followArtist(
+                        song.artist.trim().toLowerCase().replaceAll(' ', '_'),
+                        song.artist,
+                        song.image,
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Following ${song.artist}'))
+                        );
+                      }
+                    } else if (o.$2 == 'Save Album') {
+                      await ref.read(databaseServiceProvider).saveAlbum(
+                        song.album.trim().toLowerCase().replaceAll(' ', '_'),
+                        song.album,
+                        song.artist,
+                        song.image,
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Saved ${song.album} to library'))
+                        );
+                      }
+                    } else if (o.$2 == 'Go to Artist') {
+                      if (context.mounted) Navigator.pop(context);
+                      ref.read(searchQueryProvider.notifier).state = song.artist;
+                      return;
                     } else if (o.$2 == 'Download') {
                       if (context.mounted) Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(

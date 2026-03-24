@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_service.dart';
+import 'settings_service.dart';
 
 class SocialService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String? userId;
+  final Ref _ref;
 
-  SocialService(this.userId);
+  SocialService(this.userId, this._ref);
 
   // ─── USERNAME MANAGEMENT ───────────────────────────────────
 
@@ -218,7 +220,7 @@ class SocialService {
             results.add({
               'uid': friendUid,
               ...d.data(),
-              'username': userData['username'] ?? friendUid,
+              'username': userData['username'] ?? userData['displayName'] ?? 'User',
               'displayName': userData['displayName'],
               'photoUrl': userData['photoUrl'],
             });
@@ -232,13 +234,30 @@ class SocialService {
   /// Update online state with optional status (Online, Away, Busy) and current song info
   Future<void> updatePresence(bool isOnline, {String? status, Map<String, dynamic>? nowPlaying}) async {
     if (userId == null) return;
+    
+    final activityVisible = _ref.read(activityVisibleProvider);
+    final privateSession = _ref.read(privateSessionProvider);
+
     try {
-      await _db.collection('users').doc(userId).update({
-        'isOnline': isOnline,
-        'presenceStatus': status ?? (isOnline ? 'Online' : 'Offline'),
+      final updates = <String, dynamic>{
         'lastActive': FieldValue.serverTimestamp(),
-        if (nowPlaying != null) 'nowPlaying': nowPlaying,
-      });
+      };
+
+      if (activityVisible) {
+        updates['isOnline'] = isOnline;
+        updates['presenceStatus'] = status ?? (isOnline ? 'Online' : 'Offline');
+      } else {
+        updates['isOnline'] = false;
+        updates['presenceStatus'] = 'Offline';
+      }
+
+      if (!privateSession && activityVisible && nowPlaying != null) {
+        updates['nowPlaying'] = nowPlaying;
+      } else {
+        updates['nowPlaying'] = FieldValue.delete();
+      }
+
+      await _db.collection('users').doc(userId).update(updates);
     } catch (e) {
       // Ignore if document not created yet
     }
@@ -258,7 +277,7 @@ class SocialService {
 
 final socialServiceProvider = Provider<SocialService>((ref) {
   final user = ref.watch(authStateProvider).value;
-  return SocialService(user?.uid);
+  return SocialService(user?.uid, ref);
 });
 
 final incomingRequestsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {

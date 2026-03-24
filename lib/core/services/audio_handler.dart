@@ -41,6 +41,8 @@ class DenAudioHandler extends BaseAudioHandler
   VoidCallback? _onSkipPrev;
   VoidCallback? _onToggle;
 
+  AudioPlayer get player => _player;
+
   DenAudioHandler({
     required AudioPlayer player,
     required VoidCallback onSkipNext,

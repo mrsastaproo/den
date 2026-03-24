@@ -30,6 +30,7 @@ class AudiusService {
       duration: (track['duration'] ?? 0).toString(),
       year: '',
       language: genre, // genre stored here — used by smart queue
+      isExplicit: false,
     );
   }
 

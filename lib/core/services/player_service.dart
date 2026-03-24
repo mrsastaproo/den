@@ -33,7 +33,8 @@ void _log(String msg) => print('[DEN] $msg');
 // ═══════════════════════════════════════════════════════════════
 
 class PlayerService {
-  final AudioPlayer   _player = AudioPlayer();
+  final AudioPlayer   _player;
+  late ConcatenatingAudioSource _playlistSource;
   final ApiService    _api;
   final Ref           _ref;
   final AudiusService _audius = AudiusService();
@@ -47,12 +48,24 @@ class PlayerService {
   // ignore: unused_field
   bool     _gaplessEnabled    = true;
 
-  PlayerService(this._api, this._ref) {
+  static AudioPlayer _resolvePlayer() {
+    try {
+      // ignore: unnecessary_cast
+      final handler = audioHandler as dynamic; 
+      if (handler is DenAudioHandler) {
+        return handler.player;
+      }
+    } catch (_) {}
+    return AudioPlayer(); // Fallback to safe local instance
+  }
+
+  PlayerService(this._api, this._ref) : _player = _resolvePlayer() {
+    _playlistSource = ConcatenatingAudioSource(children: []);
     _initListeners();
     _initOverlayListener();
     _loadSavedSettings();
+    
     // Register lock screen / notification button callbacks
-    // after the service is created
     try {
       (audioHandler as DenAudioHandler).setCallbacks(
         onSkipNext: skipNext,
@@ -85,6 +98,28 @@ class PlayerService {
 
         _log('Track completed → auto advance');
         _autoAdvance();
+      }
+    });
+
+    // Detect transitions for gapless prefetch and UI sync
+    _player.currentIndexStream.listen((index) {
+      if (index == null || _skipInProgress) return;
+      
+      final currentPlaylist = _ref.read(currentPlaylistProvider);
+      final currentUIIndex = _ref.read(currentSongIndexProvider);
+      
+      // If the player moved to the next index in the ConcatenatingAudioSource
+      if (index > 0 && index != currentUIIndex) {
+        _log('Gapless transition to index $index');
+        final song = currentPlaylist[index];
+        _ref.read(currentSongIndexProvider.notifier).state = index;
+        _ref.read(currentSongProvider.notifier).state = song;
+        
+        // Trigger prefetch for the NEXT next track
+        _prefetchNextTrack(index);
+        
+        // Update presence and history
+        _syncMetadata(song);
       }
     });
 
@@ -149,7 +184,18 @@ class PlayerService {
   // ─────────────────────────────────────────────────────────────
 
   void _autoAdvance() {
+    // ── Sleep Timer: End of track ──
+    final sleepTimer = _ref.read(sleepTimerProvider);
+    if (sleepTimer == 'end_of_track') {
+      _log('Sleep Timer: End of track reached → pausing');
+      _player.pause();
+      // Clear the timer setting
+      _ref.read(sleepTimerProvider.notifier).set(null);
+      return;
+    }
+
     if (_ref.read(repeatModeProvider) == RepeatMode.one) {
+
       _player.seek(Duration.zero).then((_) => _player.play());
       return;
     }
@@ -213,25 +259,15 @@ class PlayerService {
   }) async {
     _log('Loading: ${song.title}');
     try {
-      // CRITICAL: use stop() not pause() before loading a new source.
-      // pause() leaves just_audio in its current processing state.
-      // If the previous track just completed, the player is in
-      // ProcessingState.completed — calling setUrl() from that state
-      // does NOT reset it properly, so play() silently does nothing.
-      // stop() fully resets the player to idle before loading new source.
-      await _player.stop();
+      // await _player.stop(); // Removed for gapless
 
       final dl = _ref.read(downloadServiceProvider);
+      AudioSource source;
 
       if (await dl.isDownloaded(song.id)) {
-        // ── Offline copy ──────────────────────────────────────
         final path = await dl.getDownloadPath(song.id);
         _log('Offline: $path');
-        await _player.setAudioSource(
-          AudioSource.uri(Uri.file(path)),
-          initialPosition: Duration.zero,
-          preload: true,
-        );
+        source = AudioSource.uri(Uri.file(path));
       } else {
         // ── Stream URL ────────────────────────────────────────
         if (_ref.read(offlineModeProvider)) {
@@ -241,9 +277,15 @@ class PlayerService {
         }
 
         _log('Fetching URL for ${song.title}…');
-        final url = song.id.startsWith('audius_')
-            ? await _audius.getStreamUrl(song.id)
-            : await _api.getStreamUrl(song.id);
+        
+        // Respect streaming quality setting
+        String url = song.url;
+        if (url.isEmpty) {
+          final quality = _ref.read(streamingQualityProvider);
+          url = song.id.startsWith('audius_')
+              ? await _audius.getStreamUrl(song.id)
+              : await _api.getStreamUrl(song.id, quality: quality);
+        }
 
         if (url.isEmpty) {
           _log('No URL — skipping ${song.title}');
@@ -252,12 +294,14 @@ class PlayerService {
         }
 
         _log('URL ok, setting source…');
-        await _player.setUrl(
-          url,
-          initialPosition: Duration.zero,
-          preload: true,
-        );
+        source = AudioSource.uri(Uri.parse(url));
       }
+
+      // ── CONCATENATION MGMT ────────────────────────────────
+      // Reset the source to only have this song initially.
+      // Prefetch will add more later.
+      _playlistSource = ConcatenatingAudioSource(children: [source]);
+      await _player.setAudioSource(_playlistSource);
 
       // ── Success ───────────────────────────────────────────
       _consecutiveErrors = 0;
@@ -294,21 +338,10 @@ class PlayerService {
         } catch (_) {}
       });
 
-      // Update system media notification (lock screen / notification bar)
-      try {
-        (audioHandler as DenAudioHandler).updateNowPlaying(song);
-      } catch (_) {}
+      _syncMetadata(song);
 
-      final isPrivate = _ref.read(privateSessionProvider);
-      if (!isPrivate) {
-        _ref.read(databaseServiceProvider).addToHistory(song);
-        _ref.read(socialServiceProvider).updatePresence(true, nowPlaying: {
-          'id': song.id,
-          'title': song.title,
-          'artist': song.artist,
-          'image': song.image,
-        });
-      }
+      // ── Prefetch NEXT track URL for gapless feel ────────────────
+      _prefetchNextTrack(index);
 
     } catch (e) {
       _log('Error loading ${song.title}: $e');
@@ -534,6 +567,34 @@ class PlayerService {
         .toList()..shuffle();
   }
 
+  Future<void> _prefetchNextTrack(int currentIndex) async {
+    final playlist = _ref.read(currentPlaylistProvider);
+    final nextIndex = currentIndex + 1;
+    if (nextIndex >= playlist.length) return;
+
+    final nextSong = playlist[nextIndex];
+    if (nextSong.id.startsWith('audius_')) return;
+
+    final dl = _ref.read(downloadServiceProvider);
+    if (await dl.isDownloaded(nextSong.id)) return;
+
+    final quality = _ref.read(streamingQualityProvider);
+    _log('Prefetching next track: ${nextSong.title}');
+    
+    try {
+      final url = await _api.getStreamUrl(nextSong.id, quality: quality);
+      if (url.isNotEmpty) {
+        final source = AudioSource.uri(Uri.parse(url));
+        if (_playlistSource.length <= 1) {
+          await _playlistSource.add(source);
+          _log('Next track added to concatenation source.');
+        }
+      }
+    } catch (e) {
+      _log('Prefetch error: $e');
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   // MISC
   // ─────────────────────────────────────────────────────────────
@@ -553,6 +614,24 @@ class PlayerService {
 
   Future<void> seekTo(Duration position) async =>
       _player.seek(position);
+
+  void _syncMetadata(Song song) {
+    try {
+      (audioHandler as DenAudioHandler).updateNowPlaying(song);
+    } catch (_) {}
+
+    final isPrivate = _ref.read(privateSessionProvider);
+    if (!isPrivate) {
+      _ref.read(databaseServiceProvider).addToHistory(song);
+      _ref.read(socialServiceProvider).updatePresence(true, nowPlaying: {
+        'id': song.id,
+        'title': song.title,
+        'artist': song.artist,
+        'image': song.image,
+      });
+    }
+    updateOverlay();
+  }
 
   Future<void> stop() async {
     await _player.stop();

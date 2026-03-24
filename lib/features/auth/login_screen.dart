@@ -419,9 +419,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     style: TextStyle(color: Colors.white,
                       fontSize: 22, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 6),
-                  Text("We'll send a reset link to your email.",
+                  Text("We'll send a reset link to your email. (Check your SPAM folder if you can't find it)",
                     style: TextStyle(color: Colors.white.withOpacity(0.45),
-                      fontSize: 14)),
+                      fontSize: 13)),
                   const SizedBox(height: 20),
                   _Field(
                     controller: ctrl,
@@ -443,7 +443,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text(ok
-                              ? 'Reset link sent to ${ctrl.text.trim()}'
+                              ? 'Reset link sent! Check your email and SPAM folder.'
                               : 'Could not send. Check your email.',
                               style: const TextStyle(color: Colors.white)),
                             backgroundColor: ok

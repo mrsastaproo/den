@@ -77,9 +77,9 @@ class _DynamicIslandOverlayState extends State<DynamicIslandOverlay>
     setState(() => _expanded = !_expanded);
     if (_expanded) {
       // Resize overlay to expanded height
-      await FlutterOverlayWindow.resizeOverlay(400, 130, false);
+      await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 130, false);
     } else {
-      await FlutterOverlayWindow.resizeOverlay(400, 60, false);
+      await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 60, false);
     }
   }
 

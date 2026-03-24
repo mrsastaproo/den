@@ -8,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:palette_generator/palette_generator.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
+import '../../core/models/song.dart';
 
 import '../../core/services/database_service.dart';
 import '../../core/services/lyrics_service.dart';
@@ -15,7 +16,8 @@ import '../../core/services/lyrics_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/models/song.dart';
+import '../../shared/widgets/social_share_sheet.dart';
+import '../../shared/widgets/playlist_selector_sheet.dart';
 import 'social_share_sheet.dart';
 import '../../core/services/download_service.dart';
 
@@ -405,8 +407,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               .unlikeSong(song.id);
                         }
                       },
-                      onQueue: () =>
-                          setState(() => _showQueue = true),
+                      // onQueue removed
                       // ── Ghost-tap fix ──────────────────────
                       onScrollStart: () =>
                           setState(() => _isScrolling = true),
@@ -448,7 +449,7 @@ class _PlayerBody extends StatelessWidget {
   final String Function(Duration) fmt;
   final bool showLyrics;
   final VoidCallback onClose, onMore, onPlay, onNext, onPrev,
-      onShuffle, onRepeat, onLike, onQueue, onLyricsToggle;
+      onShuffle, onRepeat, onLike, onLyricsToggle;
   final ValueChanged<int> onPageSwipe;
   final ValueChanged<double> onDragStart, onDragUpdate, onDragEnd;
   final VoidCallback onScrollStart, onScrollEnd;
@@ -478,7 +479,6 @@ class _PlayerBody extends StatelessWidget {
     required this.onShuffle,
     required this.onRepeat,
     required this.onLike,
-    required this.onQueue,
     required this.onLyricsToggle,
     required this.onPageSwipe,
     required this.onDragStart,
@@ -520,6 +520,7 @@ class _PlayerBody extends StatelessWidget {
           child: PageView.builder(
             controller: pc,
             itemCount: playlist.length,
+
             onPageChanged: onPageSwipe,
             physics: const BouncingScrollPhysics(),
             itemBuilder: (_, i) {
@@ -642,7 +643,6 @@ class _PlayerBody extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28),
         child: _BottomBar(
-          onQueue: onQueue,
           onLyrics: onLyricsToggle,
           showLyrics: showLyrics,
           song: song,
@@ -672,7 +672,7 @@ class _PlayerHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding:
-          const EdgeInsets.fromLTRB(16, 18, 16, 4),
+          EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 10, 16, 4),
       child: Row(children: [
         _HdrBtn(
             icon: Icons.keyboard_arrow_down_rounded,
@@ -1381,7 +1381,6 @@ class _PlayPauseBtnState extends State<_PlayPauseBtn>
 // ─────────────────────────────────────────────────────────────
 
 class _BottomBar extends ConsumerWidget {
-  final VoidCallback onQueue;
   final VoidCallback onLyrics;
   final bool showLyrics;
   final Song song;
@@ -1389,7 +1388,6 @@ class _BottomBar extends ConsumerWidget {
   final int curIdx;
 
   const _BottomBar({
-    required this.onQueue,
     required this.onLyrics,
     required this.showLyrics,
     required this.song,
@@ -1402,12 +1400,6 @@ class _BottomBar extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _BarChip(
-          icon: Icons.queue_music_rounded,
-          label: 'QUEUE',
-          badge: '${playlist.length}',
-          onTap: onQueue,
-        ),
         _BarChip(
           icon: Icons.ios_share_rounded,
           label: 'SHARE',
@@ -1760,12 +1752,12 @@ class _QueueTileState extends State<_QueueTile> {
 // OPTIONS SHEET
 // ─────────────────────────────────────────────────────────────
 
-class _OptionsSheet extends StatelessWidget {
+class _OptionsSheet extends ConsumerWidget {
   final Song song;
   const _OptionsSheet({required this.song});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final options = [
       (Icons.playlist_add_rounded, 'Add to Playlist',
           AppTheme.purple),
@@ -1775,8 +1767,11 @@ class _OptionsSheet extends StatelessWidget {
           Colors.white70),
       (Icons.radio_rounded, 'Start Radio',
           AppTheme.pinkDeep),
+      (Icons.timer_rounded, 'Sleep Timer',
+          AppTheme.pink),
       (Icons.share_rounded, 'Share', Colors.white70),
     ];
+
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
@@ -1872,10 +1867,34 @@ class _OptionsSheet extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
                   ),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
                     HapticFeedback.selectionClick();
+                    
+                    if (o.$2 == 'Add to Playlist') {
+                      PlaylistSelectorSheet.show(context, song);
+                    } else if (o.$2 == 'Go to Artist') {
+                      ref.read(searchQueryProvider.notifier).state = song.artist;
+                      // Navigate to search tab
+                      // NOTE: This assumes we are in a context where Navigator can reach home/search
+                      // For simplicity, we trigger a search which updates the Search tab.
+                    } else if (o.$2 == 'Go to Album') {
+                      // Same as artist for now
+                      ref.read(searchQueryProvider.notifier).state = song.title; 
+                    } else if (o.$2 == 'Start Radio') {
+                       final recs = await ref.read(apiServiceProvider).getRecommendations(song);
+                       if (recs.isNotEmpty) {
+                         ref.read(currentPlaylistProvider.notifier).state = [song, ...recs];
+                         ref.read(currentSongIndexProvider.notifier).state = 0;
+                         ref.read(playerServiceProvider).playSong(song);
+                       }
+                    } else if (o.$2 == 'Share') {
+                       SocialShareSheet.show(context, type: 'song', metadata: song.toJson());
+                    } else if (o.$2 == 'Sleep Timer') {
+                       _showSleepTimerSheet(context, ref);
+                    }
                   },
+
                   contentPadding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                 )),
@@ -1884,7 +1903,79 @@ class _OptionsSheet extends StatelessWidget {
       ),
     );
   }
+  void _showSleepTimerSheet(BuildContext context, WidgetRef ref) {
+    final opts = [
+      {'label': 'Off',      'val': null},
+      {'label': '5 min',    'val': 5},
+      {'label': '15 min',   'val': 15},
+      {'label': '30 min',   'val': 30},
+      {'label': '45 min',   'val': 45},
+      {'label': '1 hour',   'val': 60},
+      {'label': 'End of track', 'val': -1},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Sleep Timer',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: opts.length,
+                itemBuilder: (_, i) {
+                  final o = opts[i];
+                  return ListTile(
+                    leading: const Icon(Icons.timer_rounded, color: AppTheme.pink),
+                    title: Text(o['label'] as String, style: const TextStyle(color: Colors.white)),
+                    onTap: () {
+                      final val = o['val'] as int?;
+                      final service = ref.read(sleepTimerServiceProvider);
+                      if (val == null) {
+                        service.cancel();
+                      } else if (val == -1) {
+                        ref.read(sleepTimerProvider.notifier).set('end_of_track');
+                      } else {
+
+                        service.start(Duration(minutes: val), () {
+                          ref.read(playerServiceProvider).player.pause();
+                        });
+                      }
+                      Navigator.pop(context);
+                      HapticFeedback.selectionClick();
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // LYRICS PANEL

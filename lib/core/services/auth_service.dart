@@ -90,8 +90,10 @@ class AuthService {
     // 1. Delete all Firestore collections owned by this user
     await Future.wait([
       _deleteCollection('users/$uid/history'),
-      _deleteCollection('users/$uid/liked'),
+      _deleteCollection('users/$uid/liked_songs'),
       _deleteCollection('users/$uid/playlists'),
+      _deleteCollection('users/$uid/followed_artists'),
+      _deleteCollection('users/$uid/saved_albums'),
     ]);
 
     // 2. Delete top-level user documents
@@ -140,6 +142,7 @@ class AuthService {
       'photoUrl': user.photoURL ?? '', // Unified name
       'photoURL': user.photoURL ?? '', // Legacy support
       'lastActive': FieldValue.serverTimestamp(),
+      'isOnline': true,
     };
 
     if (!snap.exists) {
@@ -149,6 +152,17 @@ class AuthService {
     } else {
       await ref.update(data);
     }
+  }
+
+  Future<void> setUserStatus(bool isOnline) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      await _db.collection('users').doc(user.uid).update({
+        'isOnline': isOnline,
+        'lastActive': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
   }
 
   /// Batch-deletes all documents in a sub-collection.

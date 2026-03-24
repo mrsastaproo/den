@@ -14,6 +14,7 @@ import '../../core/providers/queue_meta.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
+import '../../shared/widgets/playlist_selector_sheet.dart';
 import 'spotify_import_sheet.dart';
 
 // ─── VIEW MODE ────────────────────────────────────────────────
@@ -462,6 +463,8 @@ class _LibraryBody extends ConsumerWidget {
     final history =
         ref.watch(historyProvider).value ?? [];
     final downloaded = ref.watch(downloadedSongsProvider).value ?? [];
+    final followedArtists = ref.watch(followedArtistsProvider).value ?? [];
+    final savedAlbums = ref.watch(savedAlbumsProvider).value ?? [];
 
     // Apply search filter
     List<Song> filteredLiked = searchQuery.isEmpty
@@ -496,6 +499,15 @@ class _LibraryBody extends ConsumerWidget {
       filteredPlaylists = filteredPlaylists.where((p) => p['isDownloaded'] == true).toList();
     }
 
+    // Apply search to artists and albums
+    final filteredArtists = searchQuery.isEmpty 
+        ? followedArtists 
+        : followedArtists.where((a) => (a['name'] as String).toLowerCase().contains(searchQuery.toLowerCase())).toList();
+    
+    final filteredAlbums = searchQuery.isEmpty
+        ? savedAlbums
+        : savedAlbums.where((a) => (a['name'] as String).toLowerCase().contains(searchQuery.toLowerCase())).toList();
+
     return ScrollConfiguration(
       behavior: _NoOverscrollBehavior(),
       child: CustomScrollView(
@@ -518,7 +530,7 @@ class _LibraryBody extends ConsumerWidget {
           if (filteredPlaylists.isNotEmpty)
             SliverToBoxAdapter(
               child: _SectionLabel(
-                  label: 'Playlists',
+                  label: filter == _FilterChip.downloads ? 'Downloaded Playlists' : 'Playlists',
                   count: filteredPlaylists.length),
             ),
           if (viewMode == _ViewMode.grid)
@@ -595,6 +607,58 @@ class _LibraryBody extends ConsumerWidget {
             ),
         ],
 
+        // ── Artists List ─────────────────────────────────
+        if (filter == _FilterChip.artists) ...[
+          if (filteredArtists.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: _SectionLabel(
+                  label: 'Artists',
+                  count: filteredArtists.length),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _ArtistTile(
+                    artist: filteredArtists[i],
+                    compact: viewMode == _ViewMode.compact),
+                childCount: filteredArtists.length,
+              ),
+            ),
+          ] else
+            SliverToBoxAdapter(
+              child: _EmptyState(
+                icon: Icons.person_rounded,
+                title: 'No followed artists',
+                subtitle: 'Follow artists to see them here',
+              ),
+            ),
+        ],
+
+        // ── Albums List ──────────────────────────────────
+        if (filter == _FilterChip.albums) ...[
+          if (filteredAlbums.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: _SectionLabel(
+                  label: 'Albums',
+                  count: filteredAlbums.length),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _AlbumTile(
+                    album: filteredAlbums[i],
+                    compact: viewMode == _ViewMode.compact),
+                childCount: filteredAlbums.length,
+              ),
+            ),
+          ] else
+            SliverToBoxAdapter(
+              child: _EmptyState(
+                icon: Icons.album_rounded,
+                title: 'No saved albums',
+                subtitle: 'Save albums to see them here',
+              ),
+            ),
+        ],
+
         // ── Downloaded Songs List ──────────────────────────
         if (filter == _FilterChip.downloads) ...[
           if (filteredDownloaded.isNotEmpty)
@@ -615,16 +679,16 @@ class _LibraryBody extends ConsumerWidget {
               childCount: filteredDownloaded.length,
             ),
           ),
-          if (filteredDownloaded.isEmpty)
+          if (filteredDownloaded.isEmpty && filteredPlaylists.isEmpty)
             SliverToBoxAdapter(
               child: _EmptyState(
                 icon: Icons.download_done_rounded,
-                title: 'No downloaded songs',
-                subtitle:
-                    'Download songs to listen offline',
+                title: 'No downloads',
+                subtitle: 'Songs you download\nwill appear here',
               ),
             ),
         ],
+
 
         // ── Recent History ───────────────────────────────
         if (filter == _FilterChip.all &&
@@ -648,32 +712,6 @@ class _LibraryBody extends ConsumerWidget {
             ),
           ),
         ],
-
-        // ── Artists placeholder ──────────────────────────
-        if (filter == _FilterChip.artists)
-          SliverToBoxAdapter(
-            child: _EmptyState(
-              icon: Icons.person_rounded,
-              title: 'No followed artists',
-              subtitle:
-                  'Follow artists to see them here',
-              actionLabel: 'Browse Artists',
-              onAction: () {},
-            ),
-          ),
-
-        // ── Albums placeholder ───────────────────────────
-        if (filter == _FilterChip.albums)
-          SliverToBoxAdapter(
-            child: _EmptyState(
-              icon: Icons.album_rounded,
-              title: 'No saved albums',
-              subtitle:
-                  'Save albums to listen offline',
-              actionLabel: 'Browse Albums',
-              onAction: () {},
-            ),
-          ),
 
         SliverToBoxAdapter(
             child: SizedBox(height: kDenBottomPadding + 40)),
@@ -1096,6 +1134,66 @@ class _SongTile extends ConsumerWidget {
   String _fmt(int s) {
     if (s <= 0) return '';
     return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+}
+
+// ─── ARTIST TILE ─────────────────────────────────────────────
+
+class _ArtistTile extends StatelessWidget {
+  final Map<String, dynamic> artist;
+  final bool compact;
+  const _ArtistTile({required this.artist, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = artist['name'] ?? 'Artist';
+    final image = artist['image'] ?? '';
+
+    return ListTile(
+      leading: CircleAvatar(
+        radius: compact ? 22 : 26,
+        backgroundColor: Colors.white.withOpacity(0.08),
+        child: ClipOval(
+          child: image.isNotEmpty 
+            ? CachedNetworkImage(memCacheWidth: 400, imageUrl: image, fit: BoxFit.cover, width: 52, height: 52)
+            : const Icon(Icons.person_rounded, color: AppTheme.pink),
+        ),
+      ),
+      title: Text(name, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: Text('Followed Artist', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+      onTap: () {
+        // Navigate to artist page
+      },
+    );
+  }
+}
+
+// ─── ALBUM TILE ──────────────────────────────────────────────
+
+class _AlbumTile extends StatelessWidget {
+  final Map<String, dynamic> album;
+  final bool compact;
+  const _AlbumTile({required this.album, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = album['name'] ?? 'Album';
+    final artist = album['artist'] ?? 'Unknown Artist';
+    final image = album['image'] ?? '';
+
+    return ListTile(
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: image.isNotEmpty 
+          ? CachedNetworkImage(memCacheWidth: 400, imageUrl: image, width: 44, height: 44, fit: BoxFit.cover)
+          : Container(width: 44, height: 44, color: Colors.white.withOpacity(0.08), child: const Icon(Icons.album_rounded, color: AppTheme.pink, size: 20)),
+      ),
+      title: Text(name, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: Text(artist, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+      onTap: () {
+        // Show album songs
+      },
+    );
   }
 }
 
@@ -1828,7 +1926,7 @@ class _SongOptionsSheet extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         onTap: () {
           Navigator.pop(context);
-          _showAddToPlaylistSheet(context);
+          PlaylistSelectorSheet.show(context, song);
         },
       ),
       ListTile(

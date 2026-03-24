@@ -119,7 +119,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
       visibility: NotificationVisibility.visibilityPublic,
       flag: OverlayFlag.defaultFlag,
       // Collapsed pill: 400×60 logical pixels
-      width: 400,
+      width: WindowSize.matchParent,
       height: 60,
       positionGravity: PositionGravity.auto,
     );

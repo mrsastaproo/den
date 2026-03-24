@@ -50,7 +50,7 @@ class ApiService {
   // ─── SEARCH ───────────────────────────────────────────────────────
 
   Future<List<Song>> searchSongs(String query,
-      {int page = 1, int limit = 20}) async {
+      {int page = 1, int limit = 20, bool showExplicit = true}) async {
     try {
       final res = await _dio.get('/search/songs',
         queryParameters: {
@@ -59,20 +59,24 @@ class ApiService {
           'limit': limit,
         });
       final results = res.data['data']?['results'] as List? ?? [];
-      return results.map((e) => Song.fromSumitApi(e)).toList();
+      final songs = results.map((e) => Song.fromSumitApi(e)).toList();
+      if (!showExplicit) return songs.where((s) => !s.isExplicit).toList();
+      return songs;
     } catch (e) {
       print('searchSongs error [$query]: $e');
       return [];
     }
   }
 
-  Future<List<Song>> searchBroad(String query) async {
+  Future<List<Song>> searchBroad(String query, {bool showExplicit = true}) async {
     try {
       final res = await _dio.get('/search',
         queryParameters: {'query': query});
       final songsData =
           res.data['data']?['songs']?['results'] as List? ?? [];
-      return songsData.map((e) => Song.fromSumitApi(e)).toList();
+      final songs = songsData.map((e) => Song.fromSumitApi(e)).toList();
+      if (!showExplicit) return songs.where((s) => !s.isExplicit).toList();
+      return songs;
     } catch (e) {
       return [];
     }
@@ -85,52 +89,57 @@ class ApiService {
     return noise[math.Random().nextInt(noise.length)];
   }
 
-  Future<List<Song>> getTrending() async {
+  Future<List<Song>> getTrending({String language = 'Hindi'}) async {
     final year = DateTime.now().year;
+    final lang = language.toLowerCase();
     
     // Choose a random pool on every call for maximum freshness
     final pools = [
-      ['trending bollywood $_getRandomNoise()', 'top hindi songs $year'],
-      ['viral indian hits', 'popular bollywood $_getRandomNoise()'],
-      ['top punjabi $_getRandomNoise()', 'hindi pop viral'],
-      ['bollywood romance $year', 'non stop hindi hits'],
-      ['trending haryanvi songs', 'india viral hits'],
-      ['bollywood blockbuster hits', 'top devotional hindi'],
+      ['trending $lang $_getRandomNoise()', 'top $lang songs $year'],
+      ['viral $lang hits', 'popular $lang $_getRandomNoise()'],
+      ['top $lang $_getRandomNoise()', '$lang pop viral'],
+      ['$lang romance $year', 'non stop $lang hits'],
+      ['latest $lang releases', 'india viral $lang hits'],
     ];
     
     final selectedPool = pools[math.Random().nextInt(pools.length)];
     
     return _multiSearch([
       ...selectedPool,
-      'top indian songs $_getRandomNoise()',
-      'trending now hindi',
+      'top indian $lang songs',
+      'trending now $lang',
     ], limitEach: 25);
   }
 
-  Future<List<Song>> getNewReleases() async {
+  Future<List<Song>> getNewReleases({String language = 'Hindi'}) async {
     final year = DateTime.now().year;
+    final lang = language.toLowerCase();
 
     final genrePools = [
-      ['new hindi releases $year', 'fresh indie hindi'],
-      ['latest bollywood hits', 'new punjabi $_getRandomNoise()'],
-      ['fresh indian pop', 'latest soul hindi'],
-      ['new romantic releases', 'fresh acoustic hindi'],
+      ['new $lang releases $year', 'fresh indie $lang'],
+      ['latest $lang hits', 'fresh $lang $_getRandomNoise()'],
+      ['fresh $lang pop', 'latest soul $lang'],
+      ['new romantic $lang', 'fresh acoustic $lang'],
     ];
 
     final selectedGenre = genrePools[math.Random().nextInt(genrePools.length)];
 
     return _multiSearch([
       ...selectedGenre,
-      'new songs bollywood $year',
-      'latest and greatest hindi',
+      'new songs $lang $year',
+      'latest and greatest $lang',
     ], limitEach: 15);
   }
 
-  Future<List<Song>> getTopCharts() async => _multiSearch([
-    'top 50 hindi songs',
-    'bollywood number one charts',
-    'trending india top songs',
-  ], limitEach: 15);
+  Future<List<Song>> getTopCharts({String language = 'Hindi'}) async {
+    final lang = language.toLowerCase();
+    return _multiSearch([
+      'top 50 $lang songs',
+      '$lang number one charts',
+      'trending $lang top songs',
+    ], limitEach: 15);
+  }
+
 
   Future<List<Song>> getThrowback() async {
     final pools = [
@@ -193,17 +202,20 @@ class ApiService {
   // We cache resolved URLs so skipping back to a song is instant.
   // We also retry once on failure before giving up.
 
-  Future<String> getStreamUrl(String songId) async {
+  Future<String> getStreamUrl(String songId, {String quality = '320kbps'}) async {
+    // Quality-specific cache key to avoid returning wrong quality from cache
+    final cacheKey = '${songId}_$quality';
+    
     // Return cached URL immediately if available
-    if (_urlCache.containsKey(songId)) {
-      _log('URL cache hit: $songId');
-      return _urlCache[songId]!;
+    if (_urlCache.containsKey(cacheKey)) {
+      _log('URL cache hit: $cacheKey');
+      return _urlCache[cacheKey]!;
     }
 
     // Try up to 2 times (handles Render.com cold start timeout)
     for (int attempt = 1; attempt <= 2; attempt++) {
       try {
-        _log('getStreamUrl attempt $attempt for $songId');
+        _log('getStreamUrl attempt $attempt for $songId ($quality)');
         final res = await _dio.get('/songs',
           queryParameters: {'ids': songId});
 
@@ -220,18 +232,19 @@ class ApiService {
           continue;
         }
 
-        // Prefer 320kbps, fall back to highest available
-        final best = downloadUrls.lastWhere(
-          (u) => u['quality'] == '320kbps',
-          orElse: () => downloadUrls.last,
+        // Find the URL that matches the requested quality
+        // downloadUrl objects look like: { "quality": "320kbps", "url": "..." }
+        final best = downloadUrls.firstWhere(
+          (u) => u['quality'] == quality,
+          orElse: () => downloadUrls.last, // Fallback to highest available if requested not found
         );
 
         final url = best['url'] as String? ?? '';
         if (url.isEmpty) continue;
 
         // Cache it for instant re-play
-        _urlCache[songId] = url;
-        _log('getStreamUrl success for $songId');
+        _urlCache[cacheKey] = url;
+        _log('getStreamUrl success for $songId ($quality)');
         return url;
 
       } on DioException catch (e) {
