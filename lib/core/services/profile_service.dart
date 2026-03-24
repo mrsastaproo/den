@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfileService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -14,6 +16,10 @@ class ProfileService {
     try {
       await _auth.currentUser?.updateDisplayName(name);
       await _auth.currentUser?.reload();
+      final uid = _auth.currentUser?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).update({'displayName': name});
+      }
       return true;
     } catch (e) {
       print('Update name error: $e');
@@ -21,31 +27,22 @@ class ProfileService {
     }
   }
 
-  // Upload profile photo
+  // Upload profile photo (Base64 Fallback inside Firestore)
   Future<String?> uploadProfilePhoto(File imageFile) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return null;
 
-      final ref = _storage.ref()
-        .child('profile_photos')
-        .child('$uid.jpg');
+      final bytes = await imageFile.readAsBytes();
+      final base64String = base64Encode(bytes);
 
-      final uploadTask = await ref.putFile(
-        imageFile,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
+      // Sync with Firestore directly
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({'photoUrl': base64String});
 
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-
-      // Update Firebase Auth profile
-      await _auth.currentUser?.updatePhotoURL(downloadUrl);
-      await _auth.currentUser?.reload();
-
-      return downloadUrl;
+      return base64String;
     } catch (e) {
       print('Upload photo error: $e');
-      return null;
+      rethrow;
     }
   }
 

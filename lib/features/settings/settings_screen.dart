@@ -33,7 +33,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../core/services/social_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -149,9 +151,12 @@ class _Header extends StatelessWidget {
 class _ProfileCard extends ConsumerWidget {
   final dynamic user;
   const _ProfileCard({required this.user});
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(userProfileProvider);
+    final profile      = profileAsync.value;
+    final photoUrl     = profile?['photoUrl'];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: ClipRRect(
@@ -186,14 +191,18 @@ class _ProfileCard extends ConsumerWidget {
                 child: CircleAvatar(
                   radius: 36,
                   backgroundColor: Colors.transparent,
-                  child: user?.photoURL != null
+                  child: photoUrl != null
                       ? ClipOval(
-                          child: CachedNetworkImage(memCacheWidth: 400, 
-                            imageUrl: user.photoURL,
-                            width: 72,
-                            height: 72,
-                            fit: BoxFit.cover,
-                          ),
+                          child: photoUrl.startsWith('http')
+                              ? CachedNetworkImage(
+                                  memCacheWidth: 400,
+                                  imageUrl: photoUrl,
+                                  width: 72, height: 72, fit: BoxFit.cover,
+                                )
+                              : Image.memory(
+                                  base64Decode(photoUrl),
+                                  width: 72, height: 72, fit: BoxFit.cover,
+                                ),
                         )
                       : Text(
                           (user?.email?.substring(0, 1).toUpperCase()) ?? 'D',

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -946,6 +947,7 @@ class _QuickAccessGrid extends ConsumerWidget {
         ),
         itemCount: _items.length,
         itemBuilder: (_, i) => _QuickTile(
+          key: ValueKey(_items[i].label),
           item: _items[i],
           delay: i * 50,
         ),
@@ -978,7 +980,7 @@ class _QuickTile extends ConsumerStatefulWidget {
   final _QItem item;
   final int delay;
 
-  const _QuickTile({required this.item, required this.delay});
+  const _QuickTile({super.key, required this.item, required this.delay});
 
   @override
   ConsumerState<_QuickTile> createState() => _QuickTileState();
@@ -1170,7 +1172,7 @@ class _HeroCarousel extends ConsumerStatefulWidget {
 class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   late final PageController _pc = PageController(viewportFraction: 0.88);
   int _current = 0;
-  bool _autoScrolling = false;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -1179,21 +1181,12 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   }
 
   void _startAutoScroll() {
-    Future.delayed(const Duration(seconds: 4), () {
-      if (!mounted || _autoScrolling) return;
-      _autoScrolling = true;
-      _tick();
-    });
-  }
-
-  void _tick() {
-    Future.delayed(const Duration(seconds: 4), () {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (!mounted) return;
       final songs = ref.read(newReleasesProvider).value;
-      if (songs == null || songs.isEmpty) {
-        _tick();
-        return;
-      }
+      if (songs == null || songs.isEmpty) return;
+
       final next = (_current + 1) % songs.length;
       if (_pc.hasClients) {
         _pc.animateToPage(
@@ -1202,12 +1195,12 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
           curve: Curves.easeInOutCubic,
         );
       }
-      _tick();
     });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _pc.dispose();
     super.dispose();
   }
@@ -1243,6 +1236,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
                 itemCount: songs.length,
                 onPageChanged: (i) => setState(() => _current = i),
                 itemBuilder: (_, i) => _HeroCard(
+                  key: ValueKey(songs[i].id),
                   song: songs[i],
                   isActive: i == _current,
                   gradIndex: i,
@@ -1344,6 +1338,7 @@ class _HeroCard extends StatefulWidget {
   ];
 
   const _HeroCard({
+    super.key,
     required this.song,
     required this.isActive,
     required this.gradIndex,

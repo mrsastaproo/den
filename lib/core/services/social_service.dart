@@ -229,6 +229,15 @@ class SocialService {
         });
   }
 
+  Future<List<Map<String, dynamic>>> getDiscoverUsers() async {
+    if (userId == null) return [];
+    final snap = await _db.collection('users').limit(50).get();
+    return snap.docs
+        .where((d) => d.id != userId)
+        .map((d) => {'uid': d.id, ...d.data()})
+        .toList();
+  }
+
   // ─── PRESENCE ──────────────────────────────────────────────────
 
   /// Update online state with optional status (Online, Away, Busy) and current song info
@@ -298,4 +307,31 @@ final otherUserProfileProvider = StreamProvider.family<Map<String, dynamic>?, St
 
 final isBlockedProvider = StreamProvider.family<bool, String>((ref, targetUid) {
   return ref.watch(socialServiceProvider).isBlocked(targetUid);
+});
+
+final discoverTimerProvider = StreamProvider.autoDispose<int>((ref) {
+  return Stream.periodic(const Duration(seconds: 60), (count) => count);
+});
+
+final discoverUsersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  ref.watch(discoverTimerProvider); // Trigger periodic invalidations
+  final users = await ref.read(socialServiceProvider).getDiscoverUsers();
+
+  // Enforce 10 min timeout filter
+  bool isUserOnline(Map<String, dynamic> u) {
+    if (u['isOnline'] != true) return false;
+    final lastActive = u['lastActive'] as Timestamp?;
+    if (lastActive == null) return false;
+    return DateTime.now().difference(lastActive.toDate()).inMinutes < 10;
+  }
+
+  users.sort((a, b) {
+    final onlineA = isUserOnline(a);
+    final onlineB = isUserOnline(b);
+    if (onlineA && !onlineB) return -1;
+    if (!onlineA && onlineB) return 1;
+    return 0;
+  });
+  
+  return users;
 });

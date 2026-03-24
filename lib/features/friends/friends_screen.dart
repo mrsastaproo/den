@@ -1,9 +1,11 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/services/social_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -348,7 +350,19 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   // ─── Discover Tab ──────────────────────────────────────────────────────────
 
   Widget _buildDiscoverTab() {
-    return _buildSearchResults(isDiscover: true);
+    final discoverAsync = ref.watch(discoverUsersProvider);
+    return discoverAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.pink, strokeWidth: 2)),
+      error: (e, _) => _buildEmpty('Something went wrong', Icons.wifi_off_rounded),
+      data: (users) {
+        if (users.isEmpty) return _buildEmpty('No users found', Icons.person_search_rounded);
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+          itemCount: users.length,
+          itemBuilder: (c, i) => _DiscoverCard(data: users[i]).animate(delay: (i * 50).ms).fadeIn(duration: 400.ms).slideX(begin: 0.1, end: 0),
+        );
+      },
+    );
   }
 
   // ─── Requests Tab ──────────────────────────────────────────────────────────
@@ -557,8 +571,10 @@ class _FriendCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(otherUserProfileProvider(data['uid'] ?? ''));
-    final liveData = profileAsync.value;
-    final isOnline = liveData?['isOnline'] == true;
+    final liveData     = profileAsync.value;
+    final lastActive   = liveData?['lastActive'] as Timestamp?;
+    final isOnline     = liveData?['isOnline'] == true &&
+                        (lastActive != null && DateTime.now().difference(lastActive.toDate()).inMinutes < 10);
     final username = liveData?['username'] ?? data['username'] ?? 'User';
     final photoUrl = liveData?['photoUrl'] ?? data['photoUrl'];
 
@@ -632,10 +648,12 @@ class _FriendCard extends ConsumerWidget {
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: const Color(0xFF2A1F3D),
-                  backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                  child: photoUrl == null
-                      ? Text(username.isNotEmpty ? username[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))
-                      : null,
+                  backgroundImage: photoUrl != null && photoUrl.startsWith('http') ? NetworkImage(photoUrl) : null,
+                  child: photoUrl != null && !photoUrl.startsWith('http')
+                      ? ClipOval(child: Image.memory(base64Decode(photoUrl), fit: BoxFit.cover, width: 52, height: 52))
+                      : photoUrl == null
+                          ? Text(username.isNotEmpty ? username[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))
+                          : null,
                 ),
                 Positioned(
                   right: 0, bottom: 0,
@@ -857,6 +875,75 @@ class _GlowButton extends StatelessWidget {
           boxShadow: [BoxShadow(color: AppTheme.pink.withOpacity(0.4), blurRadius: 14, spreadRadius: 0)],
         ),
         child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _DiscoverCard extends ConsumerWidget {
+  final Map<String, dynamic> data;
+  const _DiscoverCard({required this.data});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(otherUserProfileProvider(data['uid'] ?? ''));
+    final liveData     = profileAsync.value;
+    final lastActive   = liveData?['lastActive'] as Timestamp?;
+    final isOnline     = liveData?['isOnline'] == true &&
+                        (lastActive != null && DateTime.now().difference(lastActive.toDate()).inMinutes < 10);
+    final username     = liveData?['username'] ?? data['username'] ?? 'User';
+    final photoUrl     = liveData?['photoUrl'] ?? data['photoUrl'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: const Color(0xFF2A1F3D),
+            backgroundImage: photoUrl != null && photoUrl.startsWith('http') ? NetworkImage(photoUrl) : null,
+            child: photoUrl != null && !photoUrl.startsWith('http')
+                ? ClipOval(child: Image.memory(base64Decode(photoUrl), fit: BoxFit.cover, width: 48, height: 48))
+                : photoUrl == null
+                    ? Text(username.isNotEmpty ? username[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                    : null,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('@$username', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 4),
+                if (liveData?['nowPlaying'] != null)
+                  Row(
+                    children: [
+                      Icon(Icons.music_note_rounded, size: 10, color: AppTheme.neonBlue.withValues(alpha: 0.8)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Listening to ${liveData!['nowPlaying']['title']}',
+                          style: TextStyle(color: AppTheme.neonBlue.withValues(alpha: 0.7), fontSize: 11, fontWeight: FontWeight.w500),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    isOnline ? '🟢 Online' : '⚫ Offline',
+                    style: TextStyle(color: isOnline ? AppTheme.neonGreen.withValues(alpha: 0.8) : Colors.white30, fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

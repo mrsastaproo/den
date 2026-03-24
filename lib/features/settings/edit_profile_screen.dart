@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../core/services/social_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -82,8 +84,13 @@ class _EditProfileScreenState
     }
 
     if (_image != null) {
-      final url = await profile.uploadProfilePhoto(_image!);
-      if (url == null) ok = false;
+      try {
+        final url = await profile.uploadProfilePhoto(_image!);
+        if (url == null) ok = false;
+      } catch (e) {
+        ok = false;
+        _snack('Upload failed: $e');
+      }
     }
 
     setState(() => _loading = false);
@@ -119,7 +126,7 @@ class _EditProfileScreenState
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + MediaQuery.of(context).padding.bottom),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.8),
               borderRadius: const BorderRadius.vertical(
@@ -181,6 +188,9 @@ class _EditProfileScreenState
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
+    final profileAsync = ref.watch(userProfileProvider);
+    final profile = profileAsync.value;
+    final photoUrl = profile?['photoUrl'];
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -292,12 +302,14 @@ class _EditProfileScreenState
                                   width: 104, height: 104,
                                   child: _image != null
                                       ? Image.file(_image!, fit: BoxFit.cover)
-                                      : (user?.photoURL?.isNotEmpty ?? false)
-                                          ? CachedNetworkImage(memCacheWidth: 400, 
-                                              imageUrl: user!.photoURL!,
-                                              fit: BoxFit.cover,
-                                              errorWidget: (_, __, ___) =>
-                                                  _AvatarPlaceholder(user: user))
+                                      : photoUrl != null
+                                          ? photoUrl.startsWith('http')
+                                              ? CachedNetworkImage(memCacheWidth: 400, 
+                                                  imageUrl: photoUrl,
+                                                  fit: BoxFit.cover,
+                                                  errorWidget: (_, __, ___) =>
+                                                      _AvatarPlaceholder(user: user))
+                                              : Image.memory(base64Decode(photoUrl), fit: BoxFit.cover)
                                           : _AvatarPlaceholder(user: user),
                                 ),
                               ),
