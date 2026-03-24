@@ -933,25 +933,33 @@ class _QuickAccessGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-      child: GridView.builder(
-        padding: EdgeInsets.zero,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 3.0,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-        ),
-        itemCount: _items.length,
-        itemBuilder: (_, i) => _QuickTile(
-          key: ValueKey(_items[i].label),
-          item: _items[i],
-          delay: i * 50,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 360;
+        final crossAxisCount = isCompact ? 1 : 2;
+        final childAspectRatio = isCompact ? 3.8 : 3.0;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+          child: GridView.builder(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: childAspectRatio,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: _items.length,
+            itemBuilder: (_, i) => _QuickTile(
+              key: ValueKey(_items[i].label),
+              item: _items[i],
+              delay: i * 50,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1230,7 +1238,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
               },
             ),
             SizedBox(
-              height: 230,
+              height: MediaQuery.of(context).size.width < 360 ? 180 : 230,
               child: PageView.builder(
                 controller: _pc,
                 itemCount: songs.length,

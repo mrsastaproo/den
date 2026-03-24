@@ -529,6 +529,9 @@ class PlayerService {
         final idx  = _ref.read(currentSongIndexProvider);
         final next = idx + 1;
         if (next < newList.length) _doSkip(newList[next], next);
+      } else {
+        final idx = _ref.read(currentSongIndexProvider);
+        _prefetchNextTrack(idx);
       }
     } else if (!prefetch) {
       final idx = _ref.read(currentSongIndexProvider);
