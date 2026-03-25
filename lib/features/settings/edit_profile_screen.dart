@@ -1,14 +1,11 @@
-import 'dart:io';
 import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../core/services/social_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/services/social_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/profile_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -24,8 +21,6 @@ class _EditProfileScreenState
     extends ConsumerState<EditProfileScreen> {
   late TextEditingController _nameCtrl;
   final _nameFocus = FocusNode();
-  final _picker    = ImagePicker();
-  File? _image;
   bool _loading    = false;
   bool _nameChanged = false;
   String? _nameError;
@@ -52,51 +47,7 @@ class _EditProfileScreenState
     super.dispose();
   }
 
-  bool get _hasChanges => _nameChanged || _image != null;
-
-  Future<void> _pickImage(ImageSource src) async {
-    try {
-      final picked = await _picker.pickImage(
-        source: src,
-        maxWidth: 1024, 
-        maxHeight: 1024, 
-        imageQuality: 90,
-      );
-      
-      if (picked == null) return;
-
-      final croppedFile = await ImageCropper().cropImage(
-        sourcePath: picked.path,
-        aspectRatioPresets: [CropAspectRatioPreset.square],
-        compressFormat: ImageCompressFormat.jpg,
-        compressQuality: 90,
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Crop Profile Photo',
-            toolbarColor: Colors.black,
-            toolbarWidgetColor: AppTheme.pink,
-            activeControlsWidgetColor: AppTheme.pink,
-            initAspectRatio: CropAspectRatioPreset.square,
-            lockAspectRatio: true,
-            backgroundColor: Colors.black,
-          ),
-          IOSUiSettings(
-            title: 'Crop Photo',
-            aspectRatioLockEnabled: true,
-            resetAspectRatioEnabled: false,
-          ),
-        ],
-      );
-
-      if (croppedFile != null) {
-        setState(() => _image = File(croppedFile.path));
-        _snack('Photo ready to save 📸');
-      }
-    } catch (e) {
-      print('Image pick/crop error: $e');
-      _snack('Could not update image. Please try again.');
-    }
-  }
+  bool get _hasChanges => _nameChanged;
 
   Future<void> _save() async {
     // Validate name
@@ -115,15 +66,6 @@ class _EditProfileScreenState
           _nameCtrl.text.trim());
     }
 
-    if (_image != null) {
-      try {
-        final url = await profile.uploadProfilePhoto(_image!);
-        if (url == null) ok = false;
-      } catch (e) {
-        ok = false;
-        _snack('Upload failed: $e');
-      }
-    }
 
     setState(() => _loading = false);
 
@@ -145,78 +87,6 @@ class _EditProfileScreenState
           borderRadius: BorderRadius.circular(14)),
       duration: const Duration(seconds: 2),
     ));
-  }
-
-  void _showPhotoSheet() {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => ClipRRect(
-        borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(28)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + MediaQuery.of(context).padding.bottom),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.8),
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28)),
-              border: Border.all(
-                  color: Colors.white.withOpacity(0.08))),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 36, height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(2))),
-                  const SizedBox(height: 20),
-                  const Text('Update Photo',
-                    style: TextStyle(color: Colors.white,
-                      fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 16),
-                  _PhotoOption(
-                    icon: Icons.camera_alt_rounded,
-                    label: 'Take Photo',
-                    colors: [AppTheme.pink, AppTheme.pinkDeep],
-                    onTap: () {
-                      Navigator.pop(context);
-                      _pickImage(ImageSource.camera);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _PhotoOption(
-                    icon: Icons.photo_library_rounded,
-                    label: 'Choose from Gallery',
-                    colors: [AppTheme.purple, AppTheme.purpleDeep],
-                    onTap: () {
-                      Navigator.pop(context);
-                      _pickImage(ImageSource.gallery);
-                    },
-                  ),
-                  if (_image != null || 
-                      (ref.read(authStateProvider).value?.photoURL?.isNotEmpty ?? false)) ...[
-                    const SizedBox(height: 10),
-                    _PhotoOption(
-                      icon: Icons.delete_rounded,
-                      label: 'Remove Photo',
-                      colors: [Colors.red.shade400, Colors.red.shade600],
-                      onTap: () {
-                        setState(() => _image = null);
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -253,7 +123,7 @@ class _EditProfileScreenState
 
               // â”€â”€ Top Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+                padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -313,70 +183,27 @@ class _EditProfileScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
-                      // â”€â”€ Avatar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                      // â”€â”€ Avatar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       Center(
-                        child: GestureDetector(
-                          onTap: _showPhotoSheet,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Glow ring
-                              Container(
-                                width: 110, height: 110,
-                                decoration: BoxDecoration(
-                                  gradient: AppTheme.primaryGradient,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppTheme.pink.withOpacity(0.4),
-                                      blurRadius: 24, spreadRadius: -4),
-                                  ],
-                                ),
-                              ),
-                              // Avatar
-                              ClipOval(
-                                child: SizedBox(
-                                  width: 104, height: 104,
-                                  child: _image != null
-                                      ? Image.file(_image!, fit: BoxFit.cover)
-                                      : photoUrl != null
-                                          ? photoUrl.startsWith('http')
-                                              ? CachedNetworkImage(memCacheWidth: 400, 
-                                                  imageUrl: photoUrl,
-                                                  fit: BoxFit.cover,
-                                                  errorWidget: (_, __, ___) =>
-                                                      _AvatarPlaceholder(user: user))
-                                              : Image.memory(base64Decode(photoUrl), fit: BoxFit.cover)
-                                          : _AvatarPlaceholder(user: user),
-                                ),
-                              ),
-                              // Camera overlay
-                              Positioned(
-                                bottom: 0, right: 0,
-                                child: Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(
-                                    gradient: AppTheme.primaryGradient,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.black, width: 2)),
-                                  child: const Icon(Icons.camera_alt_rounded,
-                                      color: Colors.white, size: 15)),
-                              ),
-                            ],
+                        child: ClipOval(
+                          child: SizedBox(
+                            width: 104, height: 104,
+                            child: photoUrl != null
+                                ? photoUrl.startsWith('http')
+                                    ? CachedNetworkImage(memCacheWidth: 400, 
+                                        imageUrl: photoUrl,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (_, __, ___) =>
+                                            _AvatarPlaceholder(user: user))
+                                    : Image.memory(base64Decode(photoUrl), fit: BoxFit.cover)
+                                : _AvatarPlaceholder(user: user),
                           ),
                         ),
                       ).animate().fadeIn(duration: 400.ms)
                           .scale(begin: const Offset(0.9, 0.9),
                             duration: 400.ms, curve: Curves.easeOutBack),
 
-                      const SizedBox(height: 6),
-                      Center(
-                        child: Text('Tap to change photo',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.35),
-                            fontSize: 12)),
-                      ),
+                      const SizedBox(height: 12),
 
                       const SizedBox(height: 32),
 
@@ -687,58 +514,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€ PHOTO OPTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-class _PhotoOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final List<Color> colors;
-  final VoidCallback onTap;
-
-  const _PhotoOption({
-    required this.icon,
-    required this.label,
-    required this.colors,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            colors[0].withOpacity(0.15),
-            colors[1].withOpacity(0.08),
-          ]),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: colors[0].withOpacity(0.25))),
-        child: Row(children: [
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: colors),
-              borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: Colors.white, size: 18)),
-          const SizedBox(width: 12),
-          Text(label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600)),
-          const Spacer(),
-          Icon(Icons.chevron_right_rounded,
-            color: Colors.white.withOpacity(0.3), size: 18),
-        ]),
-      ),
-    );
-  }
-}
 
 // â”€â”€â”€ DANGER ZONE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

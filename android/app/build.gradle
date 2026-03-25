@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.mrsastaproo.den"
-    compileSdk = 36
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -42,5 +42,6 @@ flutter {
 }
 
 dependencies {
+    implementation "androidx.appcompat:appcompat:1.6.1"
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }
