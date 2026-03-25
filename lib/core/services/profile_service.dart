@@ -27,19 +27,35 @@ class ProfileService {
     }
   }
 
-  // Upload profile photo (Base64 Fallback inside Firestore)
+  // Upload profile photo to Firebase Storage
   Future<String?> uploadProfilePhoto(File imageFile) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return null;
 
-      final bytes = await imageFile.readAsBytes();
-      final base64String = base64Encode(bytes);
+      // 1. Upload to Firebase Storage
+      final storageRef = _storage.ref().child('profiles').child('$uid.jpg');
+      
+      // Add metadata
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {'userId': uid},
+      );
 
-      // Sync with Firestore directly
-      await FirebaseFirestore.instance.collection('users').doc(uid).update({'photoUrl': base64String});
+      final uploadTask = await storageRef.putFile(imageFile, metadata);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
 
-      return base64String;
+      // 2. Update Firebase Auth Profile
+      await _auth.currentUser?.updatePhotoURL(downloadUrl);
+      await _auth.currentUser?.reload();
+
+      // 3. Sync with Firestore directly
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'photoUrl': downloadUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return downloadUrl;
     } catch (e) {
       print('Upload photo error: $e');
       rethrow;

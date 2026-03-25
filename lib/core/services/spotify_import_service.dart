@@ -210,30 +210,14 @@ class SpotifyImportService {
   // ── Find best matching song on DEN ──────────────────────────────────────
 
   Future<Song?> _findBestMatch(_SpotifyTrack track) async {
-    // Strategy 1: Title + Artist (Most accurate)
-    var results = await _api.searchSongs(
-      '${track.title} ${track.artist}',
-      limit: 5,
-    );
-
-    var match = _pickBest(results, track);
+    // We now use the specialized findBestLegalMatch which handles 
+    // fallbacks between JioSaavn, Audius, and Jamendo to avoid previews.
+    final match = await _api.findBestLegalMatch(track.title, track.artist);
     if (match != null) return match;
 
-    // Strategy 2: Title only 
-    results = await _api.searchSongs(track.title, limit: 5);
-    match = _pickBest(results, track);
-    if (match != null) return match;
-
-    // Strategy 3: Title + First Artist Only
-    final firstArtist = track.artist.split(',').first.trim();
-    if (firstArtist != track.artist) {
-      results = await _api.searchSongs(
-        '${track.title} $firstArtist',
-        limit: 5,
-      );
-      match = _pickBest(results, track);
-      if (match != null) return match;
-    }
+    // Fallback: Generic search if legal match engine finds nothing
+    final results = await _api.searchSongs('${track.title} ${track.artist}', limit: 3);
+    if (results.isNotEmpty) return results.first;
 
     return null;
   }

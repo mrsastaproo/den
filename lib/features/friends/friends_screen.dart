@@ -9,6 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/chat_service.dart';
 import '../../core/theme/app_theme.dart';
 
 // ─── GAMING COLOR CONSTANTS ───────────────────────────────────────────────────
@@ -803,6 +804,9 @@ class _FriendCard extends ConsumerWidget {
     final isListening = liveData?['nowPlaying'] != null;
     final username    = liveData?['username'] ?? data['username'] ?? 'User';
     final photoUrl    = liveData?['photoUrl'] ?? data['photoUrl'];
+    
+    final unreadCountAsync = ref.watch(unreadCountProvider(data['uid'] ?? ''));
+    final unreadCount = unreadCountAsync.value ?? 0;
 
     return GestureDetector(
       onTap: () { HapticFeedback.lightImpact(); onTap(); },
@@ -933,10 +937,10 @@ class _FriendCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(10),
                         color: _GC.cyan.withValues(alpha: 0.06),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.chat_bubble_rounded, color: _GC.cyan, size: 13),
+                          const Icon(Icons.chat_bubble_rounded, color: _GC.cyan, size: 13),
                           SizedBox(width: 6),
                           Text(
                             'CHAT',
@@ -947,6 +951,32 @@ class _FriendCard extends ConsumerWidget {
                               letterSpacing: 1.5,
                             ),
                           ),
+                          if (unreadCount > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _GC.magenta,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _GC.magenta.withValues(alpha: 0.6),
+                                    blurRadius: 8,
+                                    spreadRadius: 0,
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                unreadCount > 99 ? '99+' : '$unreadCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ).animate(onPlay: (c) => c.repeat(reverse: true))
+                             .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 800.ms),
+                          ],
                         ],
                       ),
                     ),

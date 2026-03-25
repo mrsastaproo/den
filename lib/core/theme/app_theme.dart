@@ -34,6 +34,7 @@ class AppTheme {
   static const Color neonGreen    = Color(0xFF39FF14);  // Gaming neon green
   static const Color neonBlue     = Color(0xFF00F3FF);  // Gaming neon cyan/blue
   static const Color neonPurple   = Color(0xFFBC13FE);  // Gaming neon purple
+  static const Color magenta      = Color(0xFFFF006E);  // Gaming neon magenta
 
   // ─── Glass Colors ──────────────────────────────────
   static const Color glassWhite   = Color(0x14FFFFFF);  // 8% white

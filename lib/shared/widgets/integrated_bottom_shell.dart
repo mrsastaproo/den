@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
+import '../../core/services/chat_service.dart';
 import 'player_screen.dart';
 
 class IntegratedBottomShell extends ConsumerWidget {
@@ -24,6 +25,7 @@ class IntegratedBottomShell extends ConsumerWidget {
     // Current track info for the center orb
     final currentSong = ref.watch(currentSongProvider);
     final isPlaying = ref.watch(isPlayingStreamProvider).value ?? false;
+    final totalUnread = ref.watch(totalUnreadCountProvider);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 32),
@@ -118,6 +120,7 @@ class IntegratedBottomShell extends ConsumerWidget {
                     index: 4,
                     currentIndex: currentIndex,
                     onTap: onTap,
+                    badgeCount: totalUnread,
                   ),
                 ),
                 Expanded(
@@ -234,12 +237,14 @@ class _NavItem extends StatefulWidget {
   final int index;
   final int currentIndex;
   final Function(int) onTap;
+  final int badgeCount;
 
   const _NavItem({
     required this.icon,
     required this.index,
     required this.currentIndex,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -292,15 +297,56 @@ class _NavItemState extends State<_NavItem>
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         child: AnimatedBuilder(
           animation: _controller,
-          builder: (_, __) => Transform.scale(
-            scale: _scaleAnim.value,
-            child: Icon(
-              widget.icon,
-              size: 26,
-              color: isSelected
-                  ? Colors.white
-                  : Colors.white.withOpacity(0.4),
-            ),
+          builder: (_, __) => Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Transform.scale(
+                scale: _scaleAnim.value,
+                child: Icon(
+                  widget.icon,
+                  size: 26,
+                  color: isSelected
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.4),
+                ),
+              ),
+              if (widget.badgeCount > 0)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(1.5),
+                    constraints: const BoxConstraints(
+                      minWidth: 13,
+                      minHeight: 13,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.magenta,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.9), width: 1.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.magenta.withOpacity(0.4),
+                          blurRadius: 4,
+                          spreadRadius: 0.5,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.badgeCount > 9 ? '9+' : '${widget.badgeCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ).animate(onPlay: (c) => c.repeat(reverse: true))
+                   .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 1200.ms),
+                ),
+            ],
           ),
         ),
       ),

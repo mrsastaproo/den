@@ -174,6 +174,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final List<ProviderBase> providers = [
       sessionSeedProvider,
       trendingProvider, newReleasesProvider, topChartsProvider, throwbackProvider,
+      globalDiscoveryProvider, trendingEnglishProvider,
       timeBasedSongsProvider, romanticSongsProvider, partyHitsProvider,
       chillVibesProvider, focusMixProvider, sadSongsProvider, indieHitsProvider,
       devotionalProvider, punjabiBangerProvider, workoutBangerProvider
@@ -237,6 +238,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
               // Hero carousel (New Releases)
               const SliverToBoxAdapter(child: _HeroCarousel()),
+              
+              // NEW: Global Discovery (International Hits)
+              if (ref.watch(musicLanguageProvider).toLowerCase() == 'english')
+                SliverToBoxAdapter(
+                  child: _LiquidSection(
+                    title: 'Global Discovery',
+                    subtitle: 'latest international hits',
+                    icon: Icons.public_rounded,
+                    accentColor: const Color(0xFF89CFF0),
+                    provider: ref.watch(globalDiscoveryProvider),
+                    cardStyle: _CardStyle.wide,
+                    queueMeta: const QueueMeta(context: QueueContext.chart, chartName: 'Global'),
+                  ),
+                ),
+              
+              // NEW: Trending English Hits (Billboard Mapping)
+              if (ref.watch(musicLanguageProvider).toLowerCase() == 'english')
+                SliverToBoxAdapter(
+                  child: _LiquidSection(
+                    title: 'Trending English Hits',
+                    subtitle: 'Billboard Hot 100 & Spotify Global',
+                    icon: Icons.trending_up_rounded,
+                    accentColor: const Color(0xFF00E5FF),
+                    provider: ref.watch(trendingEnglishProvider),
+                    cardStyle: _CardStyle.standard,
+                    queueMeta: const QueueMeta(context: QueueContext.chart, chartName: 'Trending English'),
+                  ),
+                ),
 
               // Trending Now
               SliverToBoxAdapter(

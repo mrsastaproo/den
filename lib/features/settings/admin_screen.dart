@@ -12,23 +12,28 @@ import '../../core/services/auth_service.dart';
 // ADMIN PANEL — accessible only for mrsastapro@gmail.com
 // ─────────────────────────────────────────────────────────────
 
-// Active tab provider
 final _adminTabProvider = StateProvider<int>((ref) => 0);
 
 Future<bool> _confirm(BuildContext context, String message) async {
   return await showDialog<bool>(
-    context: context,
-    builder: (ctx) => _AdminDialog(
-      title: 'Confirm',
-      message: message,
-      confirmLabel: 'Yes',
-      isDestructive: false,
-      onConfirm: () => Navigator.pop(ctx, true),
-    ),
-  ) ?? false;
+        context: context,
+        builder: (ctx) => _AdminDialog(
+          title: 'Confirm',
+          message: message,
+          confirmLabel: 'Yes',
+          isDestructive: false,
+          onConfirm: () => Navigator.pop(ctx, true),
+        ),
+      ) ??
+      false;
 }
 
 String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
+
+String _fmtDateTime(DateTime d) =>
+    '${d.day}/${d.month}/${d.year}  '
+    '${d.hour.toString().padLeft(2, '0')}:'
+    '${d.minute.toString().padLeft(2, '0')}';
 
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
@@ -37,7 +42,6 @@ class AdminScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isAdmin = ref.watch(isAdminProvider);
 
-    // Hard guard — should never reach here for non-admins
     if (!isAdmin) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -63,15 +67,10 @@ class AdminScreen extends ConsumerWidget {
       backgroundColor: const Color(0xFF070707),
       body: Stack(
         children: [
-          // Ambient background
           _AdminAmbient(),
-
           Column(
             children: [
-              // Header
               _AdminHeader(currentTab: tab, tabs: tabs),
-
-              // Tab bar
               _AdminTabBar(
                 tabs: tabs,
                 selected: tab,
@@ -80,8 +79,6 @@ class AdminScreen extends ConsumerWidget {
                   ref.read(_adminTabProvider.notifier).state = i;
                 },
               ),
-
-              // Content
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 280),
@@ -125,9 +122,11 @@ class _AdminAmbient extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(children: [
       Positioned(
-        top: -80, left: -60,
+        top: -80,
+        left: -60,
         child: Container(
-          width: 280, height: 280,
+          width: 280,
+          height: 280,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: RadialGradient(colors: [
@@ -138,9 +137,11 @@ class _AdminAmbient extends StatelessWidget {
         ),
       ),
       Positioned(
-        top: 200, right: -50,
+        top: 200,
+        right: -50,
         child: Container(
-          width: 200, height: 200,
+          width: 200,
+          height: 200,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: RadialGradient(colors: [
@@ -175,10 +176,11 @@ class _AdminHeader extends ConsumerWidget {
         child: Container(
           padding: EdgeInsets.fromLTRB(20, top + 12, 20, 14),
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [
-              Colors.black.withOpacity(0.8),
-              Colors.transparent,
-            ], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+            gradient: LinearGradient(
+              colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
             border: Border(
               bottom: BorderSide(
                   color: Colors.white.withOpacity(0.06), width: 0.5),
@@ -186,10 +188,9 @@ class _AdminHeader extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              // Admin badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFFFF3366), Color(0xFF6C63FF)],
@@ -198,23 +199,23 @@ class _AdminHeader extends ConsumerWidget {
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFFFF3366).withOpacity(0.3),
-                      blurRadius: 12, spreadRadius: -3,
+                      blurRadius: 12,
+                      spreadRadius: -3,
                     ),
                   ],
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.shield_rounded,
-                        color: Colors.white, size: 14),
+                    Icon(Icons.shield_rounded, color: Colors.white, size: 14),
                     SizedBox(width: 5),
                     Text('ADMIN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
-                      )),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        )),
                   ],
                 ),
               ),
@@ -224,21 +225,20 @@ class _AdminHeader extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('DEN Admin Panel',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                      )),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        )),
                     Text(user?.email ?? '',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 11,
-                      )),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 11,
+                        )),
                   ],
                 ),
               ),
-              // Refresh stats
               _AdminIconBtn(
                 icon: Icons.refresh_rounded,
                 onTap: () async {
@@ -247,7 +247,6 @@ class _AdminHeader extends ConsumerWidget {
                 },
               ),
               const SizedBox(width: 8),
-              // Back
               _AdminIconBtn(
                 icon: Icons.close_rounded,
                 onTap: () => Navigator.of(context).pop(),
@@ -271,7 +270,8 @@ class _AdminIconBtn extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: 36, height: 36,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.07),
           borderRadius: BorderRadius.circular(10),
@@ -316,8 +316,8 @@ class _AdminTabBar extends StatelessWidget {
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 gradient: sel
                     ? const LinearGradient(
@@ -333,28 +333,31 @@ class _AdminTabBar extends StatelessWidget {
                   width: 0.8,
                 ),
                 boxShadow: sel
-                    ? [BoxShadow(
-                        color: const Color(0xFFFF3366).withOpacity(0.25),
-                        blurRadius: 12, spreadRadius: -4)]
+                    ? [
+                        BoxShadow(
+                            color: const Color(0xFFFF3366).withOpacity(0.25),
+                            blurRadius: 12,
+                            spreadRadius: -4)
+                      ]
                     : [],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(tab.icon,
-                    color: sel
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.45),
-                    size: 13),
+                      color:
+                          sel ? Colors.white : Colors.white.withOpacity(0.45),
+                      size: 13),
                   const SizedBox(width: 5),
                   Text(tab.label,
-                    style: TextStyle(
-                      color: sel
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.45),
-                      fontSize: 12,
-                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                    )),
+                      style: TextStyle(
+                        color: sel
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.45),
+                        fontSize: 12,
+                        fontWeight:
+                            sel ? FontWeight.w700 : FontWeight.w500,
+                      )),
                 ],
               ),
             ),
@@ -380,86 +383,86 @@ class _DashboardTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
       physics: const BouncingScrollPhysics(),
       children: [
-        // Stats grid
-        stats.when(
-          loading: () => _shimmerGrid(),
-          error: (e, _) => _ErrorCard(message: e.toString()),
-          data: (s) => Column(
-            children: [
-              Row(children: [
-                Expanded(child: _StatCard(
-                  label: 'Total Users',
-                  value: _fmt(s.totalUsers),
-                  icon: Icons.people_rounded,
-                  color: const Color(0xFF6C63FF),
-                )),
-                const SizedBox(width: 10),
-                Expanded(child: _StatCard(
-                  label: 'Active Today',
-                  value: _fmt(s.activeToday),
-                  icon: Icons.trending_up_rounded,
-                  color: const Color(0xFF11D47B),
-                )),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: _StatCard(
-                  label: 'Total Plays',
-                  value: _fmt(s.totalPlays),
-                  icon: Icons.play_circle_rounded,
-                  color: const Color(0xFFFF3366),
-                )),
-                const SizedBox(width: 10),
-                Expanded(child: _StatCard(
-                  label: 'Total Likes',
-                  value: _fmt(s.totalLikes),
-                  icon: Icons.favorite_rounded,
-                  color: const Color(0xFFFF85A1),
-                )),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: _StatCard(
-                  label: 'Playlists',
-                  value: _fmt(s.totalPlaylists),
-                  icon: Icons.queue_music_rounded,
-                  color: const Color(0xFFFFD700),
-                )),
-                const SizedBox(width: 10),
-                Expanded(child: _StatCard(
-                  label: 'Banned',
-                  value: _fmt(s.bannedUsers),
-                  icon: Icons.block_rounded,
-                  color: const Color(0xFFFF4444),
-                )),
-              ]),
-              const SizedBox(height: 10),
-              _StatCard(
-                label: 'Active Announcements',
-                value: _fmt(s.activeAnnouncements),
-                icon: Icons.campaign_rounded,
-                color: const Color(0xFFF7971E),
-                wide: true,
-              ),
-              if (s.lastUpdated != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Last updated: ${_fmtDate(s.lastUpdated!)}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.25),
-                      fontSize: 11),
-                    textAlign: TextAlign.center,
+        stats
+            .when(
+              loading: () => _shimmerGrid(),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+              data: (s) => Column(
+                children: [
+                  Row(children: [
+                    Expanded(
+                        child: _StatCard(
+                            label: 'Total Users',
+                            value: _fmt(s.totalUsers),
+                            icon: Icons.people_rounded,
+                            color: const Color(0xFF6C63FF))),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _StatCard(
+                            label: 'Active Today',
+                            value: _fmt(s.activeToday),
+                            icon: Icons.trending_up_rounded,
+                            color: const Color(0xFF11D47B))),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                        child: _StatCard(
+                            label: 'Total Plays',
+                            value: _fmt(s.totalPlays),
+                            icon: Icons.play_circle_rounded,
+                            color: const Color(0xFFFF3366))),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _StatCard(
+                            label: 'Total Likes',
+                            value: _fmt(s.totalLikes),
+                            icon: Icons.favorite_rounded,
+                            color: const Color(0xFFFF85A1))),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                        child: _StatCard(
+                            label: 'Playlists',
+                            value: _fmt(s.totalPlaylists),
+                            icon: Icons.queue_music_rounded,
+                            color: const Color(0xFFFFD700))),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _StatCard(
+                            label: 'Banned',
+                            value: _fmt(s.bannedUsers),
+                            icon: Icons.block_rounded,
+                            color: const Color(0xFFFF4444))),
+                  ]),
+                  const SizedBox(height: 10),
+                  _StatCard(
+                    label: 'Active Announcements',
+                    value: _fmt(s.activeAnnouncements),
+                    icon: Icons.campaign_rounded,
+                    color: const Color(0xFFF7971E),
+                    wide: true,
                   ),
-                ),
-            ],
-          ),
-        ).animate().fadeIn(duration: 400.ms),
-
+                  if (s.lastUpdated != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Last updated: ${_fmtDate(s.lastUpdated!)}',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.25),
+                            fontSize: 11),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                ],
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 400.ms),
         const SizedBox(height: 20),
-
-        // Quick actions
-        _AdminSectionHeader(title: 'Quick Actions', icon: Icons.bolt_rounded),
+        _AdminSectionHeader(
+            title: 'Quick Actions', icon: Icons.bolt_rounded),
         const SizedBox(height: 10),
         GridView.count(
           shrinkWrap: true,
@@ -473,7 +476,8 @@ class _DashboardTab extends ConsumerWidget {
               label: 'New Announcement',
               icon: Icons.campaign_rounded,
               color: const Color(0xFFF7971E),
-              onTap: () => ref.read(_adminTabProvider.notifier).state = 3,
+              onTap: () =>
+                  ref.read(_adminTabProvider.notifier).state = 3,
             ),
             _QuickAction(
               label: 'Refresh All Stats',
@@ -481,41 +485,50 @@ class _DashboardTab extends ConsumerWidget {
               color: const Color(0xFF6C63FF),
               onTap: () async {
                 final confirmed = await _confirm(context,
-                  'Sync all user statistics? This will recalculate counts for every user.');
+                    'Sync all user statistics? This will recalculate counts for every user.');
                 if (!confirmed) return;
-
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Starting global sync... Stay on this screen.')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text(
+                          'Starting global sync… stay on this screen.')));
                 }
-
                 await ref.read(adminServiceProvider).syncAllUsersStats();
-
+                await ref.read(adminServiceProvider).refreshStats();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('All user stats refreshed!')));
+                      const SnackBar(
+                          content: Text('All user stats refreshed!')));
                 }
-
-                await ref.read(adminServiceProvider).refreshStats();
               },
             ),
             _QuickAction(
               label: 'Manage Users',
               icon: Icons.people_rounded,
               color: const Color(0xFF6C63FF),
-              onTap: () => ref.read(_adminTabProvider.notifier).state = 1,
+              onTap: () =>
+                  ref.read(_adminTabProvider.notifier).state = 1,
             ),
             _QuickAction(
               label: 'App Config',
               icon: Icons.tune_rounded,
               color: const Color(0xFF11D47B),
-              onTap: () => ref.read(_adminTabProvider.notifier).state = 4,
+              // FIX: Config is tab 5, not tab 4
+              onTap: () =>
+                  ref.read(_adminTabProvider.notifier).state = 5,
             ),
             _QuickAction(
               label: 'Content',
               icon: Icons.library_music_rounded,
               color: const Color(0xFFFF3366),
-              onTap: () => ref.read(_adminTabProvider.notifier).state = 2,
+              onTap: () =>
+                  ref.read(_adminTabProvider.notifier).state = 2,
+            ),
+            _QuickAction(
+              label: 'Send Notification',
+              icon: Icons.notifications_active_rounded,
+              color: const Color(0xFFFF3366),
+              onTap: () =>
+                  ref.read(_adminTabProvider.notifier).state = 4,
             ),
           ],
         ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
@@ -524,30 +537,41 @@ class _DashboardTab extends ConsumerWidget {
   }
 
   Widget _shimmerGrid() {
-    return Column(children: List.generate(3, (i) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
-        Expanded(child: Container(
-          height: 90,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ).animate(onPlay: (c) => c.repeat())
-            .shimmer(duration: 1400.ms,
-                color: Colors.white.withOpacity(0.04))),
-        const SizedBox(width: 10),
-        Expanded(child: Container(
-          height: 90,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ).animate(onPlay: (c) => c.repeat())
-            .shimmer(duration: 1400.ms,
-                color: Colors.white.withOpacity(0.04))),
-      ]),
-    )));
+    return Column(
+        children: List.generate(
+            3,
+            (i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(children: [
+                    Expanded(
+                        child: Container(
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    )
+                            .animate(onPlay: (c) => c.repeat())
+                            .shimmer(
+                                duration: 1400.ms,
+                                color:
+                                    Colors.white.withOpacity(0.04))),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: Container(
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    )
+                            .animate(onPlay: (c) => c.repeat())
+                            .shimmer(
+                                duration: 1400.ms,
+                                color:
+                                    Colors.white.withOpacity(0.04))),
+                  ]),
+                )));
   }
 
   String _fmt(int n) {
@@ -571,6 +595,8 @@ class _UsersTab extends ConsumerStatefulWidget {
 class _UsersTabState extends ConsumerState<_UsersTab> {
   final _searchCtrl = TextEditingController();
   String _query = '';
+  // Filter: 'all' | 'banned' | 'online'
+  String _filter = 'all';
 
   @override
   void dispose() {
@@ -584,28 +610,58 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
 
     return Column(
       children: [
-        // Search bar
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: _AdminSearchBar(
             ctrl: _searchCtrl,
-            hint: 'Search users by email…',
+            hint: 'Search users by name or email…',
             onChanged: (q) => setState(() => _query = q.toLowerCase()),
           ),
         ),
-
+        // Filter chips
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            children: [
+              _FilterChip(
+                  label: 'All',
+                  selected: _filter == 'all',
+                  onTap: () => setState(() => _filter = 'all')),
+              const SizedBox(width: 8),
+              _FilterChip(
+                  label: 'Banned',
+                  selected: _filter == 'banned',
+                  color: const Color(0xFFFF4444),
+                  onTap: () => setState(() => _filter = 'banned')),
+              const SizedBox(width: 8),
+              _FilterChip(
+                  label: 'Online',
+                  selected: _filter == 'online',
+                  color: const Color(0xFF11D47B),
+                  onTap: () => setState(() => _filter = 'online')),
+            ],
+          ),
+        ),
         Expanded(
           child: usersAsync.when(
             loading: () => _buildShimmer(),
             error: (e, _) => _ErrorCard(message: e.toString()),
             data: (users) {
-              final filtered = _query.isEmpty
-                  ? users
-                  : users
-                      .where((u) =>
-                          u.email.toLowerCase().contains(_query) ||
-                          u.displayName.toLowerCase().contains(_query))
-                      .toList();
+              var filtered = users;
+              if (_query.isNotEmpty) {
+                filtered = filtered
+                    .where((u) =>
+                        u.email.toLowerCase().contains(_query) ||
+                        u.displayName.toLowerCase().contains(_query))
+                    .toList();
+              }
+              if (_filter == 'banned') {
+                filtered = filtered.where((u) => u.isBanned).toList();
+              } else if (_filter == 'online') {
+                filtered = filtered.where((u) => u.isOnline).toList();
+              }
 
               if (filtered.isEmpty) {
                 return _EmptyState(
@@ -615,7 +671,7 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
               }
 
               return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
                 physics: const BouncingScrollPhysics(),
                 itemCount: filtered.length,
                 itemBuilder: (_, i) => _UserTile(
@@ -637,14 +693,60 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: 8,
       itemBuilder: (_, __) => Container(
-        height: 72, margin: const EdgeInsets.only(bottom: 8),
+        height: 72,
+        margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.04),
           borderRadius: BorderRadius.circular(16),
         ),
-      ).animate(onPlay: (c) => c.repeat())
-          .shimmer(duration: 1400.ms,
-              color: Colors.white.withOpacity(0.04)),
+      )
+          .animate(onPlay: (c) => c.repeat())
+          .shimmer(
+              duration: 1400.ms, color: Colors.white.withOpacity(0.04)),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    this.color = const Color(0xFF6C63FF),
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withOpacity(0.2)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? color.withOpacity(0.5)
+                : Colors.white.withOpacity(0.1),
+          ),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              color: selected ? color : Colors.white.withOpacity(0.5),
+              fontSize: 12,
+              fontWeight:
+                  selected ? FontWeight.w700 : FontWeight.w500,
+            )),
+      ),
     );
   }
 }
@@ -685,34 +787,43 @@ class _UserTileState extends ConsumerState<_UserTile> {
             radius: 22,
             backgroundColor: const Color(0xFF6C63FF).withOpacity(0.3),
             child: u.photoUrl.isNotEmpty
-                ? ClipOval(child: CachedNetworkImage(memCacheWidth: 400, 
-                    imageUrl: u.photoUrl,
-                    width: 44, height: 44, fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => _initials(u),
-                  ))
+                ? ClipOval(
+                    child: CachedNetworkImage(
+                      memCacheWidth: 400,
+                      imageUrl: u.photoUrl,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => _initials(u),
+                    ))
                 : _initials(u),
           ),
-          // Online Indicator Dot
+          // Online indicator dot
           Transform.translate(
             offset: const Offset(-10, 16),
             child: Container(
-              width: 12, height: 12,
+              width: 12,
+              height: 12,
               decoration: BoxDecoration(
-                color: u.isOnline ? const Color(0xFF11D47B) : Colors.grey,
+                color: u.isOnline
+                    ? const Color(0xFF11D47B)
+                    : Colors.grey,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF070707), width: 2),
-                boxShadow: u.isOnline ? [
-                  BoxShadow(
-                    color: const Color(0xFF11D47B).withOpacity(0.4),
-                    blurRadius: 4, spreadRadius: 1,
-                  )
-                ] : [],
+                border: Border.all(
+                    color: const Color(0xFF070707), width: 2),
+                boxShadow: u.isOnline
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF11D47B).withOpacity(0.4),
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        )
+                      ]
+                    : [],
               ),
             ),
           ),
           const SizedBox(width: 12),
-
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,7 +831,9 @@ class _UserTileState extends ConsumerState<_UserTile> {
                 Row(children: [
                   Flexible(
                     child: Text(
-                      u.displayName.isNotEmpty ? u.displayName : u.email.split('@')[0],
+                      u.displayName.isNotEmpty
+                          ? u.displayName
+                          : u.email.split('@')[0],
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -739,30 +852,40 @@ class _UserTileState extends ConsumerState<_UserTile> {
                         color: const Color(0xFFFF4444).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                            color: const Color(0xFFFF4444).withOpacity(0.4)),
+                            color:
+                                const Color(0xFFFF4444).withOpacity(0.4)),
                       ),
                       child: const Text('BANNED',
-                        style: TextStyle(
-                          color: Color(0xFFFF4444),
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        )),
+                          style: TextStyle(
+                            color: Color(0xFFFF4444),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                          )),
                     ),
                   Container(
                     margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: (u.isOnline ? const Color(0xFF11D47B) : Colors.white).withOpacity(0.1),
+                      color: (u.isOnline
+                              ? const Color(0xFF11D47B)
+                              : Colors.white)
+                          .withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: (u.isOnline ? const Color(0xFF11D47B) : Colors.white).withOpacity(0.2),
+                        color: (u.isOnline
+                                ? const Color(0xFF11D47B)
+                                : Colors.white)
+                            .withOpacity(0.2),
                       ),
                     ),
                     child: Text(
                       u.isOnline ? 'ACTIVE' : 'OFFLINE',
                       style: TextStyle(
-                        color: u.isOnline ? const Color(0xFF11D47B) : Colors.white.withOpacity(0.5),
+                        color: u.isOnline
+                            ? const Color(0xFF11D47B)
+                            : Colors.white.withOpacity(0.5),
                         fontSize: 8,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.8,
@@ -772,13 +895,12 @@ class _UserTileState extends ConsumerState<_UserTile> {
                 ]),
                 const SizedBox(height: 2),
                 Text(u.email,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.38),
-                    fontSize: 11,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.38),
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
                 if (u.createdAt != null)
                   Text(
                     'Joined ${_fmtDate(u.createdAt!)}',
@@ -790,30 +912,34 @@ class _UserTileState extends ConsumerState<_UserTile> {
               ],
             ),
           ),
-
           // Actions
           _loading
               ? const SizedBox(
-                  width: 20, height: 20,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Color(0xFFFF3366)))
+                      strokeWidth: 2, color: Color(0xFFFF3366)))
               : PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert_rounded,
                       color: Colors.white.withOpacity(0.4), size: 18),
                   color: const Color(0xFF1A1A1A),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
-                  onSelected: (action) => _handleAction(context, action),
+                  onSelected: (action) =>
+                      _handleAction(context, action),
                   itemBuilder: (_) => [
-                    _menuItem('view', Icons.visibility_rounded, 'View Details'),
+                    _menuItem('view', Icons.visibility_rounded,
+                        'View Details'),
                     _menuItem('sync', Icons.sync_rounded, 'Sync Stats'),
                     if (!u.isBanned)
                       _menuItem('ban', Icons.block_rounded, 'Ban User',
                           color: const Color(0xFFFF4444))
                     else
                       _menuItem('unban', Icons.check_circle_rounded,
-                          'Unban User', color: const Color(0xFF11D47B)),
-                    _menuItem('delete', Icons.delete_rounded, 'Delete Data',
+                          'Unban User',
+                          color: const Color(0xFF11D47B)),
+                    _menuItem('delete', Icons.delete_rounded,
+                        'Delete Data',
                         color: const Color(0xFFFF4444)),
                   ],
                 ),
@@ -827,13 +953,11 @@ class _UserTileState extends ConsumerState<_UserTile> {
     return PopupMenuItem(
       value: value,
       child: Row(children: [
-        Icon(icon, color: color ?? Colors.white.withOpacity(0.7), size: 16),
+        Icon(icon,
+            color: color ?? Colors.white.withOpacity(0.7), size: 16),
         const SizedBox(width: 10),
         Text(label,
-          style: TextStyle(
-            color: color ?? Colors.white,
-            fontSize: 13,
-          )),
+            style: TextStyle(color: color ?? Colors.white, fontSize: 13)),
       ]),
     );
   }
@@ -846,16 +970,16 @@ class _UserTileState extends ConsumerState<_UserTile> {
                 : 'U')
         .toUpperCase();
     return Text(init,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: FontWeight.w800,
-      ));
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ));
   }
 
   Future<void> _handleAction(BuildContext context, String action) async {
     final svc = ref.read(adminServiceProvider);
-    final u = widget.user; // Get user here for use in cases
+    final u = widget.user;
     switch (action) {
       case 'view':
         _showUserDetails(context, u);
@@ -863,15 +987,16 @@ class _UserTileState extends ConsumerState<_UserTile> {
       case 'sync':
         setState(() => _loading = true);
         try {
-          await ref.read(adminServiceProvider).syncUserStats(u.uid);
+          await svc.syncUserStats(u.uid);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Stats synced successfully')));
+                const SnackBar(
+                    content: Text('Stats synced successfully')));
           }
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Sync failed: $e')));
+                SnackBar(content: Text('Sync failed: $e')));
           }
         } finally {
           if (mounted) setState(() => _loading = false);
@@ -882,8 +1007,15 @@ class _UserTileState extends ConsumerState<_UserTile> {
         break;
       case 'unban':
         setState(() => _loading = true);
-        await svc.unbanUser(widget.user.uid);
-        if (mounted) setState(() => _loading = false);
+        try {
+          await svc.unbanUser(u.uid);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('User unbanned')));
+          }
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
         break;
       case 'delete':
         _showDeleteDialog(context, svc);
@@ -895,6 +1027,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => _AdminSheet(
         title: 'User Details',
         child: Padding(
@@ -904,14 +1037,25 @@ class _UserTileState extends ConsumerState<_UserTile> {
             children: [
               _DetailRow('UID', u.uid),
               _DetailRow('Email', u.email),
-              _DetailRow('Name', u.displayName.isNotEmpty ? u.displayName : '—'),
-              _DetailRow('Status', u.isBanned ? '🔴 Banned' : '🟢 Active'),
-              if (u.isBanned) _DetailRow('Ban Reason', u.banReason),
+              _DetailRow('Name',
+                  u.displayName.isNotEmpty ? u.displayName : '—'),
+              _DetailRow('Status',
+                  u.isBanned ? '🔴 Banned' : '🟢 Active'),
+              if (u.isBanned) ...[
+                _DetailRow('Ban Reason', u.banReason),
+                if (u.bannedAt != null)
+                  _DetailRow('Banned At', _fmtDate(u.bannedAt!)),
+                if (u.bannedBy.isNotEmpty)
+                  _DetailRow('Banned By', u.bannedBy),
+              ],
+              _DetailRow('Online', u.isOnline ? 'Yes' : 'No'),
               _DetailRow('Liked Songs', '${u.likedSongs}'),
               _DetailRow('Playlists', '${u.playlists}'),
               _DetailRow('Total Plays', '${u.totalPlays}'),
               if (u.createdAt != null)
                 _DetailRow('Joined', _fmtDate(u.createdAt!)),
+              if (u.lastActive != null)
+                _DetailRow('Last Active', _fmtDate(u.lastActive!)),
             ],
           ),
         ),
@@ -925,7 +1069,8 @@ class _UserTileState extends ConsumerState<_UserTile> {
       context: context,
       builder: (_) => _AdminDialog(
         title: 'Ban User',
-        message: 'Enter the reason for banning ${widget.user.email}:',
+        message:
+            'Enter the reason for banning ${widget.user.email}:',
         confirmLabel: 'Ban',
         isDestructive: true,
         extraContent: TextField(
@@ -933,7 +1078,8 @@ class _UserTileState extends ConsumerState<_UserTile> {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: 'Reason…',
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+            hintStyle:
+                TextStyle(color: Colors.white.withOpacity(0.3)),
             filled: true,
             fillColor: Colors.white.withOpacity(0.06),
             border: OutlineInputBorder(
@@ -947,6 +1093,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
           setState(() => _loading = true);
           await svc.banUser(widget.user.uid, reasonCtrl.text);
           if (mounted) setState(() => _loading = false);
+          reasonCtrl.dispose();
         },
       ),
     );
@@ -957,7 +1104,8 @@ class _UserTileState extends ConsumerState<_UserTile> {
       context: context,
       builder: (_) => _AdminDialog(
         title: 'Delete User Data',
-        message: 'Permanently delete all data for ${widget.user.email}? This cannot be undone.',
+        message:
+            'Permanently delete all data for ${widget.user.email}? This cannot be undone.',
         confirmLabel: 'Delete',
         isDestructive: true,
         onConfirm: () async {
@@ -997,7 +1145,6 @@ class _ContentTabState extends ConsumerState<_ContentTab> {
     final subTabs = ['Banners', 'Sections'];
     return Column(
       children: [
-        // Sub-tab pills
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
           child: Row(
@@ -1027,14 +1174,15 @@ class _ContentTabState extends ConsumerState<_ContentTab> {
                     ),
                   ),
                   child: Text(e.value,
-                    style: TextStyle(
-                      color: sel
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.4),
-                      fontSize: 12,
-                      fontWeight: sel
-                          ? FontWeight.w700 : FontWeight.w500,
-                    )),
+                      style: TextStyle(
+                        color: sel
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.4),
+                        fontSize: 12,
+                        fontWeight: sel
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      )),
                 ),
               );
             }).toList(),
@@ -1074,27 +1222,39 @@ class _BannersPage extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           ...banners.map((b) => _BannerTile(
-            banner: b,
-            onEdit: () => _showBannerForm(context, ref, b),
-            onDelete: () async {
-              await ref.read(adminServiceProvider).deleteBanner(b.id);
-            },
-            onToggle: (v) async {
-              await ref.read(adminServiceProvider)
-                  .updateBanner(b.id, {'isActive': v});
-            },
-          )),
+                banner: b,
+                onEdit: () => _showBannerForm(context, ref, b),
+                onDelete: () async {
+                  final ok = await _confirm(
+                      context, 'Delete banner "${b.title}"?');
+                  if (!ok) return;
+                  await ref
+                      .read(adminServiceProvider)
+                      .deleteBanner(b.id);
+                },
+                onToggle: (v) async {
+                  await ref
+                      .read(adminServiceProvider)
+                      .updateBanner(b.id, {'isActive': v});
+                },
+              )),
         ],
       ),
     );
   }
 
-  void _showBannerForm(BuildContext context, WidgetRef ref,
-      FeaturedBanner? banner) {
-    final titleCtrl = TextEditingController(text: banner?.title ?? '');
-    final subtitleCtrl = TextEditingController(text: banner?.subtitle ?? '');
-    final imageCtrl = TextEditingController(text: banner?.imageUrl ?? '');
-    final queryCtrl = TextEditingController(text: banner?.actionQuery ?? '');
+  void _showBannerForm(
+      BuildContext context, WidgetRef ref, FeaturedBanner? banner) {
+    final titleCtrl =
+        TextEditingController(text: banner?.title ?? '');
+    final subtitleCtrl =
+        TextEditingController(text: banner?.subtitle ?? '');
+    final imageCtrl =
+        TextEditingController(text: banner?.imageUrl ?? '');
+    final queryCtrl =
+        TextEditingController(text: banner?.actionQuery ?? '');
+    final orderCtrl = TextEditingController(
+        text: '${banner?.order ?? 0}');
 
     showModalBottomSheet(
       context: context,
@@ -1103,27 +1263,37 @@ class _BannersPage extends ConsumerWidget {
       builder: (_) => _AdminFormSheet(
         title: banner == null ? 'Add Banner' : 'Edit Banner',
         fields: [
-          _FormField('Title', titleCtrl),
-          _FormField('Subtitle', subtitleCtrl),
-          _FormField('Image URL', imageCtrl),
-          _FormField('Action Query', queryCtrl,
-              hint: 'e.g. trending bollywood 2025'),
+          _FormField('Title', titleCtrl,
+              hint: 'e.g. Featured Playlist'),
+          _FormField('Subtitle', subtitleCtrl,
+              hint: 'e.g. Hand-picked for you'),
+          _FormField('Image URL', imageCtrl,
+              hint: 'https://…'),
+          _FormField('Search Query / Action', queryCtrl,
+              hint: 'e.g. top bollywood hits'),
+          _FormField('Display Order', orderCtrl, hint: '0'),
         ],
         onSave: () async {
+          final order = int.tryParse(orderCtrl.text) ?? 0;
           if (banner == null) {
             await ref.read(adminServiceProvider).createBanner(
-              title: titleCtrl.text,
-              subtitle: subtitleCtrl.text,
-              imageUrl: imageCtrl.text,
-              actionQuery: queryCtrl.text,
-            );
+                  title: titleCtrl.text,
+                  subtitle: subtitleCtrl.text,
+                  imageUrl: imageCtrl.text,
+                  actionQuery: queryCtrl.text,
+                  order: order,
+                );
           } else {
-            await ref.read(adminServiceProvider).updateBanner(banner.id, {
-              'title': titleCtrl.text,
-              'subtitle': subtitleCtrl.text,
-              'imageUrl': imageCtrl.text,
-              'actionQuery': queryCtrl.text,
-            });
+            await ref.read(adminServiceProvider).updateBanner(
+                  banner.id,
+                  {
+                    'title': titleCtrl.text,
+                    'subtitle': subtitleCtrl.text,
+                    'imageUrl': imageCtrl.text,
+                    'actionQuery': queryCtrl.text,
+                    'order': order,
+                  },
+                );
           }
           if (context.mounted) Navigator.pop(context);
         },
@@ -1148,66 +1318,81 @@ class _BannerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.07)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (banner.imageUrl.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(memCacheWidth: 400, 
-                    imageUrl: banner.imageUrl,
-                    width: 48, height: 48, fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 48, height: 48,
-                      color: Colors.white.withOpacity(0.06),
-                      child: const Icon(Icons.image_rounded,
-                          color: Colors.white38, size: 20),
+          if (banner.imageUrl.isNotEmpty)
+            SizedBox(
+              height: 80,
+              width: double.infinity,
+              child: Image.network(
+                banner.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.white.withOpacity(0.05),
+                  child: const Center(
+                      child: Icon(Icons.broken_image_rounded,
+                          color: Colors.white24)),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(banner.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            )),
+                        Text(banner.subtitle,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 11,
+                            )),
+                      ],
                     ),
                   ),
-                ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(banner.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      )),
-                    Text(banner.subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 11,
-                      )),
-                  ],
-                ),
-              ),
-              Switch.adaptive(
-                value: banner.isActive,
-                onChanged: onToggle,
-                activeColor: const Color(0xFF11D47B),
-              ),
-            ],
+                  Switch.adaptive(
+                    value: banner.isActive,
+                    onChanged: onToggle,
+                    activeColor: const Color(0xFF11D47B),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _Pill(
+                      label: 'Order: ${banner.order}',
+                      color: Colors.white38),
+                  const Spacer(),
+                  _ChipBtn(
+                      label: 'Edit',
+                      icon: Icons.edit_rounded,
+                      color: const Color(0xFF6C63FF),
+                      onTap: onEdit),
+                  const SizedBox(width: 8),
+                  _ChipBtn(
+                      label: 'Delete',
+                      icon: Icons.delete_rounded,
+                      color: const Color(0xFFFF4444),
+                      onTap: onDelete),
+                ]),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(children: [
-            _ChipBtn(label: 'Edit', icon: Icons.edit_rounded,
-                color: const Color(0xFF6C63FF), onTap: onEdit),
-            const SizedBox(width: 8),
-            _ChipBtn(label: 'Delete', icon: Icons.delete_rounded,
-                color: const Color(0xFFFF4444), onTap: onDelete),
-          ]),
         ],
       ),
     );
@@ -1233,17 +1418,23 @@ class _CuratedSectionsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           ...sections.map((s) => _SectionTile(
-            section: s,
-            onEdit: () => _showSectionForm(context, ref, s),
-            onDelete: () async {
-              await ref.read(adminServiceProvider)
-                  .deleteCuratedSection(s['id']);
-            },
-            onToggle: (v) async {
-              await ref.read(adminServiceProvider)
-                  .updateCuratedSection(s['id'], {'isActive': v});
-            },
-          )),
+                section: s,
+                onEdit: () => _showSectionForm(context, ref, s),
+                onDelete: () async {
+                  final ok = await _confirm(context,
+                      'Delete section "${s['title']}"?');
+                  if (!ok) return;
+                  await ref
+                      .read(adminServiceProvider)
+                      .deleteCuratedSection(s['id']);
+                },
+                onToggle: (v) async {
+                  await ref
+                      .read(adminServiceProvider)
+                      .updateCuratedSection(
+                          s['id'], {'isActive': v});
+                },
+              )),
         ],
       ),
     );
@@ -1251,10 +1442,14 @@ class _CuratedSectionsPage extends ConsumerWidget {
 
   void _showSectionForm(BuildContext context, WidgetRef ref,
       Map<String, dynamic>? section) {
-    final titleCtrl = TextEditingController(text: section?['title'] ?? '');
+    final titleCtrl =
+        TextEditingController(text: section?['title'] ?? '');
     final subtitleCtrl =
         TextEditingController(text: section?['subtitle'] ?? '');
-    final queryCtrl = TextEditingController(text: section?['query'] ?? '');
+    final queryCtrl =
+        TextEditingController(text: section?['query'] ?? '');
+    final orderCtrl = TextEditingController(
+        text: '${section?['order'] ?? 99}');
     String style = section?['style'] ?? 'standard';
 
     showModalBottomSheet(
@@ -1264,75 +1459,88 @@ class _CuratedSectionsPage extends ConsumerWidget {
       builder: (_) => _AdminFormSheet(
         title: section == null ? 'Add Section' : 'Edit Section',
         fields: [
-          _FormField('Title', titleCtrl, hint: 'e.g. Trending Now'),
+          _FormField('Title', titleCtrl,
+              hint: 'e.g. Trending Now'),
           _FormField('Subtitle', subtitleCtrl,
               hint: 'e.g. what everyone\'s playing'),
           _FormField('Search Query', queryCtrl,
               hint: 'e.g. trending hindi songs 2025'),
+          _FormField('Display Order', orderCtrl, hint: '99'),
         ],
         extraContent: StatefulBuilder(
-          builder: (_, setState) => Column(
+          builder: (_, setS) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Card Style',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                )),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  )),
               const SizedBox(height: 8),
-              Row(children: ['standard', 'wide', 'ranked'].map((s) {
-                final sel = s == style;
-                return GestureDetector(
-                  onTap: () => setState(() => style = s),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: sel
-                          ? const Color(0xFFFF3366).withOpacity(0.2)
-                          : Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: sel
-                            ? const Color(0xFFFF3366).withOpacity(0.4)
-                            : Colors.white.withOpacity(0.08),
+              Row(
+                  children: ['standard', 'wide', 'ranked']
+                      .map((s) {
+                    final sel = s == style;
+                    return GestureDetector(
+                      onTap: () => setS(() => style = s),
+                      child: AnimatedContainer(
+                        duration:
+                            const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? const Color(0xFFFF3366)
+                                  .withOpacity(0.2)
+                              : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: sel
+                                ? const Color(0xFFFF3366)
+                                    .withOpacity(0.4)
+                                : Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Text(s,
+                            style: TextStyle(
+                              color: sel
+                                  ? const Color(0xFFFF3366)
+                                  : Colors.white.withOpacity(0.5),
+                              fontSize: 12,
+                              fontWeight: sel
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            )),
                       ),
-                    ),
-                    child: Text(s,
-                      style: TextStyle(
-                        color: sel
-                            ? const Color(0xFFFF3366)
-                            : Colors.white.withOpacity(0.5),
-                        fontSize: 12,
-                        fontWeight: sel
-                            ? FontWeight.w700 : FontWeight.w500,
-                      )),
-                  ),
-                );
-              }).toList()),
+                    );
+                  }).toList()),
             ],
           ),
         ),
         onSave: () async {
+          final order = int.tryParse(orderCtrl.text) ?? 99;
           if (section == null) {
-            await ref.read(adminServiceProvider).createCuratedSection(
-              title: titleCtrl.text,
-              subtitle: subtitleCtrl.text,
-              query: queryCtrl.text,
-              style: style,
-              order: 99,
-            );
+            await ref
+                .read(adminServiceProvider)
+                .createCuratedSection(
+                  title: titleCtrl.text,
+                  subtitle: subtitleCtrl.text,
+                  query: queryCtrl.text,
+                  style: style,
+                  order: order,
+                );
           } else {
-            await ref.read(adminServiceProvider)
+            await ref
+                .read(adminServiceProvider)
                 .updateCuratedSection(section['id'], {
               'title': titleCtrl.text,
               'subtitle': subtitleCtrl.text,
               'query': queryCtrl.text,
               'style': style,
+              'order': order,
             });
           }
           if (context.mounted) Navigator.pop(context);
@@ -1373,23 +1581,25 @@ class _SectionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(section['title'] ?? '',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  )),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    )),
                 const SizedBox(height: 2),
                 Text(section['subtitle'] ?? '',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.35),
-                    fontSize: 11,
-                  )),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.35),
+                      fontSize: 11,
+                    )),
                 const SizedBox(height: 4),
                 Row(children: [
-                  _Pill(label: section['style'] ?? 'standard',
+                  _Pill(
+                      label: section['style'] ?? 'standard',
                       color: const Color(0xFF6C63FF)),
                   const SizedBox(width: 6),
-                  _Pill(label: 'Order: ${section['order'] ?? 0}',
+                  _Pill(
+                      label: 'Order: ${section['order'] ?? 0}',
                       color: Colors.white38),
                 ]),
               ],
@@ -1403,14 +1613,15 @@ class _SectionTile extends StatelessWidget {
             ),
             Row(children: [
               GestureDetector(
-                onTap: onEdit,
-                child: Icon(Icons.edit_rounded,
-                    color: Colors.white.withOpacity(0.4), size: 16)),
+                  onTap: onEdit,
+                  child: Icon(Icons.edit_rounded,
+                      color: Colors.white.withOpacity(0.4),
+                      size: 16)),
               const SizedBox(width: 12),
               GestureDetector(
-                onTap: onDelete,
-                child: const Icon(Icons.delete_rounded,
-                    color: Color(0xFFFF4444), size: 16)),
+                  onTap: onDelete,
+                  child: const Icon(Icons.delete_rounded,
+                      color: Color(0xFFFF4444), size: 16)),
             ]),
           ]),
         ],
@@ -1438,26 +1649,34 @@ class _AnnouncementsTab extends ConsumerWidget {
         children: [
           _AddButton(
             label: 'New Announcement',
-            onTap: () => _showAnnouncementForm(context, ref, null),
+            onTap: () =>
+                _showAnnouncementForm(context, ref, null),
           ),
           const SizedBox(height: 10),
           ...announcements.asMap().entries.map((e) =>
-            _AnnouncementTile(
-              ann: e.value,
-              index: e.key,
-              onEdit: () =>
-                  _showAnnouncementForm(context, ref, e.value),
-              onDelete: () async {
-                await ref.read(adminServiceProvider)
-                    .deleteAnnouncement(e.value.id);
-              },
-              onToggle: (v) async {
-                await ref.read(adminServiceProvider)
-                    .updateAnnouncement(e.value.id, isActive: v);
-              },
-            ).animate().fadeIn(
-                delay: Duration(milliseconds: e.key * 40),
-                duration: 280.ms)),
+              _AnnouncementTile(
+                ann: e.value,
+                index: e.key,
+                onEdit: () =>
+                    _showAnnouncementForm(context, ref, e.value),
+                onDelete: () async {
+                  final ok = await _confirm(context,
+                      'Delete announcement "${e.value.title}"?');
+                  if (!ok) return;
+                  await ref
+                      .read(adminServiceProvider)
+                      .deleteAnnouncement(e.value.id);
+                },
+                onToggle: (v) async {
+                  await ref
+                      .read(adminServiceProvider)
+                      .updateAnnouncement(e.value.id,
+                          isActive: v);
+                },
+              ).animate().fadeIn(
+                    delay:
+                        Duration(milliseconds: e.key * 40),
+                    duration: 280.ms)),
         ],
       ),
     );
@@ -1465,8 +1684,10 @@ class _AnnouncementsTab extends ConsumerWidget {
 
   void _showAnnouncementForm(BuildContext context, WidgetRef ref,
       AppAnnouncement? ann) {
-    final titleCtrl = TextEditingController(text: ann?.title ?? '');
-    final msgCtrl = TextEditingController(text: ann?.message ?? '');
+    final titleCtrl =
+        TextEditingController(text: ann?.title ?? '');
+    final msgCtrl =
+        TextEditingController(text: ann?.message ?? '');
     String type = ann?.type ?? 'info';
 
     showModalBottomSheet(
@@ -1474,171 +1695,109 @@ class _AnnouncementsTab extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AdminFormSheet(
-        title: ann == null ? 'New Announcement' : 'Edit Announcement',
+        title: ann == null
+            ? 'New Announcement'
+            : 'Edit Announcement',
         fields: [
-          _FormField('Title', titleCtrl, hint: 'e.g. New Feature!'),
+          _FormField('Title', titleCtrl,
+              hint: 'e.g. New Feature!'),
           _FormField('Message', msgCtrl,
               hint: 'Announcement body…', maxLines: 3),
         ],
         extraContent: StatefulBuilder(
-          builder: (_, setState) {
+          builder: (_, setS) {
             final types = [
-              ('info', const Color(0xFF6C63FF), Icons.info_rounded),
-              ('success', const Color(0xFF11D47B), Icons.check_circle_rounded),
-              ('warning', const Color(0xFFF7971E), Icons.warning_rounded),
-              ('promo', const Color(0xFFFF3366), Icons.local_offer_rounded),
+              ('info', const Color(0xFF6C63FF),
+                  Icons.info_rounded),
+              ('success', const Color(0xFF11D47B),
+                  Icons.check_circle_rounded),
+              ('warning', const Color(0xFFF7971E),
+                  Icons.warning_rounded),
+              ('promo', const Color(0xFFFF3366),
+                  Icons.local_offer_rounded),
             ];
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Type',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                  )),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    )),
                 const SizedBox(height: 8),
-                Row(children: types.map((t) {
-                  final sel = t.$1 == type;
-                  return GestureDetector(
-                    onTap: () => setState(() => type = t.$1),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: sel
-                            ? t.$2.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: sel
-                              ? t.$2.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.08),
+                Wrap(
+                    spacing: 8,
+                    children: types.map((t) {
+                      final sel = t.$1 == type;
+                      return GestureDetector(
+                        onTap: () => setS(() => type = t.$1),
+                        child: AnimatedContainer(
+                          duration:
+                              const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? t.$2.withOpacity(0.2)
+                                : Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: sel
+                                  ? t.$2.withOpacity(0.5)
+                                  : Colors.white.withOpacity(0.08),
+                            ),
+                          ),
+                          child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(t.$3,
+                                    color: sel
+                                        ? t.$2
+                                        : Colors.white38,
+                                    size: 13),
+                                const SizedBox(width: 4),
+                                Text(t.$1,
+                                    style: TextStyle(
+                                      color: sel
+                                          ? t.$2
+                                          : Colors.white
+                                              .withOpacity(0.4),
+                                      fontSize: 11,
+                                      fontWeight: sel
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    )),
+                              ]),
                         ),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(t.$3, color: sel ? t.$2 : Colors.white38, size: 13),
-                          const SizedBox(width: 4),
-                          Text(t.$1,
-                            style: TextStyle(
-                              color: sel ? t.$2 : Colors.white.withOpacity(0.4),
-                              fontSize: 11,
-                              fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                            )),
-                        ]),
-                    ),
-                  );
-                }).toList()),
+                      );
+                    }).toList()),
               ],
             );
           },
         ),
         onSave: () async {
-          if (ann == null) {
-            await ref.read(adminServiceProvider).createAnnouncement(
-              title: titleCtrl.text,
-              message: msgCtrl.text,
-              type: type,
-            );
-          } else {
-            await ref.read(adminServiceProvider).updateAnnouncement(
-              ann.id,
-              title: titleCtrl.text,
-              message: msgCtrl.text,
-              type: type,
-            );
-          }
-          if (context.mounted) Navigator.pop(context);
-        },
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// TAB 4 — NOTIFICATIONS
-// ─────────────────────────────────────────────────────────────
-
-class _NotificationsTab extends ConsumerWidget {
-  const _NotificationsTab();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        _AdminSectionHeader(
-            title: 'Push Notifications', icon: Icons.notifications_active_rounded),
-        const SizedBox(height: 10),
-        _GlassCard(children: [
-          _QuickAction(
-            label: 'Send New Broadcast',
-            icon: Icons.send_rounded,
-            color: const Color(0xFF6C63FF),
-            onTap: () => _showBroadcastForm(context, ref),
-          ),
-        ]),
-        const SizedBox(height: 24),
-        _AdminSectionHeader(
-            title: 'Broadcast History', icon: Icons.history_rounded),
-        const SizedBox(height: 10),
-        _EmptyState(
-          icon: Icons.history_rounded,
-          message: 'Notification history coming soon…',
-        ),
-      ],
-    );
-  }
-
-  void _showBroadcastForm(BuildContext context, WidgetRef ref) {
-    final titleCtrl = TextEditingController();
-    final bodyCtrl = TextEditingController();
-    final imgCtrl = TextEditingController();
-    final linkCtrl = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AdminFormSheet(
-        title: 'Send Broadcast',
-        fields: [
-          _FormField('Title', titleCtrl, hint: 'Notification heading…'),
-          _FormField('Message Body', bodyCtrl, hint: 'What users will see…', maxLines: 3),
-          _FormField('Image URL (Optional)', imgCtrl, hint: 'https://…'),
-          _FormField('Link/Action (Optional)', linkCtrl, hint: 'den://playlist/…'),
-        ],
-        onSave: () async {
-          if (titleCtrl.text.isEmpty || bodyCtrl.text.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Title and Message are required')),
-            );
+          if (titleCtrl.text.isEmpty || msgCtrl.text.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Title and message are required')));
             return;
           }
-
-          HapticFeedback.mediumImpact();
-          await ref.read(adminServiceProvider).sendBroadcastNotification(
-            title: titleCtrl.text,
-            body: bodyCtrl.text,
-            imageUrl: imgCtrl.text.isEmpty ? null : imgCtrl.text,
-            link: linkCtrl.text.isEmpty ? null : linkCtrl.text,
-          );
-
-          if (context.mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Broadcast triggered successfully!'),
-                backgroundColor: Color(0xFF11D47B),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+          if (ann == null) {
+            await ref.read(adminServiceProvider).createAnnouncement(
+                  title: titleCtrl.text,
+                  message: msgCtrl.text,
+                  type: type,
+                );
+          } else {
+            await ref.read(adminServiceProvider).updateAnnouncement(
+                  ann.id,
+                  title: titleCtrl.text,
+                  message: msgCtrl.text,
+                  type: type,
+                );
           }
+          if (context.mounted) Navigator.pop(context);
         },
       ),
     );
@@ -1694,25 +1853,24 @@ class _AnnouncementTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
             child: Row(children: [
               Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 16)),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 16)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(ann.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ))),
+                  child: Text(ann.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ))),
               Switch.adaptive(
                 value: ann.isActive,
                 onChanged: onToggle,
@@ -1720,17 +1878,15 @@ class _AnnouncementTile extends StatelessWidget {
               ),
             ]),
           ),
-          // Message
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
             child: Text(ann.message,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 12,
-                height: 1.4,
-              )),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 12,
+                  height: 1.4,
+                )),
           ),
-          // Footer
           Container(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
             decoration: BoxDecoration(
@@ -1742,32 +1898,264 @@ class _AnnouncementTile extends StatelessWidget {
               _Pill(label: ann.type, color: color),
               if (ann.createdAt != null) ...[
                 const SizedBox(width: 8),
-                Text(
-                  _fmtDate(ann.createdAt!),
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.25),
-                    fontSize: 10,
-                  )),
+                Text(_fmtDate(ann.createdAt!),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.25),
+                      fontSize: 10,
+                    )),
               ],
               const Spacer(),
-              _ChipBtn(label: 'Edit', icon: Icons.edit_rounded,
-                  color: const Color(0xFF6C63FF), onTap: onEdit),
+              _ChipBtn(
+                  label: 'Edit',
+                  icon: Icons.edit_rounded,
+                  color: const Color(0xFF6C63FF),
+                  onTap: onEdit),
               const SizedBox(width: 6),
-              _ChipBtn(label: 'Delete', icon: Icons.delete_rounded,
-                  color: const Color(0xFFFF4444), onTap: onDelete),
+              _ChipBtn(
+                  label: 'Delete',
+                  icon: Icons.delete_rounded,
+                  color: const Color(0xFFFF4444),
+                  onTap: onDelete),
             ]),
           ),
         ],
       ),
     );
   }
-
-  String _fmtDate(DateTime d) =>
-      '${d.day}/${d.month}/${d.year}';
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 4 — CONFIG
+// TAB 4 — NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────
+
+class _NotificationsTab extends ConsumerWidget {
+  const _NotificationsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final broadcastsAsync = ref.watch(adminBroadcastsProvider);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+      physics: const BouncingScrollPhysics(),
+      children: [
+        _AdminSectionHeader(
+            title: 'Push Notifications',
+            icon: Icons.notifications_active_rounded),
+        const SizedBox(height: 10),
+        _GlassCard(children: [
+          _QuickAction(
+            label: 'Send New Broadcast',
+            icon: Icons.send_rounded,
+            color: const Color(0xFF6C63FF),
+            onTap: () => _showBroadcastForm(context, ref),
+          ),
+        ]),
+        const SizedBox(height: 24),
+        _AdminSectionHeader(
+            title: 'Broadcast History',
+            icon: Icons.history_rounded),
+        const SizedBox(height: 10),
+        broadcastsAsync.when(
+          loading: () => const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(24), child: _Loader())),
+          error: (e, _) => _ErrorCard(message: e.toString()),
+          data: (broadcasts) {
+            if (broadcasts.isEmpty) {
+              return _EmptyState(
+                icon: Icons.history_rounded,
+                message: 'No broadcasts sent yet',
+              );
+            }
+            return Column(
+              children: broadcasts
+                  .asMap()
+                  .entries
+                  .map((e) => _BroadcastHistoryTile(
+                        broadcast: e.value,
+                        onDelete: () async {
+                          final ok = await _confirm(context,
+                              'Delete this broadcast record?');
+                          if (!ok) return;
+                          await ref
+                              .read(adminServiceProvider)
+                              .deleteBroadcast(e.value.id);
+                        },
+                      )
+                          .animate()
+                          .fadeIn(
+                              delay: Duration(
+                                  milliseconds: e.key * 30),
+                              duration: 260.ms))
+                  .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showBroadcastForm(BuildContext context, WidgetRef ref) {
+    final titleCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    final imgCtrl = TextEditingController();
+    final linkCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AdminFormSheet(
+        title: 'Send Broadcast',
+        fields: [
+          _FormField('Title', titleCtrl,
+              hint: 'Notification heading…'),
+          _FormField('Message Body', bodyCtrl,
+              hint: 'What users will see…', maxLines: 3),
+          _FormField('Image URL (Optional)', imgCtrl,
+              hint: 'https://…'),
+          _FormField('Link / Action (Optional)', linkCtrl,
+              hint: 'den://playlist/…'),
+        ],
+        onSave: () async {
+          if (titleCtrl.text.isEmpty || bodyCtrl.text.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content:
+                    Text('Title and message are required')));
+            return;
+          }
+          HapticFeedback.mediumImpact();
+          await ref
+              .read(adminServiceProvider)
+              .sendBroadcastNotification(
+                title: titleCtrl.text,
+                body: bodyCtrl.text,
+                imageUrl: imgCtrl.text.isEmpty
+                    ? null
+                    : imgCtrl.text,
+                link: linkCtrl.text.isEmpty ? null : linkCtrl.text,
+              );
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Broadcast triggered!'),
+                backgroundColor:
+                    const Color(0xFF11D47B).withOpacity(0.9),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+}
+
+class _BroadcastHistoryTile extends StatelessWidget {
+  final BroadcastNotification broadcast;
+  final VoidCallback onDelete;
+
+  const _BroadcastHistoryTile({
+    required this.broadcast,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (broadcast.status) {
+      'sent' => const Color(0xFF11D47B),
+      'failed' => const Color(0xFFFF4444),
+      _ => const Color(0xFFF7971E),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: Colors.white.withOpacity(0.07), width: 0.8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C63FF).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.send_rounded,
+                  color: Color(0xFF6C63FF), size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(broadcast.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      )),
+                  if (broadcast.sentAt != null)
+                    Text(_fmtDateTime(broadcast.sentAt!),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.3),
+                          fontSize: 10,
+                        )),
+                ],
+              ),
+            ),
+            _Pill(label: broadcast.status, color: statusColor),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onDelete,
+              child: Icon(Icons.delete_outline_rounded,
+                  color: Colors.white.withOpacity(0.3), size: 18),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Text(broadcast.body,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis),
+          if (broadcast.imageUrl != null ||
+              broadcast.link != null) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              if (broadcast.imageUrl != null)
+                _Pill(
+                    label: '📷 Image',
+                    color: Colors.white38),
+              if (broadcast.link != null) ...[
+                const SizedBox(width: 6),
+                _Pill(
+                    label: '🔗 Link',
+                    color: Colors.white38),
+              ],
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TAB 5 — CONFIG
 // ─────────────────────────────────────────────────────────────
 
 class _ConfigTab extends ConsumerWidget {
@@ -1800,6 +2188,9 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
   late bool _registration;
   late String _maintenanceMsg;
   late String _welcomeMsg;
+  late String _minVersion;
+  late String _latestVersion;
+  late String _updateMsg;
   late int _maxSearch;
   late int _maxHistory;
   bool _saving = false;
@@ -1807,15 +2198,31 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
   @override
   void initState() {
     super.initState();
-    _maintenance = widget.config.maintenanceMode;
-    _forceUpdate = widget.config.forceUpdate;
-    _audius = widget.config.audiusEnabled;
-    _jiosaavn = widget.config.jiosaavnEnabled;
-    _registration = widget.config.registrationEnabled;
-    _maintenanceMsg = widget.config.maintenanceMessage;
-    _welcomeMsg = widget.config.welcomeMessage;
-    _maxSearch = widget.config.maxSearchResults;
-    _maxHistory = widget.config.maxHistoryItems;
+    _reset(widget.config);
+  }
+
+  @override
+  void didUpdateWidget(_ConfigBody old) {
+    super.didUpdateWidget(old);
+    // Sync if a new config snapshot arrives from Firestore
+    if (old.config != widget.config && !_saving) {
+      _reset(widget.config);
+    }
+  }
+
+  void _reset(AppConfig c) {
+    _maintenance = c.maintenanceMode;
+    _forceUpdate = c.forceUpdate;
+    _audius = c.audiusEnabled;
+    _jiosaavn = c.jiosaavnEnabled;
+    _registration = c.registrationEnabled;
+    _maintenanceMsg = c.maintenanceMessage;
+    _welcomeMsg = c.welcomeMessage;
+    _minVersion = c.minVersion;
+    _latestVersion = c.latestVersion;
+    _updateMsg = c.updateMessage;
+    _maxSearch = c.maxSearchResults;
+    _maxHistory = c.maxHistoryItems;
   }
 
   @override
@@ -1826,7 +2233,8 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
       children: [
         // App Status
         _AdminSectionHeader(
-            title: 'App Status', icon: Icons.power_settings_new_rounded),
+            title: 'App Status',
+            icon: Icons.power_settings_new_rounded),
         const SizedBox(height: 8),
         _GlassCard(children: [
           _ConfigSwitch(
@@ -1841,7 +2249,8 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
             _ConfigTextField(
               label: 'Maintenance Message',
               value: _maintenanceMsg,
-              onChanged: (v) => setState(() => _maintenanceMsg = v),
+              onChanged: (v) =>
+                  setState(() => _maintenanceMsg = v),
             ),
           _ConfigSwitch(
             label: 'Force Update',
@@ -1851,6 +2260,12 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
             value: _forceUpdate,
             onChanged: (v) => setState(() => _forceUpdate = v),
           ),
+          if (_forceUpdate)
+            _ConfigTextField(
+              label: 'Update Message',
+              value: _updateMsg,
+              onChanged: (v) => setState(() => _updateMsg = v),
+            ),
           _ConfigSwitch(
             label: 'New Registrations',
             subtitle: 'Allow new users to sign up',
@@ -1863,6 +2278,26 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
 
         const SizedBox(height: 16),
 
+        // Version management
+        _AdminSectionHeader(
+            title: 'Version Control',
+            icon: Icons.new_releases_rounded),
+        const SizedBox(height: 8),
+        _GlassCard(children: [
+          _ConfigTextField(
+            label: 'Min Supported Version',
+            value: _minVersion,
+            onChanged: (v) => setState(() => _minVersion = v),
+          ),
+          _ConfigTextField(
+            label: 'Latest Version',
+            value: _latestVersion,
+            onChanged: (v) => setState(() => _latestVersion = v),
+          ),
+        ]),
+
+        const SizedBox(height: 16),
+
         // APIs
         _AdminSectionHeader(
             title: 'Music Sources', icon: Icons.api_rounded),
@@ -1870,7 +2305,7 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
         _GlassCard(children: [
           _ConfigSwitch(
             label: 'JioSaavn API',
-            subtitle: 'Main Hindi/Bollywood music source',
+            subtitle: 'Main Hindi / Bollywood music source',
             icon: Icons.music_note_rounded,
             color: const Color(0xFFFF3366),
             value: _jiosaavn,
@@ -1878,7 +2313,7 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
           ),
           _ConfigSwitch(
             label: 'Audius API',
-            subtitle: 'English/independent music source',
+            subtitle: 'English / independent music source',
             icon: Icons.headphones_rounded,
             color: const Color(0xFF6C63FF),
             value: _audius,
@@ -1896,18 +2331,22 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
           _ConfigSlider(
             label: 'Max Search Results',
             value: _maxSearch.toDouble(),
-            min: 10, max: 100,
+            min: 10,
+            max: 100,
             icon: Icons.search_rounded,
             color: const Color(0xFF6C63FF),
-            onChanged: (v) => setState(() => _maxSearch = v.toInt()),
+            onChanged: (v) =>
+                setState(() => _maxSearch = v.toInt()),
           ),
           _ConfigSlider(
             label: 'Max History Items',
             value: _maxHistory.toDouble(),
-            min: 10, max: 200,
+            min: 10,
+            max: 200,
             icon: Icons.history_rounded,
             color: const Color(0xFFFF3366),
-            onChanged: (v) => setState(() => _maxHistory = v.toInt()),
+            onChanged: (v) =>
+                setState(() => _maxHistory = v.toInt()),
           ),
         ]),
 
@@ -1935,19 +2374,21 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFFFF3366), Color(0xFF6C63FF)]),
+                  colors: [Color(0xFFFF3366), Color(0xFF6C63FF)]),
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFFFF3366).withOpacity(0.3),
-                  blurRadius: 16, spreadRadius: -4,
+                  blurRadius: 16,
+                  spreadRadius: -4,
                 ),
               ],
             ),
             child: Center(
               child: _saving
                   ? const SizedBox(
-                      width: 20, height: 20,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Row(
@@ -1957,11 +2398,11 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
                             color: Colors.white, size: 18),
                         SizedBox(width: 8),
                         Text('Save Configuration',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          )),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            )),
                       ],
                     ),
             ),
@@ -1973,40 +2414,80 @@ class _ConfigBodyState extends ConsumerState<_ConfigBody> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    await ref.read(adminServiceProvider).updateAppConfig({
-      'maintenanceMode': _maintenance,
-      'maintenanceMessage': _maintenanceMsg,
-      'forceUpdate': _forceUpdate,
-      'audiusEnabled': _audius,
-      'jiosaavnEnabled': _jiosaavn,
-      'registrationEnabled': _registration,
-      'maxSearchResults': _maxSearch,
-      'maxHistoryItems': _maxHistory,
-      'welcomeMessage': _welcomeMsg,
-    });
-    if (mounted) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+    try {
+      await ref.read(adminServiceProvider).updateAppConfig({
+        'maintenanceMode': _maintenance,
+        'maintenanceMessage': _maintenanceMsg,
+        'forceUpdate': _forceUpdate,
+        'updateMessage': _updateMsg,
+        'audiusEnabled': _audius,
+        'jiosaavnEnabled': _jiosaavn,
+        'registrationEnabled': _registration,
+        'maxSearchResults': _maxSearch,
+        'maxHistoryItems': _maxHistory,
+        'welcomeMessage': _welcomeMsg,
+        'minVersion': _minVersion,
+        'latestVersion': _latestVersion,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Configuration saved!',
               style: TextStyle(color: Colors.white)),
-          backgroundColor: const Color(0xFF11D47B).withOpacity(0.9),
+          backgroundColor:
+              const Color(0xFF11D47B).withOpacity(0.9),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12)),
           duration: const Duration(milliseconds: 2000),
-        ),
-      );
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Save failed: $e'),
+          backgroundColor: const Color(0xFFFF4444),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 5 — ACTIVITY LOGS
+// TAB 6 — ACTIVITY LOGS
 // ─────────────────────────────────────────────────────────────
 
 class _LogsTab extends ConsumerWidget {
   const _LogsTab();
+
+  static const _actionIcons = <String, IconData>{
+    'ban_user': Icons.block_rounded,
+    'unban_user': Icons.check_circle_rounded,
+    'delete_user_data': Icons.delete_forever_rounded,
+    'sync_all_stats': Icons.sync_rounded,
+    'refresh_stats': Icons.refresh_rounded,
+    'send_broadcast': Icons.send_rounded,
+    'delete_broadcast': Icons.notifications_off_rounded,
+    'create_announcement': Icons.campaign_rounded,
+    'delete_announcement': Icons.remove_circle_rounded,
+    'update_config': Icons.settings_rounded,
+    'create_banner': Icons.image_rounded,
+    'delete_banner': Icons.image_not_supported_rounded,
+    'create_curated_section': Icons.playlist_add_rounded,
+    'delete_curated_section': Icons.playlist_remove_rounded,
+  };
+
+  static const _actionColors = <String, Color>{
+    'ban_user': Color(0xFFFF4444),
+    'unban_user': Color(0xFF11D47B),
+    'delete_user_data': Color(0xFFFF4444),
+    'sync_all_stats': Color(0xFF6C63FF),
+    'refresh_stats': Color(0xFF6C63FF),
+    'send_broadcast': Color(0xFF6C63FF),
+    'update_config': Color(0xFFF7971E),
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2027,7 +2508,16 @@ class _LogsTab extends ConsumerWidget {
           itemCount: logs.length,
           itemBuilder: (_, i) {
             final log = logs[i];
-            final ts = (log['timestamp'] as Timestamp?)?.toDate();
+            final ts =
+                (log['timestamp'] as Timestamp?)?.toDate();
+            final action = log['action'] as String? ?? '';
+            final color = _actionColors[action] ??
+                const Color(0xFF6C63FF);
+            final icon =
+                _actionIcons[action] ?? Icons.bolt_rounded;
+            final details =
+                log['details'] as Map<String, dynamic>? ?? {};
+
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(14),
@@ -2039,42 +2529,79 @@ class _LogsTab extends ConsumerWidget {
               ),
               child: Row(children: [
                 Container(
-                  width: 36, height: 36,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6C63FF).withOpacity(0.15),
+                    color: color.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.bolt_rounded,
-                      color: Color(0xFF6C63FF), size: 18)),
+                  child: Icon(icon, color: color, size: 18)),
                 const SizedBox(width: 12),
-                Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(log['action'] ?? '',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        action.replaceAll('_', ' ').toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      if (details.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          details.entries
+                              .take(2)
+                              .map((e) =>
+                                  '${e.key}: ${e.value}')
+                              .join(' · '),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.35),
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (ts != null)
+                        Text(_fmtDateTime(ts),
+                            style: TextStyle(
+                              color:
+                                  Colors.white.withOpacity(0.25),
+                              fontSize: 10,
+                            )),
+                    ],
+                  ),
+                ),
+                if (log['adminEmail'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'admin',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.25),
+                        fontSize: 9,
                         fontWeight: FontWeight.w600,
-                      )),
-                    if (ts != null)
-                      Text(_fmtDateTime(ts),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.3),
-                          fontSize: 10,
-                        )),
-                  ],
-                )),
+                      ),
+                    ),
+                  ),
               ]),
             ).animate().fadeIn(
-                delay: Duration(milliseconds: i * 20), duration: 250.ms);
+                delay: Duration(milliseconds: i * 20),
+                duration: 250.ms);
           },
         );
       },
     );
   }
-
-  String _fmtDateTime(DateTime d) =>
-      '${d.day}/${d.month}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2108,31 +2635,35 @@ class _StatCard extends StatelessWidget {
       ),
       child: Row(children: [
         Container(
-          width: 40, height: 40,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: color.withOpacity(0.15),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: color, size: 20)),
+          child: Icon(icon, color: color, size: 20),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              )),
-            Text(label,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              )),
-          ],
-        )),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  )),
+              Text(label,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  )),
+            ],
+          ),
+        ),
       ]),
     );
   }
@@ -2174,19 +2705,21 @@ class _QuickActionState extends State<_QuickAction> {
           decoration: BoxDecoration(
             color: widget.color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: widget.color.withOpacity(0.2)),
+            border: Border.all(
+                color: widget.color.withOpacity(0.2)),
           ),
           child: Row(children: [
             Icon(widget.icon, color: widget.color, size: 18),
             const SizedBox(width: 8),
-            Flexible(child: Text(widget.label,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis)),
+            Flexible(
+                child: Text(widget.label,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis)),
           ]),
         ),
       ),
@@ -2207,12 +2740,12 @@ class _AdminSectionHeader extends StatelessWidget {
       Icon(icon, color: Colors.white.withOpacity(0.3), size: 14),
       const SizedBox(width: 7),
       Text(title.toUpperCase(),
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.3),
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
-        )),
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.3),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+          )),
     ]);
   }
 }
@@ -2231,14 +2764,17 @@ class _GlassCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.04),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border:
+                Border.all(color: Colors.white.withOpacity(0.08)),
           ),
-          child: Column(children: children.asMap().entries.map((e) {
+          child: Column(
+              children: children.asMap().entries.map((e) {
             final isLast = e.key == children.length - 1;
             return Column(children: [
               e.value,
               if (!isLast)
-                Divider(height: 1,
+                Divider(
+                    height: 1,
                     color: Colors.white.withOpacity(0.05),
                     indent: 54),
             ]);
@@ -2269,38 +2805,44 @@ class _ConfigSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 16, vertical: 12),
       child: Row(children: [
         Container(
-          width: 36, height: 36,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: color.withOpacity(0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: color, size: 18)),
+          child: Icon(icon, color: color, size: 18),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              )),
-            const SizedBox(height: 2),
-            Text(subtitle,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.35),
-                fontSize: 11,
-              )),
-          ],
-        )),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  )),
+              const SizedBox(height: 2),
+              Text(subtitle,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.35),
+                    fontSize: 11,
+                  )),
+            ],
+          ),
+        ),
         Switch.adaptive(
           value: value,
           onChanged: onChanged,
           activeColor: const Color(0xFF11D47B),
-          activeTrackColor: const Color(0xFF11D47B).withOpacity(0.3),
+          activeTrackColor:
+              const Color(0xFF11D47B).withOpacity(0.3),
           inactiveThumbColor: Colors.white.withOpacity(0.4),
           inactiveTrackColor: Colors.white.withOpacity(0.1),
         ),
@@ -2328,17 +2870,18 @@ class _ConfigTextField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            )),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              )),
           const SizedBox(height: 8),
           TextFormField(
             initialValue: value,
             onChanged: onChanged,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 13),
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.05),
@@ -2381,33 +2924,39 @@ class _ConfigSlider extends StatelessWidget {
       child: Column(children: [
         Row(children: [
           Container(
-            width: 36, height: 36,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 18)),
+            child: Icon(icon, color: color, size: 18),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Text(label,
-            style: const TextStyle(
-              color: Colors.white, fontSize: 13,
-              fontWeight: FontWeight.w600))),
+          Expanded(
+              child: Text(label,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600))),
           Text('${value.toInt()}',
-            style: TextStyle(color: color,
-                fontSize: 13, fontWeight: FontWeight.w800)),
+              style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800)),
         ]),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            trackHeight: 2,
             activeTrackColor: color,
-            inactiveTrackColor: Colors.white.withOpacity(0.1),
-            thumbColor: Colors.white,
+            inactiveTrackColor: color.withOpacity(0.2),
+            thumbColor: color,
             overlayColor: color.withOpacity(0.15),
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+            trackHeight: 3,
           ),
           child: Slider(
-            value: value, min: min, max: max,
-            divisions: (max - min).toInt(),
+            value: value,
+            min: min,
+            max: max,
             onChanged: onChanged,
           ),
         ),
@@ -2415,6 +2964,10 @@ class _ConfigSlider extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// SHARED SHEET / FORM COMPONENTS
+// ─────────────────────────────────────────────────────────────
 
 class _AdminSearchBar extends StatelessWidget {
   final TextEditingController ctrl;
@@ -2431,23 +2984,34 @@ class _AdminSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: TextField(
         controller: ctrl,
         onChanged: onChanged,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: const TextStyle(color: Colors.white, fontSize: 13),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.28), fontSize: 14),
+              color: Colors.white.withOpacity(0.3), fontSize: 13),
           prefixIcon: Icon(Icons.search_rounded,
               color: Colors.white.withOpacity(0.3), size: 18),
+          suffixIcon: ctrl.text.isNotEmpty
+              ? GestureDetector(
+                  onTap: () {
+                    ctrl.clear();
+                    onChanged('');
+                  },
+                  child: Icon(Icons.close_rounded,
+                      color: Colors.white.withOpacity(0.3),
+                      size: 16),
+                )
+              : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-              horizontal: 4, vertical: 13),
+              horizontal: 16, vertical: 12),
         ),
       ),
     );
@@ -2465,89 +3029,32 @@ class _AddButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFFF3366), Color(0xFF6C63FF)]),
-          borderRadius: BorderRadius.circular(16),
+              colors: [Color(0xFFFF3366), Color(0xFF6C63FF)]),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFF3366).withOpacity(0.25),
-              blurRadius: 14, spreadRadius: -4)
+              color: const Color(0xFFFF3366).withOpacity(0.2),
+              blurRadius: 12,
+              spreadRadius: -4,
+            )
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-            const SizedBox(width: 6),
-            Text(label,
+        child: Row(mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+          const Icon(Icons.add_rounded,
+              color: Colors.white, size: 18),
+          const SizedBox(width: 6),
+          Text(label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
               )),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChipBtn extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ChipBtn({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: color, size: 12),
-          const SizedBox(width: 4),
-          Text(label,
-            style: TextStyle(
-              color: color, fontSize: 11,
-              fontWeight: FontWeight.w600)),
         ]),
       ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Pill({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(label,
-        style: TextStyle(
-          color: color, fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -2555,46 +3062,56 @@ class _Pill extends StatelessWidget {
 class _AdminSheet extends StatelessWidget {
   final String title;
   final Widget child;
+
   const _AdminSheet({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-        child: Container(
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.72),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E0E0E).withOpacity(0.92),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(26)),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E0E0E),
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(24)),
+        border:
+            Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(title,
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              Text(title,
                   style: const TextStyle(
-                    color: Colors.white, fontSize: 17,
-                    fontWeight: FontWeight.w800)),
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  )),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Icon(Icons.close_rounded,
+                    color: Colors.white.withOpacity(0.4),
+                    size: 20),
               ),
-              const SizedBox(height: 10),
-              Flexible(child: SingleChildScrollView(child: child)),
-              const SizedBox(height: 28),
-            ],
+            ]),
           ),
-        ),
+          const SizedBox(height: 8),
+          Flexible(child: SingleChildScrollView(child: child)),
+        ],
       ),
     );
   }
@@ -2609,114 +3126,118 @@ class _AdminFormSheet extends StatelessWidget {
   const _AdminFormSheet({
     required this.title,
     required this.fields,
-    required this.onSave,
     this.extraContent,
+    required this.onSave,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-        child: Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E0E0E).withOpacity(0.92),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(26)),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36, height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(2))),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    )),
-                  const SizedBox(height: 16),
-
-                  // Fields
-                  ...fields.map((f) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(f.label,
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, bottom + 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E0E0E),
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(24)),
+        border:
+            Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text(title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  )),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Icon(Icons.close_rounded,
+                    color: Colors.white.withOpacity(0.4),
+                    size: 20),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            ...fields.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(f.label.toUpperCase(),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.4),
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
+                            letterSpacing: 0.8,
                           )),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: f.ctrl,
-                          maxLines: f.maxLines,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 14),
-                          decoration: InputDecoration(
-                            hintText: f.hint,
-                            hintStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.25),
-                              fontSize: 13),
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(0.06),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 12),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: f.ctrl,
+                        maxLines: f.maxLines,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: f.hint,
+                          hintStyle: TextStyle(
+                              color:
+                                  Colors.white.withOpacity(0.25),
+                              fontSize: 12),
+                          filled: true,
+                          fillColor:
+                              Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: const Color(0xFFFF3366)
+                                    .withOpacity(0.5)),
+                          ),
+                          contentPadding:
+                              const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
                         ),
-                      ],
-                    ),
-                  )),
-
-                  if (extraContent != null) ...[
-                    extraContent!,
-                    const SizedBox(height: 14),
-                  ],
-
-                  // Save button
-                  GestureDetector(
-                    onTap: onSave,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF3366), Color(0xFF6C63FF)]),
-                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Center(
-                        child: Text('Save',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ))),
-                    ),
+                    ],
                   ),
-                ],
+                )),
+            if (extraContent != null) ...[
+              const SizedBox(height: 4),
+              extraContent!,
+              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: onSave,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [
+                    Color(0xFFFF3366),
+                    Color(0xFF6C63FF)
+                  ]),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                    child: Text('Save',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ))),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -2763,25 +3284,26 @@ class _AdminDialog extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF0E0E0E).withOpacity(0.92),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.1)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  )),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    )),
                 const SizedBox(height: 10),
                 Text(message,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 13,
-                    height: 1.5,
-                  )),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 13,
+                      height: 1.5,
+                    )),
                 if (extraContent != null) ...[
                   const SizedBox(height: 14),
                   extraContent!,
@@ -2792,19 +3314,23 @@ class _AdminDialog extends StatelessWidget {
                     child: GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
-                          borderRadius: BorderRadius.circular(14),
+                          color:
+                              Colors.white.withOpacity(0.07),
+                          borderRadius:
+                              BorderRadius.circular(14),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.1)),
+                              color: Colors.white
+                                  .withOpacity(0.1)),
                         ),
                         child: const Center(
-                          child: Text('Cancel',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ))),
+                            child: Text('Cancel',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ))),
                       ),
                     ),
                   ),
@@ -2813,23 +3339,27 @@ class _AdminDialog extends StatelessWidget {
                     child: GestureDetector(
                       onTap: onConfirm,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12),
                         decoration: BoxDecoration(
                           gradient: isDestructive
                               ? const LinearGradient(colors: [
                                   Color(0xFFFF4444),
-                                  Color(0xFFCC0000)])
+                                  Color(0xFFCC0000)
+                                ])
                               : const LinearGradient(colors: [
                                   Color(0xFFFF3366),
-                                  Color(0xFF6C63FF)]),
-                          borderRadius: BorderRadius.circular(14),
+                                  Color(0xFF6C63FF)
+                                ]),
+                          borderRadius:
+                              BorderRadius.circular(14),
                         ),
                         child: Center(
-                          child: Text(confirmLabel,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ))),
+                            child: Text(confirmLabel,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ))),
                       ),
                     ),
                   ),
@@ -2856,19 +3386,21 @@ class _DetailRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 110,
             child: Text(label,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
-                fontSize: 12,
-              ))),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.4),
+                  fontSize: 12,
+                )),
+          ),
           Expanded(
             child: Text(value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ))),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                )),
+          ),
         ],
       ),
     );
@@ -2891,10 +3423,10 @@ class _ErrorCard extends StatelessWidget {
                 color: Color(0xFFFF4444), size: 48),
             const SizedBox(height: 12),
             Text('Error: $message',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 13),
-              textAlign: TextAlign.center),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 13),
+                textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -2913,14 +3445,15 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white.withOpacity(0.15), size: 56),
+          Icon(icon,
+              color: Colors.white.withOpacity(0.15), size: 56),
           const SizedBox(height: 14),
           Text(message,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.35),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            )),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.35),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              )),
         ],
       ),
     );
@@ -2935,6 +3468,71 @@ class _Loader extends StatelessWidget {
     return const CircularProgressIndicator(
       strokeWidth: 2,
       color: Color(0xFFFF3366),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Pill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          )),
+    );
+  }
+}
+
+class _ChipBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ChipBtn({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.25)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              )),
+        ]),
+      ),
     );
   }
 }

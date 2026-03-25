@@ -52,6 +52,44 @@ final trendingProvider = FutureProvider<List<Song>>((ref) async {
   return filtered.where((s) => seen.add(s.id)).take(30).toList();
 });
 
+final globalDiscoveryProvider = FutureProvider<List<Song>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  // Mix of recent English hits + Global Charts
+  final queries = [
+    'billboard top hits 2024',
+    'spotify global top 50',
+    'trending english pop 2024',
+    'uk top 40 music',
+  ];
+  
+  final futures = queries.map((q) => api.searchSongs(q, limit: 12));
+  final results = await Future.wait(futures);
+  final allSongs = results.expand((s) => s).toList();
+  
+  final seen = <String>{};
+  final unique = allSongs.where((s) => seen.add(s.title.toLowerCase())).toList();
+  
+  // Mix it up for a fresh feel on every load
+  return unique..shuffle();
+});
+
+final trendingEnglishProvider = FutureProvider<List<Song>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  // mapping to real-world Billboard/Spotify charts
+  final charts = [
+    'Billboard Hot 100',
+    'Spotify Global Chart',
+  ];
+  
+  final futures = charts.map((q) => api.searchSongs(q, limit: 15));
+  final results = await Future.wait(futures);
+  final allSongs = results.expand((s) => s).toList();
+  
+  final seen = <String>{};
+  return allSongs.where((s) => seen.add(s.id)).toList()
+    ..sort((a, b) => b.playCount.compareTo(a.playCount));
+});
+
 
 final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
   final seed = ref.watch(sessionSeedProvider);
@@ -375,53 +413,117 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   }
 
 
-  // Audius parallel fetch
+  // Audius & Jamendo parallel fetch
   Future<List<Song>> audiusFuture = Future.value([]);
-  if (useAudius) {
+  Future<List<Song>> jamendoFuture = Future.value([]);
+  
+  if (useAudius || query.length >= 3) {
     audiusFuture = audius.searchTracks(query, limit: 20);
+    jamendoFuture = api.searchJamendo(query, limit: 20);
   }
 
   // ── Await everything ─────────────────────────────────────────
   final allResults = await Future.wait([
     Future.wait(jioFutures),
     audiusFuture,
+    jamendoFuture,
   ]);
 
-  final jioResults = (allResults[0] as List<List<Song>>)
-      .expand((l) => l)
-      .toList();
+  // ── Unified Smart Ranking Engine ──────────────────────────
+  final jioResults = (allResults[0] as List<List<Song>>).expand((l) => l).toList();
   final audiusResults = allResults[1] as List<Song>;
+  final jamResults  = allResults[2] as List<Song>;
 
-  // ── Merge and deduplicate ────────────────────────────────────
-  final seen = <String>{};
-  final all = [
-    ...jioResults.where((s) => seen.add(s.id)),
-    ...audiusResults.where((s) => seen.add(s.id)),
+  final Map<String, Song> uniqueSongs = {};
+  final Map<String, double> scores = {};
+  final Map<Song, String> songToKey = {}; // Cache keys for fast sorting
+
+  final allSources = [
+    ...jioResults,
+    ...audiusResults,
+    ...jamResults,
   ];
 
-  if (all.isEmpty) return [];
+  final qNormal = query.toLowerCase().trim();
+  final qWords = qNormal.split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
 
-  // ── Sort by Relevance FIRST, then by playCount (Popularity) ───
-  final q = query.trim().toLowerCase();
-  final firstWord = q.split(' ').isNotEmpty ? q.split(' ').first : q;
+  for (final s in allSources) {
+    // 1. DEDUPLICATION KEY (Title + First Artist)
+    final firstArtist = s.artist.split(',').first.trim().toLowerCase();
+    final titleClean = s.title.toLowerCase()
+        .replaceAll(RegExp(r'\(.*?\)|\[.*?\]'), '') // remove video/label tags from key
+        .trim();
+    final key = '$titleClean|$firstArtist';
 
-  int getRelevance(Song s) {
-    final t = s.title.toLowerCase();
-    if (t == q) return 4;
-    if (t.startsWith(q)) return 3;
-    if (t.contains(q)) return 2;
-    if (firstWord.length > 2 && t.contains(firstWord)) return 1;
-    return 0;
+    double score = 0;
+    final sTitle = s.title.toLowerCase();
+    final sArtist = s.artist.toLowerCase();
+    
+    // ── A. DIRECT RELEVANCE ─────────────────────────────────────
+    if (sTitle == qNormal) score += 500; // Total match
+    else if (sTitle.startsWith(qNormal)) score += 300;
+    else if (sTitle.contains(qNormal)) score += 150;
+    
+    // Partial word matches
+    for (final word in qWords) {
+      if (sTitle.contains(word)) score += 30;
+      if (sArtist.contains(word)) score += 20;
+    }
+
+    // ── B. QUALITY & OFFICIAL STATUS ────────────────────────────
+    bool isOfficial = sTitle.contains('official') || 
+                      sTitle.contains('original') || 
+                      sTitle.contains('vevo') ||
+                      sTitle.contains('music video');
+    if (isOfficial) score += 150;
+
+    // ── C. MODIFIED VERSION PENALTIES ───────────────────────────
+    final modifiedTags = {
+      'slowed': -400,
+      'reverb': -400,
+      'sped up': -400,
+      'speed up': -400,
+      '8d': -300,
+      'lofi': -200,
+      'lo-fi': -200,
+      'remix': -250,
+      'cover': -450,
+      'lyrics': -50,
+      'karaoke': -300,
+      'instrumental': -200,
+    };
+
+    modifiedTags.forEach((tag, penalty) {
+      if (sTitle.contains(tag) && !qNormal.contains(tag)) {
+        score += penalty;
+      }
+    });
+
+    // ── D. POPULARITY & SOURCE RELIABILITY ─────────────────────
+    // Play count bonus (scaled)
+    score += (s.playCount / 2000000).clamp(0, 100); 
+
+    // JioSaavn/Platform source bonus for quality
+    if (s.id.startsWith('saavn_') || !s.id.contains('_')) score += 50;
+
+    // ── E. UPDATE UNIQUE LIST ──────────────────────────────────
+    final existingScore = scores[key] ?? -99999.0;
+    if (score > existingScore) {
+      scores[key] = score;
+      uniqueSongs[key] = s;
+      songToKey[s] = key; // Cache for sort
+    }
   }
 
-  all.sort((a, b) {
-    final rA = getRelevance(a);
-    final rB = getRelevance(b);
-    if (rA != rB) return rB.compareTo(rA); // More relevant first
-    return b.playCount.compareTo(a.playCount); // Then popular
+  // ── FINAL SORTING ───────────────────────────────────────────
+  final results = uniqueSongs.values.toList();
+  results.sort((a, b) {
+    final sA = scores[songToKey[a]] ?? 0.0;
+    final sB = scores[songToKey[b]] ?? 0.0;
+    return sB.compareTo(sA);
   });
 
-  return all.take(50).toList();
+  return results.take(60).toList();
 });
 // ─── PLAYER STATE ─────────────────────────────────────────────
 

@@ -494,7 +494,9 @@ class _PlayerBody extends StatelessWidget {
 
       // ── Header ─────────────────────────────────────────────
       _PlayerHeader(
-        album: song.album.isNotEmpty ? song.album : 'DEN',
+        album: (song.album.isNotEmpty && !song.album.toLowerCase().contains('saavn')) 
+            ? song.album 
+            : 'DEN',
         onClose: onClose,
         onMore: onMore,
       ).animate().fadeIn(duration: 280.ms),
@@ -581,16 +583,20 @@ class _PlayerBody extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.48),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.1,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Text(
+                        song.artist,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.48),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ],
               ),

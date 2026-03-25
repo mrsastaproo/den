@@ -30,6 +30,8 @@ class AdminUser {
   final String banReason;
   final DateTime? createdAt;
   final DateTime? lastActive;
+  final DateTime? bannedAt;
+  final String bannedBy;
   final bool isOnline;
   final int likedSongs;
   final int playlists;
@@ -44,6 +46,8 @@ class AdminUser {
     required this.banReason,
     this.createdAt,
     this.lastActive,
+    this.bannedAt,
+    this.bannedBy = '',
     this.isOnline = false,
     required this.likedSongs,
     required this.playlists,
@@ -56,11 +60,13 @@ class AdminUser {
       uid: doc.id,
       email: d['email'] ?? '',
       displayName: d['displayName'] ?? '',
-      photoUrl: d['photoUrl'] ?? d['photoURL'] ?? '', // Handle both cases
+      photoUrl: d['photoUrl'] ?? d['photoURL'] ?? '',
       isBanned: d['isBanned'] ?? false,
       banReason: d['banReason'] ?? '',
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
       lastActive: (d['lastActive'] as Timestamp?)?.toDate(),
+      bannedAt: (d['bannedAt'] as Timestamp?)?.toDate(),
+      bannedBy: d['bannedBy'] ?? '',
       isOnline: d['isOnline'] ?? false,
       likedSongs: d['likedSongs'] ?? 0,
       playlists: d['playlists'] ?? 0,
@@ -168,7 +174,8 @@ class AppConfig {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return AppConfig(
       maintenanceMode: d['maintenanceMode'] ?? false,
-      maintenanceMessage: d['maintenanceMessage'] ?? 'We\'re performing maintenance. Back soon!',
+      maintenanceMessage:
+          d['maintenanceMessage'] ?? 'We\'re performing maintenance. Back soon!',
       forceUpdate: d['forceUpdate'] ?? false,
       minVersion: d['minVersion'] ?? '1.0.0',
       latestVersion: d['latestVersion'] ?? '1.0.0',
@@ -183,19 +190,19 @@ class AppConfig {
   }
 
   Map<String, dynamic> toMap() => {
-    'maintenanceMode': maintenanceMode,
-    'maintenanceMessage': maintenanceMessage,
-    'forceUpdate': forceUpdate,
-    'minVersion': minVersion,
-    'latestVersion': latestVersion,
-    'updateMessage': updateMessage,
-    'audiusEnabled': audiusEnabled,
-    'jiosaavnEnabled': jiosaavnEnabled,
-    'maxSearchResults': maxSearchResults,
-    'maxHistoryItems': maxHistoryItems,
-    'welcomeMessage': welcomeMessage,
-    'registrationEnabled': registrationEnabled,
-  };
+        'maintenanceMode': maintenanceMode,
+        'maintenanceMessage': maintenanceMessage,
+        'forceUpdate': forceUpdate,
+        'minVersion': minVersion,
+        'latestVersion': latestVersion,
+        'updateMessage': updateMessage,
+        'audiusEnabled': audiusEnabled,
+        'jiosaavnEnabled': jiosaavnEnabled,
+        'maxSearchResults': maxSearchResults,
+        'maxHistoryItems': maxHistoryItems,
+        'welcomeMessage': welcomeMessage,
+        'registrationEnabled': registrationEnabled,
+      };
 }
 
 class AdminStats {
@@ -234,6 +241,43 @@ class AdminStats {
   }
 }
 
+/// Represents a single broadcast notification record stored in Firestore.
+class BroadcastNotification {
+  final String id;
+  final String title;
+  final String body;
+  final String? imageUrl;
+  final String? link;
+  final DateTime? sentAt;
+  final String sentBy;
+  final String status; // pending | sent | failed
+
+  const BroadcastNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    this.imageUrl,
+    this.link,
+    this.sentAt,
+    required this.sentBy,
+    required this.status,
+  });
+
+  factory BroadcastNotification.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return BroadcastNotification(
+      id: doc.id,
+      title: d['title'] ?? '',
+      body: d['body'] ?? '',
+      imageUrl: d['imageUrl'] as String?,
+      link: d['link'] as String?,
+      sentAt: (d['sentAt'] as Timestamp?)?.toDate(),
+      sentBy: d['sentBy'] ?? '',
+      status: d['status'] ?? 'pending',
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // ADMIN SERVICE
 // ─────────────────────────────────────────────────────────────
@@ -263,7 +307,6 @@ class AdminService {
 
   Future<void> refreshStats() async {
     _checkAdmin();
-    // Count users
     final usersSnap = await _db.collection('users').count().get();
     final bannedSnap = await _db
         .collection('users')
@@ -276,48 +319,71 @@ class AdminService {
         .count()
         .get();
 
+    // Recalculate aggregate totals across all users
+    int totalPlays = 0;
+    int totalLikes = 0;
+    int totalPlaylists = 0;
+    final allUsers = await _db.collection('users').limit(500).get();
+    for (final doc in allUsers.docs) {
+      final d = doc.data();
+      totalPlays += (d['totalPlays'] as int? ?? 0);
+      totalLikes += (d['likedSongs'] as int? ?? 0);
+      totalPlaylists += (d['playlists'] as int? ?? 0);
+    }
+
+    // Count active-today: users whose lastActive timestamp is within 24h
+    final since = Timestamp.fromDate(
+        DateTime.now().subtract(const Duration(hours: 24)));
+    final activeTodaySnap = await _db
+        .collection('users')
+        .where('lastActive', isGreaterThan: since)
+        .count()
+        .get();
+
     await _db.collection('admin').doc('stats').set({
       'totalUsers': usersSnap.count ?? 0,
       'bannedUsers': bannedSnap.count ?? 0,
       'activeAnnouncements': annSnap.count ?? 0,
+      'totalPlays': totalPlays,
+      'totalLikes': totalLikes,
+      'totalPlaylists': totalPlaylists,
+      'activeToday': activeTodaySnap.count ?? 0,
       'lastUpdated': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await _logActivity('refresh_stats', {
+      'totalUsers': usersSnap.count ?? 0,
+    });
   }
 
   // ── USERS ──────────────────────────────────────────────────
 
   Stream<List<AdminUser>> getUsers({int limit = 100}) {
     _checkAdmin();
-    // We remove the orderBy('createdAt') to ensure users without a timestamp 
-    // (e.g. from failed registration docs or manual DB entries) are still visible.
-    return _db
-        .collection('users')
-        .limit(limit)
-        .snapshots()
-        .map((snap) {
-          final users = snap.docs.map(AdminUser.fromFirestore).toList();
-          // Sort in-memory to provide a consistent experience
-          users.sort((a, b) {
-            final da = a.createdAt ?? DateTime(2000);
-            final db = b.createdAt ?? DateTime(2000);
-            return db.compareTo(da); // Newest first
-          });
-          return users;
-        });
+    return _db.collection('users').limit(limit).snapshots().map((snap) {
+      final users = snap.docs.map(AdminUser.fromFirestore).toList();
+      users.sort((a, b) {
+        final da = a.createdAt ?? DateTime(2000);
+        final db = b.createdAt ?? DateTime(2000);
+        return db.compareTo(da);
+      });
+      return users;
+    });
   }
 
+  /// Server-side search by email prefix (Firestore range query).
   Stream<List<AdminUser>> searchUsers(String query) {
     _checkAdmin();
     final q = query.trim().toLowerCase();
+    if (q.isEmpty) return getUsers();
     return _db
         .collection('users')
         .orderBy('email')
         .startAt([q])
         .endAt(['$q\uf8ff'])
-        .limit(20)
+        .limit(30)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map(AdminUser.fromFirestore).toList());
+        .map((snap) => snap.docs.map(AdminUser.fromFirestore).toList());
   }
 
   Future<void> banUser(String uid, String reason) async {
@@ -328,9 +394,9 @@ class AdminService {
       'bannedAt': FieldValue.serverTimestamp(),
       'bannedBy': _auth.currentUser?.email,
     }, SetOptions(merge: true));
-    await _db.collection('admin').doc('stats').update({
-      'bannedUsers': FieldValue.increment(1),
-    });
+    await _db.collection('admin').doc('stats').set(
+        {'bannedUsers': FieldValue.increment(1)}, SetOptions(merge: true));
+    await _logActivity('ban_user', {'uid': uid, 'reason': reason});
   }
 
   Future<void> unbanUser(String uid) async {
@@ -338,10 +404,12 @@ class AdminService {
     await _db.collection('users').doc(uid).update({
       'isBanned': false,
       'banReason': '',
+      'bannedAt': FieldValue.delete(),
+      'bannedBy': FieldValue.delete(),
     });
-    await _db.collection('admin').doc('stats').update({
-      'bannedUsers': FieldValue.increment(-1),
-    });
+    await _db.collection('admin').doc('stats').set(
+        {'bannedUsers': FieldValue.increment(-1)}, SetOptions(merge: true));
+    await _logActivity('unban_user', {'uid': uid});
   }
 
   Future<void> syncUserStats(String uid) async {
@@ -365,11 +433,11 @@ class AdminService {
     for (final user in users.docs) {
       await syncUserStats(user.id);
     }
+    await _logActivity('sync_all_stats', {'userCount': users.size});
   }
 
   Future<void> deleteUserData(String uid) async {
     _checkAdmin();
-    // Delete subcollections
     for (final sub in ['liked_songs', 'history', 'playlists']) {
       final snap = await _db
           .collection('users')
@@ -378,14 +446,17 @@ class AdminService {
           .limit(500)
           .get();
       final batch = _db.batch();
-      for (final doc in snap.docs) batch.delete(doc.reference);
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
       await batch.commit();
     }
     await _db.collection('users').doc(uid).delete();
+    await _logActivity('delete_user_data', {'uid': uid});
   }
 
-  Future<void> syncUserProfile(String uid, String email,
-      String displayName, String photoUrl) async {
+  Future<void> syncUserProfile(
+      String uid, String email, String displayName, String photoUrl) async {
     await _db.collection('users').doc(uid).set({
       'email': email,
       'displayName': displayName,
@@ -406,7 +477,6 @@ class AdminService {
             snap.docs.map(AppAnnouncement.fromFirestore).toList());
   }
 
-  // Active announcements for users (no admin guard)
   Stream<List<AppAnnouncement>> getActiveAnnouncements() {
     return _db
         .collection('announcements')
@@ -433,6 +503,7 @@ class AdminService {
       'createdAt': FieldValue.serverTimestamp(),
       'createdBy': _auth.currentUser?.email,
     });
+    await _logActivity('create_announcement', {'title': title, 'type': type});
   }
 
   Future<void> updateAnnouncement(String id,
@@ -449,6 +520,7 @@ class AdminService {
   Future<void> deleteAnnouncement(String id) async {
     _checkAdmin();
     await _db.collection('announcements').doc(id).delete();
+    await _logActivity('delete_announcement', {'id': id});
   }
 
   // ── FEATURED BANNERS ───────────────────────────────────────
@@ -481,6 +553,7 @@ class AdminService {
       'order': order,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await _logActivity('create_banner', {'title': title});
   }
 
   Future<void> updateBanner(String id, Map<String, dynamic> data) async {
@@ -491,6 +564,7 @@ class AdminService {
   Future<void> deleteBanner(String id) async {
     _checkAdmin();
     await _db.collection('featured_banners').doc(id).delete();
+    await _logActivity('delete_banner', {'id': id});
   }
 
   // ── APP CONFIG ─────────────────────────────────────────────
@@ -504,7 +578,6 @@ class AdminService {
         .map(AppConfig.fromFirestore);
   }
 
-  // Config for all users (no guard)
   Future<AppConfig?> fetchAppConfig() async {
     final doc = await _db.collection('admin').doc('config').get();
     if (!doc.exists) return null;
@@ -517,6 +590,7 @@ class AdminService {
         .collection('admin')
         .doc('config')
         .set(updates, SetOptions(merge: true));
+    await _logActivity('update_config', updates);
   }
 
   // ── CONTENT CURATION ───────────────────────────────────────
@@ -535,7 +609,7 @@ class AdminService {
     required String title,
     required String subtitle,
     required String query,
-    required String style, // standard | wide | ranked
+    required String style,
     required int order,
     bool isActive = true,
   }) async {
@@ -549,6 +623,7 @@ class AdminService {
       'isActive': isActive,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await _logActivity('create_curated_section', {'title': title});
   }
 
   Future<void> updateCuratedSection(
@@ -560,18 +635,77 @@ class AdminService {
   Future<void> deleteCuratedSection(String id) async {
     _checkAdmin();
     await _db.collection('curated_sections').doc(id).delete();
+    await _logActivity('delete_curated_section', {'id': id});
+  }
+
+  // ── BROADCAST NOTIFICATIONS ────────────────────────────────
+
+  Future<void> sendBroadcastNotification({
+    required String title,
+    required String body,
+    String? imageUrl,
+    String? link,
+  }) async {
+    _checkAdmin();
+    await _db.collection('broadcasts').add({
+      'title': title,
+      'body': body,
+      if (imageUrl != null && imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+      if (link != null && link.isNotEmpty) 'link': link,
+      'sentAt': FieldValue.serverTimestamp(),
+      'sentBy': _auth.currentUser?.email,
+      'status': 'pending',
+    });
+    await _logActivity('send_broadcast', {'title': title, 'body': body});
+  }
+
+  /// Returns typed broadcast objects for the admin history panel.
+  Stream<List<BroadcastNotification>> getBroadcastNotifications() {
+    _checkAdmin();
+    return _db
+        .collection('broadcasts')
+        .orderBy('sentAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map(BroadcastNotification.fromFirestore).toList());
+  }
+
+  /// Raw map stream used by the user-facing NotificationInboxScreen.
+  Stream<List<Map<String, dynamic>>> getBroadcasts() {
+    return _db
+        .collection('broadcasts')
+        .orderBy('sentAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  Future<void> deleteBroadcast(String id) async {
+    _checkAdmin();
+    await _db.collection('broadcasts').doc(id).delete();
+    await _logActivity('delete_broadcast', {'id': id});
   }
 
   // ── ADMIN ACTIVITY LOG ─────────────────────────────────────
 
-  // ignore: unused_element
-  Future<void> _logActivity(String action, Map<String, dynamic> details) async {
-    await _db.collection('admin').doc('logs').collection('activity').add({
-      'action': action,
-      'details': details,
-      'adminEmail': _auth.currentUser?.email,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+  Future<void> _logActivity(
+      String action, Map<String, dynamic> details) async {
+    try {
+      await _db
+          .collection('admin')
+          .doc('logs')
+          .collection('activity')
+          .add({
+        'action': action,
+        'details': details,
+        'adminEmail': _auth.currentUser?.email,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Never let logging errors propagate to the UI
+    }
   }
 
   Stream<List<Map<String, dynamic>>> getActivityLog() {
@@ -586,51 +720,14 @@ class AdminService {
         .map((snap) =>
             snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
-
-  // ── BROADCAST NOTIFICATIONS ───────────────────────────────
-
-  Future<void> sendBroadcastNotification({
-    required String title,
-    required String body,
-    String? imageUrl,
-    String? link,
-  }) async {
-    _checkAdmin();
-    
-    // Log the broadcast in Firestore
-    // This can trigger a Cloud Function to send the actual FCM message
-    await _db.collection('broadcasts').add({
-      'title': title,
-      'body': body,
-      'imageUrl': imageUrl,
-      'link': link,
-      'sentAt': FieldValue.serverTimestamp(),
-      'sentBy': _auth.currentUser?.email,
-      'status': 'pending', // Cloud Function will update to 'sent'
-    });
-
-    await _logActivity('send_broadcast', {
-      'title': title,
-      'body': body,
-    });
-  }
-
-  Stream<List<Map<String, dynamic>>> getBroadcasts() {
-    return _db
-        .collection('broadcasts')
-        .orderBy('sentAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
-  }
 }
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDERS
 // ─────────────────────────────────────────────────────────────
 
-final adminServiceProvider = Provider<AdminService>((ref) => AdminService());
+final adminServiceProvider =
+    Provider<AdminService>((ref) => AdminService());
 
 final adminStatsProvider = StreamProvider<AdminStats>((ref) {
   if (!ref.watch(isAdminProvider)) return const Stream.empty();
@@ -675,7 +772,16 @@ final adminActivityProvider =
   return ref.watch(adminServiceProvider).getActivityLog();
 });
 
-final broadcastsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+/// Typed broadcast provider for the admin Notifications tab.
+final adminBroadcastsProvider =
+    StreamProvider<List<BroadcastNotification>>((ref) {
+  if (!ref.watch(isAdminProvider)) return const Stream.empty();
+  return ref.watch(adminServiceProvider).getBroadcastNotifications();
+});
+
+/// Raw map provider used by the user-facing NotificationInboxScreen.
+final broadcastsProvider =
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
   return ref.watch(adminServiceProvider).getBroadcasts();
 });
 

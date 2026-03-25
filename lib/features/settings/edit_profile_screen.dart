@@ -58,33 +58,43 @@ class _EditProfileScreenState
     try {
       final picked = await _picker.pickImage(
         source: src,
-        maxWidth: 800, maxHeight: 800, imageQuality: 85);
-      if (picked != null) {
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: picked.path,
-          aspectRatioPresets: [
-            CropAspectRatioPreset.square,
-          ],
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: 'Crop Photo',
-              toolbarColor: Colors.black,
-              toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: true,
-            ),
-            IOSUiSettings(
-              title: 'Crop Photo',
-              aspectRatioLockEnabled: true,
-            ),
-          ],
-        );
-        if (croppedFile != null) {
-          setState(() => _image = File(croppedFile.path));
-        }
+        maxWidth: 1024, 
+        maxHeight: 1024, 
+        imageQuality: 90,
+      );
+      
+      if (picked == null) return;
+
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: picked.path,
+        aspectRatioPresets: [CropAspectRatioPreset.square],
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 90,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Profile Photo',
+            toolbarColor: Colors.black,
+            toolbarWidgetColor: AppTheme.pink,
+            activeControlsWidgetColor: AppTheme.pink,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true,
+            backgroundColor: Colors.black,
+          ),
+          IOSUiSettings(
+            title: 'Crop Photo',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+          ),
+        ],
+      );
+
+      if (croppedFile != null) {
+        setState(() => _image = File(croppedFile.path));
+        _snack('Photo ready to save 📸');
       }
     } catch (e) {
-      _snack('Could not pick image: $e');
+      print('Image pick/crop error: $e');
+      _snack('Could not update image. Please try again.');
     }
   }
 

@@ -82,6 +82,12 @@
         </receiver>
         <service android:name="com.flutter_overlay_window.flutter_overlay_window.OverlayService" android:exported="false" />
 
+        <!-- ── Image Cropper (UCrop) ── -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+
 
         <!-- Flutter embedding -->
         <meta-data

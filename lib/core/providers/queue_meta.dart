@@ -14,6 +14,7 @@ enum QueueContext {
   throwback,
   newReleases,
   timeBased,
+  chart,
 }
 
 class QueueMeta {
@@ -21,12 +22,14 @@ class QueueMeta {
   final String? mood;
   final String? artistName;
   final String? searchQuery;
+  final String? chartName;
 
   const QueueMeta({
     this.context = QueueContext.general,
     this.mood,
     this.artistName,
     this.searchQuery,
+    this.chartName,
   });
 }
 

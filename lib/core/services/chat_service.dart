@@ -72,6 +72,10 @@ class ChatService {
       await ref.set({
         'members': [userId, otherUid],
         'updatedAt': FieldValue.serverTimestamp(),
+        'unreadCount': {
+          userId!: 0,
+          otherUid: 0,
+        },
       });
     }
     return chatId;
@@ -98,11 +102,12 @@ class ChatService {
     // Add to messages sub-collection
     batch.set(chatRef.collection('messages').doc(), message.toJson());
     
-    // Update main chat node with last message info for notifications
+    // Update main chat node with last message info and increment unread count
     batch.update(chatRef, {
       'updatedAt': FieldValue.serverTimestamp(),
       'lastMessage': content,
       'lastSenderId': userId!,
+      'unreadCount.$otherUid': FieldValue.increment(1),
     });
 
     await batch.commit();
@@ -206,6 +211,12 @@ class ChatService {
         batch.update(doc.reference, {'readBy': readBy});
       }
     }
+    
+    // Reset our unread count in the parent chat document
+    batch.update(_db.collection('chats').doc(chatId), {
+      'unreadCount.$userId': 0,
+    });
+
     await batch.commit();
   }
 }
@@ -230,12 +241,14 @@ class ChatSummary {
   final String lastMessage;
   final String lastSenderId;
   final DateTime updatedAt;
+  final Map<String, int> unreadCounts;
 
   ChatSummary({
     required this.chatId,
     required this.lastMessage,
     required this.lastSenderId,
     required this.updatedAt,
+    this.unreadCounts = const {},
   });
 }
 
@@ -253,6 +266,40 @@ final chatsSummaryProvider = StreamProvider<List<ChatSummary>>((ref) {
               lastMessage: data['lastMessage'] ?? '',
               lastSenderId: data['lastSenderId'] ?? '',
               updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              unreadCounts: Map<String, int>.from(data['unreadCount'] ?? {}),
             );
           }).toList());
+});
+
+final unreadCountProvider = StreamProvider.family<int, String>((ref, otherUid) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return Stream.value(0);
+  
+  final list = [user.uid, otherUid]..sort();
+  final chatId = '${list[0]}_${list[1]}';
+  
+  return FirebaseFirestore.instance
+      .collection('chats')
+      .doc(chatId)
+      .snapshots()
+      .map((snap) {
+        final data = snap.data();
+        if (data == null || data['unreadCount'] == null) return 0;
+        return (data['unreadCount'] as Map<String, dynamic>)[user.uid] ?? 0;
+      });
+});
+
+final totalUnreadCountProvider = Provider<int>((ref) {
+  final summariesAsync = ref.watch(chatsSummaryProvider);
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return 0;
+  
+  return summariesAsync.when(
+    data: (summaries) {
+      // Return the number of unique chats that have unread messages for the current user
+      return summaries.where((s) => (s.unreadCounts[user.uid] ?? 0) > 0).length;
+    },
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
 });
