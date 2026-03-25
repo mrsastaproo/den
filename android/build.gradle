@@ -18,6 +18,12 @@ allprojects {
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+    
+    configurations.all {
+        resolutionStrategy {
+            force 'net.bytebuddy:byte-buddy:1.14.11'
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")
