@@ -562,7 +562,7 @@ class _PlayerBody extends StatelessWidget {
 
       // ── Song info + like ────────────────────────────────────
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -583,33 +583,29 @@ class _PlayerBody extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Text(
-                        song.artist,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.48),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.1,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                  Text(
+                    song.artist,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.48),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 10),
             _DownloadButton(song: song),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             _LikeButton(isLiked: liked, onTap: onLike),
           ],
         ),
       ).animate().fadeIn(delay: 60.ms, duration: 300.ms),
 
-      const SizedBox(height: 22),
+      const SizedBox(height: 18),
 
       // ── Seeker ─────────────────────────────────────────────
       Padding(
@@ -630,7 +626,7 @@ class _PlayerBody extends StatelessWidget {
 
       // ── Primary controls ────────────────────────────────────
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         child: _Controls(
           isPlaying: isPlaying,
           repeatMode: repeat,
@@ -647,7 +643,7 @@ class _PlayerBody extends StatelessWidget {
 
       // ── Bottom actions ──────────────────────────────────────
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: _BottomBar(
           onLyrics: onLyricsToggle,
           showLyrics: showLyrics,
@@ -1486,7 +1482,7 @@ class _BarChipState extends State<_BarChip> {
               duration:
                   const Duration(milliseconds: 120),
               padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 11),
+                  horizontal: 12, vertical: 11),
               decoration: BoxDecoration(
                 color: widget.color != null 
                     ? widget.color!.withOpacity(0.15)

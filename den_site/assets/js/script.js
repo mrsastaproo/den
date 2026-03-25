@@ -5,6 +5,27 @@
 (function () {
   'use strict';
 
+  /* ── Dynamic version loader ── */
+  // Fetches /update.json and updates all .app-version elements.
+  // If the fetch fails, the fallback text already in the HTML is kept.
+  (function loadAppVersion() {
+    fetch('/update.json')
+      .then(function (res) {
+        if (!res.ok) throw new Error('fetch failed');
+        return res.json();
+      })
+      .then(function (data) {
+        var version = (data && data.latest_version) ? data.latest_version : null;
+        if (!version) return;
+        document.querySelectorAll('.app-version').forEach(function (el) {
+          el.textContent = version;
+        });
+      })
+      .catch(function () {
+        // Silently fail — fallback text in HTML remains visible
+      });
+  })();
+
   /* ── Navbar scroll state ── */
   const navbar = document.querySelector('.navbar');
   if (navbar) {
@@ -79,7 +100,7 @@
     revealEls.forEach(el => el.classList.add('visible'));
   }
 
-  /* ── Contact form (EmailJS Integration) ── */
+  /* ── Contact form (demo only) ── */
   const contactForm = document.getElementById('contact-form');
   const formSuccess = document.getElementById('form-success');
 
@@ -88,66 +109,14 @@
       e.preventDefault();
 
       const btn = contactForm.querySelector('[type="submit"]');
-      const originalBtnText = btn.innerHTML;
-      btn.innerHTML = 'Sending…';
+      btn.textContent = 'Sending…';
       btn.disabled = true;
 
-      // Collect data
-      const formData = new FormData(contactForm);
-      const subject = formData.get('subject');
-      const message = formData.get('message');
-      const email = formData.get('email');
-      const fname = formData.get('first_name');
-      const lname = formData.get('last_name');
-
-      if (!email || !message) {
-        alert('Please fill in all required fields.');
-        btn.innerHTML = originalBtnText;
-        btn.disabled = false;
-        return;
-      }
-
-      // Map subject to recipient email
-      const subjectMap = {
-        'general': 'general@denmusic.in',
-        'support': 'support@denmusic.in',
-        'bug': 'support@denmusic.in',
-        'feedback': 'general@denmusic.in',
-        'privacy': 'privacy@denmusic.in',
-        'other': 'general@denmusic.in'
-      };
-
-      const recipient = subjectMap[subject] || 'general@denmusic.in';
-
-      const templateParams = {
-        first_name: fname || '',
-        last_name: lname || '',
-        email: email,
-        subject: subject || 'No Subject',
-        message: message,
-        recipient_email: recipient // Use this in your template if custom routing is needed
-      };
-
-      // EmailJS Send
-      // REPLACE: Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with your actual EmailJS IDs
-      if (typeof emailjs !== 'undefined') {
-        emailjs.send('service_ovwztji', 'template_4dntgbq', templateParams)
-          .then(() => {
-            contactForm.style.display = 'none';
-            formSuccess.style.display = 'block';
-          })
-          .catch((error) => {
-            console.error('EmailJS Error:', error);
-            alert('Failed to send message. Please check console or try again later.');
-            btn.innerHTML = originalBtnText;
-            btn.disabled = false;
-          });
-      } else {
-        console.error('EmailJS SDK not loaded.');
-        alert('Email sending service is unavailable at the moment.');
-        btn.innerHTML = originalBtnText;
-        btn.disabled = false;
-      }
+      // Simulate async submit
+      setTimeout(() => {
+        contactForm.style.display = 'none';
+        formSuccess.style.display = 'block';
+      }, 1200);
     });
   }
 

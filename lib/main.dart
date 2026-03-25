@@ -14,6 +14,7 @@ import 'core/services/auth_service.dart';
 import 'core/services/api_service.dart';
 import 'core/services/audio_handler.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/update_service.dart';
 
 void main() async {
   print('[DEN] main() started');
@@ -127,6 +128,9 @@ class _DenAppState extends ConsumerState<DenApp> {
 
       // Warm up JioSaavn API
       ref.read(apiServiceProvider).warmUp();
+
+      // Check for updates
+      UpdateService.checkUpdate(context);
 
       // Re-pull settings on sign-in
       ref.listenManual(authStateProvider, (prev, next) async {
