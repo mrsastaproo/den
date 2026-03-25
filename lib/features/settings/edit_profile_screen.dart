@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/profile_service.dart';
@@ -59,7 +60,28 @@ class _EditProfileScreenState
         source: src,
         maxWidth: 800, maxHeight: 800, imageQuality: 85);
       if (picked != null) {
-        setState(() => _image = File(picked.path));
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: picked.path,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.square,
+          ],
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop Photo',
+              toolbarColor: Colors.black,
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+            ),
+            IOSUiSettings(
+              title: 'Crop Photo',
+              aspectRatioLockEnabled: true,
+            ),
+          ],
+        );
+        if (croppedFile != null) {
+          setState(() => _image = File(croppedFile.path));
+        }
       }
     } catch (e) {
       _snack('Could not pick image: $e');

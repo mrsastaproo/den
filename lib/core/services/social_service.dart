@@ -44,12 +44,16 @@ class SocialService {
         transaction.set(docRef, {'uid': userId});
 
         // 2. Write details into user doc
-        transaction.set(_db.collection('users').doc(userId), {
+        final userData = {
           'username': username,
           'displayName': displayName,
-          'photoUrl': photoUrl ?? '',
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          userData['photoUrl'] = photoUrl;
+        }
+
+        transaction.set(_db.collection('users').doc(userId), userData, SetOptions(merge: true));
 
         return true;
       });

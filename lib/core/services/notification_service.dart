@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
@@ -79,6 +81,63 @@ class NotificationService {
 
   /// Get current FCM token (for targeted notifications in future)
   Future<String?> getToken() async => await _fcm.getToken();
+
+  /// Saves the FCM token to Firestore under /users/{uid}
+  Future<void> saveToken(String userId) async {
+    try {
+      final token = await getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(userId).update({
+          'fcmToken': token,
+        });
+        print('[Notifications] Token saved for $userId');
+      }
+    } catch (e) {
+      print('[Notifications] Error saving token: $e');
+    }
+  }
+
+  /// Sends a Push Notification to a target device using Legacy FCM triggers
+  Future<void> sendPushNotification({
+    required String targetToken,
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    // LEAVE BLANK OR LOAD FROM SECURE REMOTE CONFIG IN PROD
+    const String serverKey = 'YOUR_FIREBASE_SERVER_KEY_HERE'; 
+
+    if (serverKey == 'YOUR_FIREBASE_SERVER_KEY_HERE') {
+      print('[Notifications] Skipped Push: No Server Key configured.');
+      return;
+    }
+
+    try {
+      final dio = Dio();
+      await dio.post(
+        'https://fcm.googleapis.com/fcm/send',
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'key=$serverKey',
+          },
+        ),
+        data: {
+          'to': targetToken,
+          'priority': 'high',
+          'notification': {
+            'title': title,
+            'body': body,
+            'sound': 'default',
+          },
+          'data': data ?? {},
+        },
+      );
+      print('[Notifications] Push trigger sent successfully');
+    } catch (e) {
+      print('[Notifications] Error triggering push: $e');
+    }
+  }
 }
 
 final notificationServiceProvider = Provider<NotificationService>((ref) => NotificationService());

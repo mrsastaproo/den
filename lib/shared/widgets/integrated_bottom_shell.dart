@@ -32,7 +32,7 @@ class IntegratedBottomShell extends ConsumerWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
           child: Container(
-            height: 76,
+            height: 84,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -58,69 +58,77 @@ class IntegratedBottomShell extends ConsumerWidget {
                 ),
               ],
             ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _NavItem(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _NavItem(
                     icon: Icons.home_rounded,
                     index: 0,
                     currentIndex: currentIndex,
                     onTap: onTap,
                   ),
-                  _NavItem(
+                ),
+                Expanded(
+                  child: _NavItem(
                     icon: Icons.queue_music_rounded,
                     index: 1,
                     currentIndex: currentIndex,
                     onTap: onTap,
                   ),
-                  _NavItem(
+                ),
+                Expanded(
+                  child: _NavItem(
                     icon: Icons.settings_rounded,
                     index: 5,
                     currentIndex: currentIndex,
                     onTap: onTap,
                   ),
-            
-                  // Center Orb (Mini Player)
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      if (currentSong != null) {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => const PlayerScreen(),
-                        );
-                      }
-                    },
-                    child: _CenterOrbPlayer(
-                      imageUrl: currentSong?.image,
-                      isPlaying: isPlaying,
-                    ),
+                ),
+          
+                // Center Orb (Mini Player)
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    if (currentSong != null) {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const PlayerScreen(),
+                      );
+                    }
+                  },
+                  child: _CenterOrbPlayer(
+                    imageUrl: currentSong?.image,
+                    isPlaying: isPlaying,
                   ),
-            
-                  _NavItem(
+                ),
+          
+                Expanded(
+                  child: _NavItem(
                     icon: Icons.auto_awesome_rounded, // AI tab
                     index: 2,
                     currentIndex: currentIndex,
                     onTap: onTap,
                   ),
-                  _NavItem(
+                ),
+                Expanded(
+                  child: _NavItem(
                     icon: Icons.people_alt_rounded, // Friends
                     index: 4,
                     currentIndex: currentIndex,
                     onTap: onTap,
                   ),
-                  _NavItem(
+                ),
+                Expanded(
+                  child: _NavItem(
                     icon: Icons.bar_chart_rounded,
                     index: 3,
                     currentIndex: currentIndex,
                     onTap: onTap,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -281,7 +289,7 @@ class _NavItemState extends State<_NavItem>
       },
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         child: AnimatedBuilder(
           animation: _controller,
           builder: (_, __) => Transform.scale(

@@ -139,8 +139,6 @@ class AuthService {
       'uid': user.uid,
       'email': user.email ?? '',
       'displayName': user.displayName ?? '',
-      'photoUrl': user.photoURL ?? '', // Unified name
-      'photoURL': user.photoURL ?? '', // Legacy support
       'lastActive': FieldValue.serverTimestamp(),
       'isOnline': true,
     };
@@ -148,6 +146,8 @@ class AuthService {
     if (!snap.exists) {
       data['createdAt'] = FieldValue.serverTimestamp();
       data['plan'] = 'free';
+      data['photoUrl'] = user.photoURL ?? '';
+      data['photoURL'] = user.photoURL ?? '';
       await ref.set(data);
     } else {
       await ref.update(data);

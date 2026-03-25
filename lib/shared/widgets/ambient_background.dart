@@ -72,6 +72,19 @@ class _AmbientBackgroundState extends ConsumerState<AmbientBackground>
     final size = MediaQuery.of(context).size;
     final disableOrbs = ref.watch(appearanceProvider).disableAnimations;
 
+    final orb1 = _Orb(
+      size: size.width * 0.7,
+      color: AppTheme.pink.withOpacity(0.12),
+    );
+    final orb2 = _Orb(
+      size: size.width * 0.6,
+      color: AppTheme.purple.withOpacity(0.10),
+    );
+    final orb3 = _Orb(
+      size: size.width * 0.5,
+      color: AppTheme.purpleDeep.withOpacity(0.07),
+    );
+
     return Stack(
       children: [
         // Pure black base
@@ -81,39 +94,33 @@ class _AmbientBackgroundState extends ConsumerState<AmbientBackground>
           // Orb 1 — Pink top left
           AnimatedBuilder(
             animation: _orb1Position,
-            builder: (_, __) => Positioned(
+            child: orb1,
+            builder: (_, child) => Positioned(
               left: size.width * (0.15 + _orb1Position.value.dx),
               top: size.height * (0.08 + _orb1Position.value.dy),
-              child: _Orb(
-                size: size.width * 0.7,
-                color: AppTheme.pink.withOpacity(0.12),
-              ),
+              child: child!,
             ),
           ),
 
           // Orb 2 — Purple top right
           AnimatedBuilder(
             animation: _orb2Position,
-            builder: (_, __) => Positioned(
+            child: orb2,
+            builder: (_, child) => Positioned(
               right: size.width * (0.05 + _orb2Position.value.dx),
               top: size.height * (0.15 + _orb2Position.value.dy),
-              child: _Orb(
-                size: size.width * 0.6,
-                color: AppTheme.purple.withOpacity(0.10),
-              ),
+              child: child!,
             ),
           ),
 
           // Orb 3 — Pink/Purple mid
           AnimatedBuilder(
             animation: _orb3Position,
-            builder: (_, __) => Positioned(
+            child: orb3,
+            builder: (_, child) => Positioned(
               left: size.width * (0.2 + _orb3Position.value.dx),
               top: size.height * (0.4 + _orb3Position.value.dy),
-              child: _Orb(
-                size: size.width * 0.5,
-                color: AppTheme.purpleDeep.withOpacity(0.07),
-              ),
+              child: child!,
             ),
           ),
         ],

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'notification_service.dart';
 import 'auth_service.dart';
 
 class Message {
@@ -49,8 +50,9 @@ class Message {
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String? userId;
+  final ProviderRef ref;
 
-  ChatService(this.userId);
+  ChatService(this.ref, this.userId);
 
   /// Helper to generate a deterministic chatId for 2 users to share
   String _getChatId(String otherUid) {
@@ -104,6 +106,23 @@ class ChatService {
     });
 
     await batch.commit();
+
+    // ── TRIGGER NOTIFICATION ──────────────────────────────────────────
+    try {
+      final otherDoc = await _db.collection('users').doc(otherUid).get();
+      final token = otherDoc.data()?['fcmToken'] as String?;
+      
+      final senderDoc = await _db.collection('users').doc(userId!).get();
+      final senderName = senderDoc.data()?['displayName'] ?? 'A friend';
+
+      if (token != null) {
+        ref.read(notificationServiceProvider).sendPushNotification(
+          targetToken: token,
+          title: 'Message from $senderName',
+          body: type == 'text' ? content : 'Shared a $type',
+        );
+      }
+    } catch (_) {}
   }
 
   /// Share any media (song, playlist, album, artist) to a friend
@@ -195,7 +214,7 @@ class ChatService {
 
 final chatServiceProvider = Provider<ChatService>((ref) {
   final user = ref.watch(authStateProvider).value;
-  return ChatService(user?.uid);
+  return ChatService(ref, user?.uid);
 });
 
 final chatMessagesProvider = StreamProvider.family<List<Message>, String>((ref, otherUid) {

@@ -91,6 +91,8 @@ class DenAudioHandler extends BaseAudioHandler
           MediaAction.skipToNext,
           MediaAction.skipToPrevious,
           MediaAction.playPause,
+          MediaAction.play,
+          MediaAction.pause,
           MediaAction.stop,
         },
         // prev=0  play/pause=1  next=2  → shown in compact notification

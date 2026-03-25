@@ -15,6 +15,7 @@ import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/notification_service.dart';
 
 
 
@@ -35,12 +36,22 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
   void initState() {
     super.initState();
     _checkOverlayPermission();
+    _initNotifications();
     WidgetsBinding.instance.addObserver(this);
 
     Future.microtask(() {
       ref.read(socialServiceProvider).updateOnlineStatus(true);
       _startPresenceHeartbeat();
     });
+  }
+
+  void _initNotifications() async {
+    final notificationSvc = ref.read(notificationServiceProvider);
+    await notificationSvc.initialize();
+    final user = ref.read(authStateProvider).value;
+    if (user != null) {
+      await notificationSvc.saveToken(user.uid);
+    }
   }
 
   void _startPresenceHeartbeat() {
