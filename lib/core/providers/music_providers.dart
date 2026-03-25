@@ -325,7 +325,6 @@ List<String> _buildTitleQueries(String query) {
 
 final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(searchQueryProvider).trim();
-  final seed  = ref.watch(searchShuffleSeedProvider);
   if (query.isEmpty) return [];
 
   // Keep results for 5 mins to make navigation snappy
@@ -402,44 +401,27 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
 
   if (all.isEmpty) return [];
 
-  // ── Pin best match to position 0 ─────────────────────────────
-  // Priority: exact title → starts with → contains → artist match
+  // ── Sort by Relevance FIRST, then by playCount (Popularity) ───
   final q = query.trim().toLowerCase();
+  final firstWord = q.split(' ').isNotEmpty ? q.split(' ').first : q;
 
-  int pinIdx = all.indexWhere(
-      (s) => s.title.toLowerCase() == q);
-  if (pinIdx < 0) {
-    pinIdx = all.indexWhere(
-        (s) => s.title.toLowerCase().startsWith(q));
-  }
-  if (pinIdx < 0) {
-    pinIdx = all.indexWhere(
-        (s) => s.title.toLowerCase().contains(q));
-  }
-  if (pinIdx < 0) {
-    // Try matching by first word of query against title
-    final firstWord = q.split(' ').first;
-    if (firstWord.length > 2) {
-      pinIdx = all.indexWhere(
-          (s) => s.title.toLowerCase().contains(firstWord));
-    }
+  int getRelevance(Song s) {
+    final t = s.title.toLowerCase();
+    if (t == q) return 4;
+    if (t.startsWith(q)) return 3;
+    if (t.contains(q)) return 2;
+    if (firstWord.length > 2 && t.contains(firstWord)) return 1;
+    return 0;
   }
 
-  final Song pinned;
-  final List<Song> rest;
+  all.sort((a, b) {
+    final rA = getRelevance(a);
+    final rB = getRelevance(b);
+    if (rA != rB) return rB.compareTo(rA); // More relevant first
+    return b.playCount.compareTo(a.playCount); // Then popular
+  });
 
-  if (pinIdx > 0) {
-    pinned = all[pinIdx];
-    rest = [...all]..removeAt(pinIdx);
-  } else {
-    pinned = all.first;
-    rest = all.sublist(1);
-  }
-
-  // Shuffle rest with the provider seed for stability
-  rest.shuffle(math.Random(seed));
-
-  return [pinned, ...rest].take(50).toList();
+  return all.take(50).toList();
 });
 // ─── PLAYER STATE ─────────────────────────────────────────────
 

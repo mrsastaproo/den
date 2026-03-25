@@ -6,6 +6,8 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../providers/music_providers.dart';
@@ -42,6 +44,7 @@ class PlayerService {
   bool _skipInProgress  = false;
   int  _consecutiveErrors = 0;
   DateTime? _lastPrefetchAt;
+  DateTime? _lastSaveTime; // Throttling for saving position
 
   bool     _crossfadeEnabled  = false;
   Duration _crossfadeDuration = const Duration(seconds: 3);
@@ -73,6 +76,9 @@ class PlayerService {
         onToggle:   togglePlayPauseSync,
       );
     } catch (_) {}
+
+    // Restore state from disk on launch
+    Future.microtask(() => restorePlaybackState());
   }
 
   Future<void> _loadSavedSettings() async {
@@ -108,18 +114,17 @@ class PlayerService {
       final currentPlaylist = _ref.read(currentPlaylistProvider);
       final currentUIIndex = _ref.read(currentSongIndexProvider);
       
-      // If the player moved to the next index in the ConcatenatingAudioSource
-      if (index > 0 && index != currentUIIndex) {
-        _log('Gapless transition to index $index');
-        final song = currentPlaylist[index];
-        _ref.read(currentSongIndexProvider.notifier).state = index;
-        _ref.read(currentSongProvider.notifier).state = song;
-        
-        // Trigger prefetch for the NEXT next track
-        _prefetchNextTrack(index);
-        
-        // Update presence and history
-        _syncMetadata(song);
+      if (index > 0) {
+        final globalIndex = currentUIIndex + index;
+        if (globalIndex < currentPlaylist.length) {
+          _log('Gapless transition to global index $globalIndex');
+          final song = currentPlaylist[globalIndex];
+          _ref.read(currentSongIndexProvider.notifier).state = globalIndex;
+          _ref.read(currentSongProvider.notifier).state = song;
+          
+          _prefetchNextTrack(globalIndex);
+          _syncMetadata(song);
+        }
       }
     });
 
@@ -143,6 +148,14 @@ class PlayerService {
         _lastPrefetchAt = now;
         _fetchSmartQueue(prefetch: true);
       }
+
+      // ── SAVE STATE PERIODICALLY (approx every 10s) ──
+      final now = DateTime.now();
+      if (_lastSaveTime == null || now.difference(_lastSaveTime!).inSeconds >= 10) {
+        _lastSaveTime = now;
+        _savePlaybackState();
+      }
+
       updateOverlay();
     });
   }
@@ -256,6 +269,8 @@ class PlayerService {
     int index, {
     Song? prevSong,
     int prevIndex = 0,
+    Duration? startAt,
+    bool autoPlay = true,
   }) async {
     _log('Loading: ${song.title}');
     try {
@@ -298,16 +313,20 @@ class PlayerService {
       }
 
       // ── CONCATENATION MGMT ────────────────────────────────
-      // Reset the source to only have this song initially.
-      // Prefetch will add more later.
       _playlistSource = ConcatenatingAudioSource(children: [source]);
       await _player.setAudioSource(_playlistSource);
+
+      if (startAt != null) {
+        await _player.seek(startAt);
+      }
 
       // ── Success ───────────────────────────────────────────
       _consecutiveErrors = 0;
 
-      _player.play(); // DO NOT AWAIT — just_audio's play() completes when the song finishes!
-      _log('▶ ${song.title}');
+      if (autoPlay) {
+        _player.play(); // DO NOT AWAIT — just_audio's play() completes when track finishes
+      }
+      _log('▶ loaded ${song.title} @ ${startAt?.inSeconds ?? 0}s');
 
       // ── Crossfade: fade in new track ─────────────────────
       final normalise = _ref.read(normalizationEnabledProvider);
@@ -609,15 +628,21 @@ class PlayerService {
   Stream<Duration?>   get durationStream    => _player.durationStream;
   Stream<Duration>    get positionStream    => _player.positionStream;
 
-  Future<void> togglePlayPause() async =>
-      _player.playing ? await _player.pause() : _player.play();
+  Future<void> togglePlayPause() async {
+    _player.playing ? await _player.pause() : await _player.play();
+    _savePlaybackState();
+  }
 
   // Sync version for use as VoidCallback in audio_handler
-  void togglePlayPauseSync() =>
-      _player.playing ? _player.pause() : _player.play();
+  void togglePlayPauseSync() {
+    _player.playing ? _player.pause() : _player.play();
+    _savePlaybackState();
+  }
 
-  Future<void> seekTo(Duration position) async =>
-      _player.seek(position);
+  Future<void> seekTo(Duration position) async {
+    await _player.seek(position);
+    _savePlaybackState();
+  }
 
   void _syncMetadata(Song song) {
     try {
@@ -635,11 +660,76 @@ class PlayerService {
       });
     }
     updateOverlay();
+    _savePlaybackState(); // Save state on song change
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PERSISTENCE
+  // ─────────────────────────────────────────────────────────────
+
+  Future<void> _savePlaybackState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final song = _ref.read(currentSongProvider);
+      final playlist = _ref.read(currentPlaylistProvider);
+      final index = _ref.read(currentSongIndexProvider);
+      final pos = _player.position.inMilliseconds;
+      final isPlaying = _player.playing;
+
+      if (song != null) {
+        await prefs.setString('last_song', jsonEncode(song.toJson()));
+      }
+      if (playlist.isNotEmpty) {
+        final list = playlist.map((s) => s.toJson()).toList();
+        await prefs.setString('last_playlist', jsonEncode(list));
+      }
+      await prefs.setInt('last_index', index);
+      await prefs.setInt('last_position', pos);
+      await prefs.setBool('last_is_playing', isPlaying);
+      // _log('💾 Saved state: ${song?.title} at $pos ms');
+    } catch (e) {
+      _log('Error saving state: $e');
+    }
+  }
+
+  Future<void> restorePlaybackState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final songJson = prefs.getString('last_song');
+      final playlistJson = prefs.getString('last_playlist');
+      final index = prefs.getInt('last_index') ?? 0;
+      final posMs = prefs.getInt('last_position') ?? 0;
+      final isPlaying = prefs.getBool('last_is_playing') ?? false;
+
+      if (playlistJson != null) {
+        final List<dynamic> list = jsonDecode(playlistJson);
+        final playlist = list.map((item) => Song.fromJson(item)).toList();
+        _ref.read(currentPlaylistProvider.notifier).state = playlist;
+      }
+
+      if (songJson != null) {
+        final song = Song.fromJson(jsonDecode(songJson));
+        _ref.read(currentSongProvider.notifier).state = song;
+        _ref.read(currentSongIndexProvider.notifier).state = index;
+
+        _log('Restoring state: ${song.title} at $posMs ms');
+        
+        await _loadAndPlay(
+          song,
+          index,
+          startAt: Duration(milliseconds: posMs),
+          autoPlay: isPlaying,
+        );
+      }
+    } catch (e) {
+      _log('Error restoring state: $e');
+    }
   }
 
   Future<void> stop() async {
     await _player.stop();
     _ref.read(socialServiceProvider).updatePresence(true, nowPlaying: null);
+    _savePlaybackState(); // Save on stop
   }
 
   void dispose() => _player.dispose();

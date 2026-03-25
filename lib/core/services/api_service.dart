@@ -26,8 +26,9 @@ class ApiService {
     try {
       final res = await _dio.get('/search/songs',
         queryParameters: {'query': query, 'limit': limit});
-      final results = res.data['data']['results'] as List? ?? [];
-      return results.map((e) => Song.fromSumitApi(e)).toList();
+      final results = res.data['data']?['results'] as List? ?? [];
+      final songs = results.map((e) => Song.fromSumitApi(e)).toList();
+      return songs..sort((a, b) => b.playCount.compareTo(a.playCount));
     } catch (e) {
       print('Search error [$query]: $e');
       return [];
@@ -41,16 +42,40 @@ class ApiService {
       final results = await Future.wait(futures);
       final songs = results.expand((s) => s).toList();
       final seen = <String>{};
-      return songs.where((s) => seen.add(s.id)).toList();
+      final uniqueSongs = songs.where((s) => seen.add(s.id)).toList();
+      return uniqueSongs..sort((a, b) => b.playCount.compareTo(a.playCount));
     } catch (e) {
       return [];
     }
   }
 
-  // ─── SEARCH ───────────────────────────────────────────────────────
+  Future<List<Song>> _getCustomLofiSearch({bool showExplicit = true}) async {
+    final customQueries = [
+      'lofi hindi',
+      'lofi hits 2024',
+      'lofi slow deep',
+      'lofi english hits',
+      'trending lofi beats',
+    ];
+    final results = await _multiSearch(customQueries, limitEach: 12);
+    results.sort((a, b) {
+      final aH = a.language.toLowerCase() == 'hindi' ? 1 : 0;
+      final bH = b.language.toLowerCase() == 'hindi' ? 1 : 0;
+      if (aH != bH) return bH.compareTo(aH);
+      // Secondary sort: popular items first
+      return b.playCount.compareTo(a.playCount);
+    });
+    if (!showExplicit) return results.where((s) => !s.isExplicit).toList();
+    return results;
+  }
 
   Future<List<Song>> searchSongs(String query,
       {int page = 1, int limit = 20, bool showExplicit = true}) async {
+    final q = query.trim().toLowerCase();
+    if (q == 'lofi' || q == 'lo-fi') {
+      return _getCustomLofiSearch(showExplicit: showExplicit);
+    }
+
     try {
       final res = await _dio.get('/search/songs',
         queryParameters: {
@@ -60,6 +85,7 @@ class ApiService {
         });
       final results = res.data['data']?['results'] as List? ?? [];
       final songs = results.map((e) => Song.fromSumitApi(e)).toList();
+      songs.sort((a, b) => b.playCount.compareTo(a.playCount));
       if (!showExplicit) return songs.where((s) => !s.isExplicit).toList();
       return songs;
     } catch (e) {
@@ -69,12 +95,18 @@ class ApiService {
   }
 
   Future<List<Song>> searchBroad(String query, {bool showExplicit = true}) async {
+    final q = query.trim().toLowerCase();
+    if (q == 'lofi' || q == 'lo-fi') {
+      return _getCustomLofiSearch(showExplicit: showExplicit);
+    }
+
     try {
       final res = await _dio.get('/search',
         queryParameters: {'query': query});
       final songsData =
           res.data['data']?['songs']?['results'] as List? ?? [];
       final songs = songsData.map((e) => Song.fromSumitApi(e)).toList();
+      songs.sort((a, b) => b.playCount.compareTo(a.playCount));
       if (!showExplicit) return songs.where((s) => !s.isExplicit).toList();
       return songs;
     } catch (e) {
@@ -189,12 +221,84 @@ class ApiService {
         limitEach: 12);
   }
 
-  Future<List<Song>> getRecommendations(Song current) async =>
-      _multiSearch([
-        '${current.artist} latest songs',
-        'best ${current.language} songs 2025',
-        'similar to ${current.title} ${current.artist}',
-      ], limitEach: 6);
+  Future<List<Song>> getRecommendations(Song current) async {
+    final artist = current.artist.contains(',') 
+        ? current.artist.split(',').first.trim() 
+        : current.artist;
+
+    final lang = current.language.toLowerCase();
+    final titleLower = current.title.toLowerCase();
+    final queries = <String>[
+      '$artist top songs${lang.isNotEmpty ? " $lang" : ""}',
+      '$artist hits${lang.isNotEmpty ? " $lang" : ""}',
+      '$artist radio${lang.isNotEmpty ? " $lang" : ""}',
+      '$artist mashup${lang.isNotEmpty ? " $lang" : ""}',
+    ];
+
+    final isLofi = titleLower.contains('lofi') || titleLower.contains('lo-fi');
+    final isPhonk = titleLower.contains('phonk');
+
+    if (isLofi) {
+      queries.clear(); // Prefers vibe for curating mixes
+      queries.addAll([
+        'lofi hindi 2024',
+        'lofi hits latest 2024',
+        'lofi mashup',
+        'trending lofi beats',
+        'lofi study relax',
+      ]);
+    } else if (isPhonk) {
+      queries.clear();
+      queries.addAll([
+        'phonk drift 2024',
+        'phonk gym hits',
+        'phonk popular bangers',
+        'phonk bass boost',
+      ]);
+    }
+
+    // ── 1. Moods & Vibes ──────────────────────────────────────
+    const vibes = [
+      'sad', 'broken', 'heartbreak', 'romantic', 'love', 'mashup', 'remix', 
+      'slowed', 'reverb', 'bass', 'workout', 'gym', 'gaming', 'party', 'dance', 
+      'club', 'phonk', 'edm', 'lofi', 'ambient', 'chill', 'soft', 'emotional'
+    ];
+    for (final v in vibes) {
+      if (titleLower.contains(v)) {
+        queries.add('$v songs');
+        queries.add('$v playlist');
+      }
+    }
+
+    // ── 2. Regional / Language checks ──────────────────────────
+    if (lang.isNotEmpty) {
+      queries.add('trending $lang');
+      queries.add('$lang hits');
+      queries.add('$lang mashup');
+    }
+
+    // Deduplicate queries
+    final uniqueQueries = queries.toSet().toList();
+
+    final results = await _multiSearch(uniqueQueries, limitEach: 8);
+
+    if (lang.isNotEmpty) {
+      // 1. Strict Filter (If sufficiently packed)
+      final filtered = results
+          .where((s) => s.language.toLowerCase() == lang)
+          .toList();
+      if (filtered.length >= 4) return filtered;
+
+      // 2. Continuous Sort prioritizing matching weights
+      results.sort((a, b) {
+        final aMatch = a.language.toLowerCase() == lang ? 1 : 0;
+        final bMatch = b.language.toLowerCase() == lang ? 1 : 0;
+        return bMatch.compareTo(aMatch);
+      });
+    }
+
+    return results;
+  }
 
   // ─── STREAM URL ───────────────────────────────────────────────────
   //

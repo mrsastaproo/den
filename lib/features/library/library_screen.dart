@@ -573,6 +573,37 @@ class _LibraryBody extends ConsumerWidget {
             ),
         ],
 
+        // ── Downloaded Songs List ────────────────────────
+        if (filter == _FilterChip.downloads) ...[
+          if (filteredDownloaded.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: _SectionLabel(
+                  label: 'Downloaded Songs',
+                  count: filteredDownloaded.length),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _SongTile(
+                  song: filteredDownloaded[i],
+                  playlist: filteredDownloaded,
+                  index: i,
+                  compact: viewMode == _ViewMode.compact,
+                  trailing: _SongTileTrailing.more,
+                ),
+                childCount: filteredDownloaded.length,
+              ),
+            ),
+          ],
+          if (filteredPlaylists.isEmpty && filteredDownloaded.isEmpty)
+            SliverToBoxAdapter(
+              child: _EmptyState(
+                icon: Icons.download_rounded,
+                title: 'No downloads yet',
+                subtitle: 'Download songs/playlists\nto listen offline',
+              ),
+            ),
+        ],
+
         // ── Liked Songs List ─────────────────────────────
         if (filter == _FilterChip.liked) ...[
           if (filteredLiked.isNotEmpty)
@@ -969,6 +1000,8 @@ class _SongTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final downloadedAsync = ref.watch(downloadedSongsProvider);
+    final isDownloaded = downloadedAsync.value?.any((s) => s.id == song.id) ?? false;
     final imgSize = compact ? 40.0 : 52.0;
 
     Widget tile = GestureDetector(
@@ -1020,15 +1053,26 @@ class _SongTile extends ConsumerWidget {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    song.title,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: compact ? 13 : 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          song.title,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: compact ? 13 : 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isDownloaded) ...[
+                        const SizedBox(width: 6),
+                        Icon(Icons.check_circle_rounded,
+                            color: AppTheme.pink, size: 14),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -2214,14 +2258,88 @@ class _PlaylistOptionsSheet extends StatelessWidget {
               ),
               // Download
               ListTile(
-                leading: const Icon(Icons.download_rounded, color: Colors.white, size: 22),
+                leading: const Icon(Icons.download_rounded, color: Colors.teal, size: 22),
                 title: const Text('Download Playlist',
                     style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
                 contentPadding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
                   HapticFeedback.selectionClick();
+
+                  final progressNotifier = ValueNotifier<String>('Preparing playlist...');
+
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => Dialog(
+                      backgroundColor: Colors.transparent,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(color: Colors.teal),
+                                const SizedBox(height: 20),
+                                ValueListenableBuilder<String>(
+                                  valueListenable: progressNotifier,
+                                  builder: (ctx, text, _) {
+                                    return Text(
+                                      text,
+                                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                                      textAlign: TextAlign.center,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+
+                  try {
+                    final songs = await ref.read(databaseServiceProvider).getPlaylistSongs(playlist['id'] as String).first;
+                    final total = songs.length;
+
+                    if (songs.isEmpty) {
+                      if (context.mounted) Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Playlist is empty')));
+                      return;
+                    }
+
+                    int current = 0;
+                    for (final s in songs) {
+                      current++;
+                      progressNotifier.value = 'Downloading track $current of $total\n${s.title}';
+
+                      String url = s.url;
+                      if (s.id.startsWith('audius_')) {
+                         url = await ref.read(audiusServiceProvider).getStreamUrl(s.id);
+                      } else if (url.isEmpty) {
+                         url = await ref.read(apiServiceProvider).getStreamUrl(s.id);
+                      }
+
+                      await ref.read(downloadServiceProvider).downloadSong(s, resolvedUrl: url);
+                    }
+
+                    await ref.read(databaseServiceProvider).markPlaylistAsDownloaded(playlist['id'] as String);
+
+                    if (context.mounted) Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Playlist downloaded successfully!')));
+                  } catch (e) {
+                    if (context.mounted) Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red));
+                  }
                 },
               ),
               // Delete

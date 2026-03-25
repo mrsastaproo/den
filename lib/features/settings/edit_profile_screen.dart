@@ -133,51 +133,53 @@ class _EditProfileScreenState
                   top: Radius.circular(28)),
               border: Border.all(
                   color: Colors.white.withOpacity(0.08))),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(width: 36, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(2))),
-                const SizedBox(height: 20),
-                const Text('Update Photo',
-                  style: TextStyle(color: Colors.white,
-                    fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                _PhotoOption(
-                  icon: Icons.camera_alt_rounded,
-                  label: 'Take Photo',
-                  colors: [AppTheme.pink, AppTheme.pinkDeep],
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.camera);
-                  },
-                ),
-                const SizedBox(height: 10),
-                _PhotoOption(
-                  icon: Icons.photo_library_rounded,
-                  label: 'Choose from Gallery',
-                  colors: [AppTheme.purple, AppTheme.purpleDeep],
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.gallery);
-                  },
-                ),
-                if (_image != null || 
-                    (ref.read(authStateProvider).value?.photoURL?.isNotEmpty ?? false)) ...[
-                  const SizedBox(height: 10),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 20),
+                  const Text('Update Photo',
+                    style: TextStyle(color: Colors.white,
+                      fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 16),
                   _PhotoOption(
-                    icon: Icons.delete_rounded,
-                    label: 'Remove Photo',
-                    colors: [Colors.red.shade400, Colors.red.shade600],
+                    icon: Icons.camera_alt_rounded,
+                    label: 'Take Photo',
+                    colors: [AppTheme.pink, AppTheme.pinkDeep],
                     onTap: () {
-                      setState(() => _image = null);
                       Navigator.pop(context);
+                      _pickImage(ImageSource.camera);
                     },
                   ),
+                  const SizedBox(height: 10),
+                  _PhotoOption(
+                    icon: Icons.photo_library_rounded,
+                    label: 'Choose from Gallery',
+                    colors: [AppTheme.purple, AppTheme.purpleDeep],
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.gallery);
+                    },
+                  ),
+                  if (_image != null || 
+                      (ref.read(authStateProvider).value?.photoURL?.isNotEmpty ?? false)) ...[
+                    const SizedBox(height: 10),
+                    _PhotoOption(
+                      icon: Icons.delete_rounded,
+                      label: 'Remove Photo',
+                      colors: [Colors.red.shade400, Colors.red.shade600],
+                      onTap: () {
+                        setState(() => _image = null);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -227,9 +229,12 @@ class _EditProfileScreenState
                       icon: Icon(Icons.arrow_back_ios_rounded,
                         color: Colors.white.withOpacity(0.7)),
                       onPressed: () => Navigator.pop(context)),
-                    const Text('Edit Profile',
-                      style: TextStyle(color: Colors.white,
-                        fontSize: 18, fontWeight: FontWeight.w700)),
+                    const Expanded(
+                      child: Text('Edit Profile',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white,
+                          fontSize: 18, fontWeight: FontWeight.w700)),
+                    ),
                     // Save button
                     AnimatedOpacity(
                       duration: const Duration(milliseconds: 200),
@@ -634,12 +639,17 @@ class _InfoRow extends StatelessWidget {
           style: TextStyle(
             color: Colors.white.withOpacity(0.5),
             fontSize: 13)),
-        const Spacer(),
-        Text(value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(value,
+            textAlign: TextAlign.end,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600)),
+        ),
       ]),
     );
   }

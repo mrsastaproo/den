@@ -74,7 +74,7 @@ class _AiScreenState extends ConsumerState<AiScreen> {
               shaderCallback: (bounds) =>
                   AppTheme.primaryGradient.createShader(bounds),
               child: const Text(
-                'ARIA',
+                'DEN AI',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -353,7 +353,7 @@ class _AiBubble extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ARIA avatar
+                // DEN AI avatar
                 Container(
                   width: 32,
                   height: 32,
@@ -841,7 +841,7 @@ class _InputBar extends StatelessWidget {
                     enabled: !isLoading,
                     decoration: InputDecoration(
                       hintText: isLoading
-                          ? 'ARIA is thinking...'
+                          ? 'DEN AI is thinking...'
                           : 'Bata apna mood ya genre...',
                       hintStyle: TextStyle(
                           color: Colors.white.withValues(alpha: 0.3),

@@ -96,8 +96,12 @@ class ChatService {
     // Add to messages sub-collection
     batch.set(chatRef.collection('messages').doc(), message.toJson());
     
-    // Update main chat node timestamp
-    batch.update(chatRef, {'updatedAt': FieldValue.serverTimestamp()});
+    // Update main chat node with last message info for notifications
+    batch.update(chatRef, {
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastMessage': content,
+      'lastSenderId': userId!,
+    });
 
     await batch.commit();
   }
@@ -200,4 +204,36 @@ final chatMessagesProvider = StreamProvider.family<List<Message>, String>((ref, 
 
 final typingStatusProvider = StreamProvider.family<bool, String>((ref, otherUid) {
   return ref.watch(chatServiceProvider).listenTypingStatus(otherUid);
+});
+
+class ChatSummary {
+  final String chatId;
+  final String lastMessage;
+  final String lastSenderId;
+  final DateTime updatedAt;
+
+  ChatSummary({
+    required this.chatId,
+    required this.lastMessage,
+    required this.lastSenderId,
+    required this.updatedAt,
+  });
+}
+
+final chatsSummaryProvider = StreamProvider<List<ChatSummary>>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return Stream.value([]);
+  return FirebaseFirestore.instance
+      .collection('chats')
+      .where('members', arrayContains: user.uid)
+      .snapshots()
+      .map((snap) => snap.docs.map((d) {
+            final data = d.data();
+            return ChatSummary(
+              chatId: d.id,
+              lastMessage: data['lastMessage'] ?? '',
+              lastSenderId: data['lastSenderId'] ?? '',
+              updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            );
+          }).toList());
 });

@@ -58,66 +58,69 @@ class IntegratedBottomShell extends ConsumerWidget {
                 ),
               ],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _NavItem(
-                  icon: Icons.home_rounded,
-                  index: 0,
-                  currentIndex: currentIndex,
-                  onTap: onTap,
-                ),
-                _NavItem(
-                  icon: Icons.queue_music_rounded,
-                  index: 1,
-                  currentIndex: currentIndex,
-                  onTap: onTap,
-                ),
-                _NavItem(
-                  icon: Icons.settings_rounded,
-                  index: 5,
-                  currentIndex: currentIndex,
-                  onTap: onTap,
-                ),
-
-                // Center Orb (Mini Player)
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    if (currentSong != null) {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (_) => const PlayerScreen(),
-                      );
-                    }
-                  },
-                  child: _CenterOrbPlayer(
-                    imageUrl: currentSong?.image,
-                    isPlaying: isPlaying,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _NavItem(
+                    icon: Icons.home_rounded,
+                    index: 0,
+                    currentIndex: currentIndex,
+                    onTap: onTap,
                   ),
-                ),
-
-                _NavItem(
-                  icon: Icons.auto_awesome_rounded, // AI tab
-                  index: 2,
-                  currentIndex: currentIndex,
-                  onTap: onTap,
-                ),
-                _NavItem(
-                  icon: Icons.people_alt_rounded, // Friends
-                  index: 4,
-                  currentIndex: currentIndex,
-                  onTap: onTap,
-                ),
-                _NavItem(
-                  icon: Icons.bar_chart_rounded,
-                  index: 3,
-                  currentIndex: currentIndex,
-                  onTap: onTap,
-                ),
-              ],
+                  _NavItem(
+                    icon: Icons.queue_music_rounded,
+                    index: 1,
+                    currentIndex: currentIndex,
+                    onTap: onTap,
+                  ),
+                  _NavItem(
+                    icon: Icons.settings_rounded,
+                    index: 5,
+                    currentIndex: currentIndex,
+                    onTap: onTap,
+                  ),
+            
+                  // Center Orb (Mini Player)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      if (currentSong != null) {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => const PlayerScreen(),
+                        );
+                      }
+                    },
+                    child: _CenterOrbPlayer(
+                      imageUrl: currentSong?.image,
+                      isPlaying: isPlaying,
+                    ),
+                  ),
+            
+                  _NavItem(
+                    icon: Icons.auto_awesome_rounded, // AI tab
+                    index: 2,
+                    currentIndex: currentIndex,
+                    onTap: onTap,
+                  ),
+                  _NavItem(
+                    icon: Icons.people_alt_rounded, // Friends
+                    index: 4,
+                    currentIndex: currentIndex,
+                    onTap: onTap,
+                  ),
+                  _NavItem(
+                    icon: Icons.bar_chart_rounded,
+                    index: 3,
+                    currentIndex: currentIndex,
+                    onTap: onTap,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

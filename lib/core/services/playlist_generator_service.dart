@@ -5,6 +5,7 @@ import '../models/song.dart';
 import 'api_service.dart';
 import 'audius_service.dart';
 import 'database_service.dart';
+import 'jamendo_service.dart';
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ class PlaylistGeneratorService extends StateNotifier<GeneratorState> {
   final ApiService _api;
   final AudiusService _audius;
   final DatabaseService _db;
+  final JamendoService _jamendo;
 
   static const String _geminiApiKey = 'AIzaSyBHbyfiNF8b0nyEhyEzhsjgToVKiW6qfFs';
   static const String _geminiModel = 'gemini-2.0-flash';
@@ -100,13 +102,13 @@ class PlaylistGeneratorService extends StateNotifier<GeneratorState> {
   // How many user turns so far — hard-blocks build_playlist on turn 1
   int _turnCount = 0;
 
-  PlaylistGeneratorService(this._api, this._audius, this._db)
+  PlaylistGeneratorService(this._api, this._audius, this._db, this._jamendo)
       : super(const GeneratorState());
 
   // ─── System prompt: ARIA's personality + strict conversation rules ────────
 
 static const String _systemPrompt = """
-You are ARIA — the AI music curator inside DEN, a music streaming app.
+You are DEN AI — the AI music curator inside DEN, a music streaming app.
 You are a warm, witty, music-obsessed friend — NOT a search engine.
 
 ════════════════════════════════════════
@@ -384,16 +386,25 @@ When action = "build_playlist":
       }
     }
 
+    // Fallback/Indie tracks: Jamendo API
+    for (final q in jiosaavnQueries) {
+      futures.add(_jamendo.fetchByQuery(q, limit: 5));
+    }
+
     final results = await Future.wait(futures);
 
     final seen = <String>{};
-    final jiosaavnResults =
-        results.take(jiosaavnQueries.length).expand((l) => l).toList();
-    final audiusResults =
-        results.skip(jiosaavnQueries.length).expand((l) => l).toList();
-    audiusResults.shuffle();
+    final totalJio = jiosaavnQueries.length;
+    final totalAudius = useAudius && audiusGenres.isNotEmpty ? audiusGenres.length : 0;
 
-    return [...jiosaavnResults, ...audiusResults]
+    final jiosaavnResults = results.take(totalJio).expand((l) => l).toList();
+    final audiusResults = results.skip(totalJio).take(totalAudius).expand((l) => l).toList();
+    final jamendoResults = results.skip(totalJio + totalAudius).expand((l) => l).toList();
+
+    audiusResults.shuffle();
+    jamendoResults.shuffle();
+
+    return [...jiosaavnResults, ...audiusResults, ...jamendoResults]
         .where((s) => seen.add(s.id))
         .take(25)
         .toList();
@@ -607,5 +618,6 @@ final playlistGeneratorProvider =
     ref.read(apiServiceProvider),
     AudiusService(),
     ref.read(databaseServiceProvider),
+    ref.read(jamendoServiceProvider),
   );
 });

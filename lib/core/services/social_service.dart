@@ -310,7 +310,7 @@ final isBlockedProvider = StreamProvider.family<bool, String>((ref, targetUid) {
 });
 
 final discoverTimerProvider = StreamProvider.autoDispose<int>((ref) {
-  return Stream.periodic(const Duration(seconds: 60), (count) => count);
+  return Stream.periodic(const Duration(seconds: 10), (count) => count);
 });
 
 final discoverUsersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {

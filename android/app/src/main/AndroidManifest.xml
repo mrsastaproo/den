@@ -63,8 +63,8 @@
 
         <!-- ── Background audio service (just_audio + audio_service) ── -->
         <service
-            android:name="com.ryanheise.audioservice.AudioServiceBackground"
-            android:exported="false"
+            android:name="com.ryanheise.audioservice.AudioService"
+            android:exported="true"
             android:foregroundServiceType="mediaPlayback"
             android:stopWithTask="false">
             <intent-filter>
@@ -74,7 +74,7 @@
 
         <!-- ── Media button receiver (headset / Bluetooth controls) ── -->
         <receiver
-            android:name="androidx.media.session.MediaButtonReceiver"
+            android:name="com.ryanheise.audioservice.MediaButtonReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON"/>

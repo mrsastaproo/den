@@ -707,10 +707,7 @@ class _PlayerHeader extends StatelessWidget {
           ),
         ]),
         const Spacer(),
-        _HdrBtn(
-            icon: Icons.more_horiz_rounded,
-            size: 22,
-            onTap: onMore),
+        const SizedBox(width: 40), // Symmetric spacer for Center alignment!
       ]),
     );
   }
@@ -1409,6 +1406,19 @@ class _BottomBar extends ConsumerWidget {
           },
         ),
         _BarChip(
+          icon: Icons.more_horiz_rounded,
+          label: 'MORE',
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              isScrollControlled: true,
+              builder: (_) => _OptionsSheet(song: song),
+            );
+          },
+        ),
+        _BarChip(
           icon: Icons.lyrics_rounded,
           label: 'LYRICS',
           onTap: onLyrics,
@@ -1761,12 +1771,7 @@ class _OptionsSheet extends ConsumerWidget {
     final options = [
       (Icons.playlist_add_rounded, 'Add to Playlist',
           AppTheme.purple),
-      (Icons.person_rounded, 'Go to Artist',
-          Colors.white70),
-      (Icons.album_rounded, 'Go to Album',
-          Colors.white70),
-      (Icons.radio_rounded, 'Start Radio',
-          AppTheme.pinkDeep),
+
       (Icons.timer_rounded, 'Sleep Timer',
           AppTheme.pink),
       (Icons.share_rounded, 'Share', Colors.white70),
@@ -1873,21 +1878,7 @@ class _OptionsSheet extends ConsumerWidget {
                     
                     if (o.$2 == 'Add to Playlist') {
                       PlaylistSelectorSheet.show(context, song);
-                    } else if (o.$2 == 'Go to Artist') {
-                      ref.read(searchQueryProvider.notifier).state = song.artist;
-                      // Navigate to search tab
-                      // NOTE: This assumes we are in a context where Navigator can reach home/search
-                      // For simplicity, we trigger a search which updates the Search tab.
-                    } else if (o.$2 == 'Go to Album') {
-                      // Same as artist for now
-                      ref.read(searchQueryProvider.notifier).state = song.title; 
-                    } else if (o.$2 == 'Start Radio') {
-                       final recs = await ref.read(apiServiceProvider).getRecommendations(song);
-                       if (recs.isNotEmpty) {
-                         ref.read(currentPlaylistProvider.notifier).state = [song, ...recs];
-                         ref.read(currentSongIndexProvider.notifier).state = 0;
-                         ref.read(playerServiceProvider).playSong(song);
-                       }
+
                     } else if (o.$2 == 'Share') {
                        SocialShareSheet.show(context, type: 'song', metadata: song.toJson());
                     } else if (o.$2 == 'Sleep Timer') {

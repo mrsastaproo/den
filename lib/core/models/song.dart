@@ -9,6 +9,7 @@ class Song {
   final String year;
   final String language;
   final bool isExplicit;
+  final int playCount;
 
   Song({
 
@@ -22,6 +23,7 @@ class Song {
     required this.year,
     required this.language,
     required this.isExplicit,
+    this.playCount = 0,
   });
 
 
@@ -49,6 +51,7 @@ class Song {
       year: json['year']?.toString() ?? '',
       language: json['language'] ?? '',
       isExplicit: json['isExplicit'] ?? json['explicit'] ?? false,
+      playCount: json['playCount'] != null ? (int.tryParse(json['playCount'].toString()) ?? 0) : 0,
     );
 
   }
@@ -77,6 +80,7 @@ class Song {
     year: json['year']?.toString() ?? '',
     language: json['language'] ?? '',
     isExplicit: json['explicitContent'] == true || json['explicit'] == true,
+    playCount: json['playCount'] != null ? (int.tryParse(json['playCount'].toString()) ?? 0) : 0,
   );
 }
 
@@ -92,5 +96,6 @@ class Song {
     'year': year,
     'language': language,
     'isExplicit': isExplicit,
+    'playCount': playCount,
   };
 }

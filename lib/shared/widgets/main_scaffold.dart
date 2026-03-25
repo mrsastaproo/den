@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/services/chat_service.dart';
 import 'integrated_bottom_shell.dart';
 import 'ambient_background.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
@@ -66,6 +67,23 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
     }
   }
 
+  void _triggerNotification(String senderId, String message) async {
+    final profile = await ref.read(socialServiceProvider).getUserProfileStream(senderId).first;
+    final name = profile?['displayName'] ?? 'A friend';
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$name sent: $message', style: const TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black87,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).size.height - 120),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -147,6 +165,25 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
     final location     = GoRouterState.of(context).uri.toString();
     final currentIndex = _locationToIndex(location);
     final carMode      = ref.watch(carModeProvider);
+
+    // listen for incoming friend messages
+    ref.listen<AsyncValue<List<ChatSummary>>>(chatsSummaryProvider, (prev, next) {
+      if (prev == null || !next.hasValue) return;
+      final prevList = prev.value ?? [];
+      final nextList = next.value ?? [];
+      
+      for (final chat in nextList) {
+        final prevChat = prevList.firstWhere((c) => c.chatId == chat.chatId, 
+            orElse: () => ChatSummary(chatId: '', lastMessage: '', lastSenderId: '', updatedAt: DateTime.now()));
+        
+        if (chat.lastMessage.isNotEmpty && 
+            chat.lastMessage != prevChat.lastMessage &&
+            chat.lastSenderId != ref.read(authStateProvider).value?.uid) {
+           
+           _triggerNotification(chat.lastSenderId, chat.lastMessage);
+        }
+      }
+    });
 
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
