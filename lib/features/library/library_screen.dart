@@ -11,6 +11,7 @@ import '../../core/services/api_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/providers/queue_meta.dart';
+import '../../core/services/admin_service.dart';
 import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
@@ -375,7 +376,7 @@ class _SearchField extends StatelessWidget {
 
 // ─── FILTER CHIPS ─────────────────────────────────────────────
 
-class _FilterChips extends StatelessWidget {
+class _FilterChips extends ConsumerWidget {
   final _FilterChip selected;
   final ValueChanged<_FilterChip> onSelect;
 
@@ -392,14 +393,19 @@ class _FilterChips extends StatelessWidget {
   };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
             horizontal: 16, vertical: 4),
-        children: _FilterChip.values.map((f) {
+        children: _FilterChip.values.where((f) {
+          if (f == _FilterChip.downloads) {
+            return ref.watch(isAdminProvider);
+          }
+          return true;
+        }).map((f) {
           final isSelected = f == selected;
           return GestureDetector(
             onTap: () => onSelect(f),
@@ -526,7 +532,7 @@ class _LibraryBody extends ConsumerWidget {
         // ── Playlists ────────────────────────────────────
         if (filter == _FilterChip.all ||
             filter == _FilterChip.playlists ||
-            filter == _FilterChip.downloads) ...[
+            (ref.watch(isAdminProvider) && filter == _FilterChip.downloads)) ...[
           if (filteredPlaylists.isNotEmpty)
             SliverToBoxAdapter(
               child: _SectionLabel(
@@ -573,35 +579,36 @@ class _LibraryBody extends ConsumerWidget {
             ),
         ],
 
-        // ── Downloaded Songs List ────────────────────────
-        if (filter == _FilterChip.downloads) ...[
-          if (filteredDownloaded.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: _SectionLabel(
-                  label: 'Downloaded Songs',
-                  count: filteredDownloaded.length),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (_, i) => _SongTile(
-                  song: filteredDownloaded[i],
-                  playlist: filteredDownloaded,
-                  index: i,
-                  compact: viewMode == _ViewMode.compact,
-                  trailing: _SongTileTrailing.more,
+        ...[
+          if (ref.watch(isAdminProvider) && filter == _FilterChip.downloads) ...[
+            if (filteredDownloaded.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: _SectionLabel(
+                    label: 'Downloaded Songs',
+                    count: filteredDownloaded.length),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (_, i) => _SongTile(
+                    song: filteredDownloaded[i],
+                    playlist: filteredDownloaded,
+                    index: i,
+                    compact: viewMode == _ViewMode.compact,
+                    trailing: _SongTileTrailing.more,
+                  ),
+                  childCount: filteredDownloaded.length,
                 ),
-                childCount: filteredDownloaded.length,
               ),
-            ),
+            ],
+            if (filteredPlaylists.isEmpty && filteredDownloaded.isEmpty)
+              SliverToBoxAdapter(
+                child: _EmptyState(
+                  icon: Icons.download_rounded,
+                  title: 'No downloads yet',
+                  subtitle: 'Download songs/playlists\nto listen offline',
+                ),
+              ),
           ],
-          if (filteredPlaylists.isEmpty && filteredDownloaded.isEmpty)
-            SliverToBoxAdapter(
-              child: _EmptyState(
-                icon: Icons.download_rounded,
-                title: 'No downloads yet',
-                subtitle: 'Download songs/playlists\nto listen offline',
-              ),
-            ),
         ],
 
         // ── Liked Songs List ─────────────────────────────
@@ -689,37 +696,6 @@ class _LibraryBody extends ConsumerWidget {
               ),
             ),
         ],
-
-        // ── Downloaded Songs List ──────────────────────────
-        if (filter == _FilterChip.downloads) ...[
-          if (filteredDownloaded.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _SectionLabel(
-                  label: 'Downloaded Songs',
-                  count: filteredDownloaded.length),
-            ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (_, i) => _SongTile(
-                song: filteredDownloaded[i],
-                playlist: filteredDownloaded,
-                index: i,
-                compact: viewMode == _ViewMode.compact,
-                trailing: _SongTileTrailing.more,
-              ),
-              childCount: filteredDownloaded.length,
-            ),
-          ),
-          if (filteredDownloaded.isEmpty && filteredPlaylists.isEmpty)
-            SliverToBoxAdapter(
-              child: _EmptyState(
-                icon: Icons.download_done_rounded,
-                title: 'No downloads',
-                subtitle: 'Songs you download\nwill appear here',
-              ),
-            ),
-        ],
-
 
         // ── Recent History ───────────────────────────────
         if (filter == _FilterChip.all &&

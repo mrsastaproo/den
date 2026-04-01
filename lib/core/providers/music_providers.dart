@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/audius_service.dart';
+import '../services/youtube_service.dart';
 import '../services/player_service.dart';
 import '../services/database_service.dart' as db;
 import '../services/settings_service.dart';

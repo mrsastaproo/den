@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 
 class YoutubeService {
-  // Placeholder — USER: Provide your Render URL here!
+  // Proxy for search and audio streaming resolution
   static const String proxyUrl = 'https://den-yt-proxy.onrender.com';
 
   final Dio _dio = Dio(BaseOptions(
@@ -48,3 +48,4 @@ class YoutubeService {
 }
 
 final youtubeServiceProvider = Provider<YoutubeService>((ref) => YoutubeService());
+

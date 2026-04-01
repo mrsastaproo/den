@@ -256,76 +256,81 @@ class ApiService {
 
     final lang = current.language.toLowerCase();
     final titleLower = current.title.toLowerCase();
+    
+    // ── 1. Strategy: Artist Radio & Similar Vibe ─────────────
     final queries = <String>[
-      '$artist top songs${lang.isNotEmpty ? " $lang" : ""}',
-      '$artist hits${lang.isNotEmpty ? " $lang" : ""}',
-      '$artist radio${lang.isNotEmpty ? " $lang" : ""}',
-      '$artist mashup${lang.isNotEmpty ? " $lang" : ""}',
+      '$artist radio',
+      '$artist mix',
+      '$artist top songs',
+      'songs similar to ${current.title}',
     ];
 
+    // ── 2. Specialized Vibes ─────────────────────────────────
     final isLofi = titleLower.contains('lofi') || titleLower.contains('lo-fi');
     final isPhonk = titleLower.contains('phonk');
+    final isDevotional = titleLower.contains('bhajan') || 
+                        titleLower.contains('chalisa') || 
+                        titleLower.contains('aarti') ||
+                        titleLower.contains('mantra');
 
     if (isLofi) {
-      queries.clear(); // Prefers vibe for curating mixes
-      queries.addAll([
-        'lofi hindi 2024',
-        'lofi hits latest 2024',
-        'lofi mashup',
-        'trending lofi beats',
-        'lofi study relax',
-      ]);
+      queries.addAll(['lofi hindi', 'lofi english hits', 'trending lofi beats']);
     } else if (isPhonk) {
-      queries.clear();
-      queries.addAll([
-        'phonk drift 2024',
-        'phonk gym hits',
-        'phonk popular bangers',
-        'phonk bass boost',
-      ]);
+      queries.addAll(['phonk drift', 'phonk gym hits', 'phonk bass boost']);
+    } else if (isDevotional) {
+      queries.addAll(['$artist bhajan', 'popular $lang devotional', 'morning bhaktisongs']);
     }
 
-    // ── 1. Moods & Vibes ──────────────────────────────────────
-    const vibes = [
-      'sad', 'broken', 'heartbreak', 'romantic', 'love', 'mashup', 'remix', 
-      'slowed', 'reverb', 'bass', 'workout', 'gym', 'gaming', 'party', 'dance', 
-      'club', 'phonk', 'edm', 'lofi', 'ambient', 'chill', 'soft', 'emotional'
-    ];
-    for (final v in vibes) {
-      if (titleLower.contains(v)) {
-        queries.add('$v songs');
-        queries.add('$v playlist');
+    // ── 3. Genre/Mood keywords ───────────────────────────────
+    const moods = ['sad', 'romantic', 'party', 'dance', 'gym', 'workout', 'chill', 'acoustic'];
+    for (final m in moods) {
+      if (titleLower.contains(m)) {
+        queries.add('$m $lang hits');
       }
     }
 
-    // ── 2. Regional / Language checks ──────────────────────────
-    if (lang.isNotEmpty) {
-      queries.add('trending $lang');
-      queries.add('$lang hits');
-      queries.add('$lang mashup');
+    // ── 4. Language-specific Radio ──────────────────────────
+    if (lang.isNotEmpty && lang != 'unknown') {
+      queries.add('top $lang hits 2025');
+      queries.add('$lang viral songs');
     }
 
-    // Deduplicate queries
-    final uniqueQueries = queries.toSet().toList();
+    // Deduplicate and limit queries to keep it fast
+    final uniqueQueries = queries.toSet().toList().take(6).toList();
+    final results = await _multiSearch(uniqueQueries, limitEach: 6);
 
-    final results = await _multiSearch(uniqueQueries, limitEach: 8);
+    // ── 5. VIBE FILTERING (The most important part) ───────────
+    // Filter out results that don't match the language or general vibe
+    
+    final filtered = results.where((s) {
+      // a) Language Lock: English songs should only suggest English songs
+      if (lang == 'english' && s.language.toLowerCase() != 'english') return false;
+      
+      // b) Devotional Lock: If current isn't devotional, don't suggest devotional
+      final sTitle = s.title.toLowerCase();
+      final isSDevotional = sTitle.contains('bhajan') || sTitle.contains('chalisa') || sTitle.contains('mantra');
+      if (!isDevotional && isSDevotional) return false;
+      
+      return true;
+    }).toList();
 
-    if (lang.isNotEmpty) {
-      // 1. Strict Filter (If sufficiently packed)
-      final filtered = results
-          .where((s) => s.language.toLowerCase() == lang)
-          .toList();
-      if (filtered.length >= 4) return filtered;
+    // ── 6. RANKING ───────────────────────────────────────────
+    filtered.sort((a, b) {
+      // Priority 1: Match Artist (exact check)
+      final aArtistMatch = a.artist.contains(artist) ? 1 : 0;
+      final bArtistMatch = b.artist.contains(artist) ? 1 : 0;
+      if (aArtistMatch != bArtistMatch) return bArtistMatch.compareTo(aArtistMatch);
 
-      // 2. Continuous Sort prioritizing matching weights
-      results.sort((a, b) {
-        final aMatch = a.language.toLowerCase() == lang ? 1 : 0;
-        final bMatch = b.language.toLowerCase() == lang ? 1 : 0;
-        return bMatch.compareTo(aMatch);
-      });
-    }
+      // Priority 2: Language Match
+      final aLangMatch = a.language.toLowerCase() == lang ? 1 : 0;
+      final bLangMatch = b.language.toLowerCase() == lang ? 1 : 0;
+      if (aLangMatch != bLangMatch) return bLangMatch.compareTo(aLangMatch);
 
-    return results;
+      // Priority 3: Popularity
+      return b.playCount.compareTo(a.playCount);
+    });
+
+    return filtered;
   }
 
   // ─── STREAM URL ───────────────────────────────────────────────────

@@ -15,6 +15,8 @@ import '../../core/models/song.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
 import '../../shared/widgets/playlist_selector_sheet.dart';
+import '../../shared/widgets/premium_watermark.dart';
+import '../../core/services/admin_service.dart';
 import '../../core/services/download_service.dart';
 
 
@@ -1605,25 +1607,31 @@ class _TopResultCardState extends State<_TopResultCard> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 9, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.pink.withOpacity(0.14),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: AppTheme.pink.withOpacity(0.28),
-                                      width: 0.7),
-                                ),
-                                child: Text(
-                                  'SONG',
-                                  style: TextStyle(
-                                    color: AppTheme.pink.withOpacity(0.9),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.4,
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 9, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.pink.withOpacity(0.14),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                          color: AppTheme.pink.withOpacity(0.28),
+                                          width: 0.7),
+                                    ),
+                                    child: Text(
+                                      'SONG',
+                                      style: TextStyle(
+                                        color: AppTheme.pink.withOpacity(0.9),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.4,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  const PremiumWatermark(),
+                                ],
                               ),
                               const SizedBox(height: 9),
                               Text(
@@ -1763,16 +1771,24 @@ class _SongResultTileState extends State<_SongResultTile> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.song.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.1,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                 Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.song.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const PremiumWatermark(fontSize: 6),
+                  ],
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -1966,7 +1982,8 @@ class _SongOptionsSheet extends StatelessWidget {
               const SizedBox(height: 8),
               ...[
                 (Icons.favorite_rounded, 'Like Song', AppTheme.pink),
-                (Icons.download_rounded, 'Download', Colors.teal),
+                if (ref.watch(isAdminProvider))
+                  (Icons.download_rounded, 'Download', Colors.teal),
                 (Icons.playlist_add_rounded, 'Add to Playlist', AppTheme.purple),
                 (Icons.queue_music_rounded, 'Play Next', AppTheme.pinkDeep),
                 (Icons.person_add_rounded, 'Follow Artist', Colors.blue),

@@ -568,8 +568,14 @@ class PlayerService {
     if (recs.isEmpty) {
       try { recs = await _api.getRecommendations(current); } catch (_) {}
     }
+
+    // Only fallback to trending if we are truly desperate AND the language matches.
+    // This prevents English pop from suggesting Hindi trending religious tracks.
     if (recs.isEmpty) {
-      try { recs = await _api.getTrending(); } catch (_) {}
+      try { 
+        final trending = await _api.getTrending(); 
+        recs = trending.where((s) => s.language.toLowerCase() == current.language.toLowerCase()).toList();
+      } catch (_) {}
     }
 
     final existing    = _ref.read(currentPlaylistProvider);
@@ -597,24 +603,22 @@ class PlayerService {
 
   Future<List<Song>> _getSimilarSongs(Song song) async {
     final artist      = song.artist.isNotEmpty ? song.artist : '';
-    final lang        = song.language.toLowerCase() != 'unknown'
-        ? song.language : '';
     final searchQuery = _ref.read(queueMetaProvider).searchQuery ?? '';
 
     final futures = <Future<List<Song>>>[
       _api.getRecommendations(song).catchError((_) => <Song>[])
     ];
+    
     if (artist.isNotEmpty) {
-      futures.add(_api.searchSongs('$artist songs', page: 1).catchError((_) => <Song>[]));
+      // ── Specific Artist Radio ──────────────────────────────
+      futures.add(_api.searchSongs('$artist radio', page: 1).catchError((_) => <Song>[]));
       futures.add(_api.getArtistSongs(artist).catchError((_) => <Song>[]));
     }
-    if (lang.isNotEmpty) {
-      futures.add(_api.searchSongs('best $lang songs', page: 1).catchError((_) => <Song>[]));
-    }
+    
     if (searchQuery.isNotEmpty &&
         searchQuery.toLowerCase() != song.title.toLowerCase()) {
+      // ── Contextual Search Fallback ─────────────────────────
       futures.add(_api.searchSongs(searchQuery, page: 2).catchError((_) => <Song>[]));
-      futures.add(_api.searchSongs(searchQuery, page: 3).catchError((_) => <Song>[]));
     }
 
     final results = await Future.wait(futures);

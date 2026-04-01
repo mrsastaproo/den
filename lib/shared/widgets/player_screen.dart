@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:palette_generator/palette_generator.dart';
 import '../../core/providers/music_providers.dart';
 import '../../core/services/player_service.dart';
+import '../../core/services/admin_service.dart';
 import '../../core/models/song.dart';
 
 import '../../core/services/database_service.dart';
@@ -18,6 +19,7 @@ import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/social_share_sheet.dart';
 import '../../shared/widgets/playlist_selector_sheet.dart';
+import '../../shared/widgets/premium_watermark.dart';
 import 'social_share_sheet.dart';
 import '../../core/services/download_service.dart';
 
@@ -436,7 +438,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 // PLAYER BODY — extracted so AnimatedSwitcher can key it
 // ─────────────────────────────────────────────────────────────
 
-class _PlayerBody extends StatelessWidget {
+class _PlayerBody extends ConsumerWidget {
   final Song song;
   final List<Song> playlist;
   final int curIdx;
@@ -489,7 +491,7 @@ class _PlayerBody extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(children: [
 
       // ── Header ─────────────────────────────────────────────
@@ -570,17 +572,25 @@ class _PlayerBody extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.6,
-                      height: 1.1,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          song.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.6,
+                            height: 1.1,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const PremiumWatermark(fontSize: 10, padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3)),
+                    ],
                   ),
                   const SizedBox(height: 5),
                   Text(
@@ -598,8 +608,10 @@ class _PlayerBody extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            _DownloadButton(song: song),
-            const SizedBox(width: 8),
+            if (ref.watch(isAdminProvider)) ...[
+              _DownloadButton(song: song),
+              const SizedBox(width: 8),
+            ],
             _LikeButton(isLiked: liked, onTap: onLike),
           ],
         ),
@@ -816,27 +828,40 @@ class _ArtworkCard extends StatelessWidget {
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: CachedNetworkImage(memCacheWidth: 400, 
-                imageUrl: song.image,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  color: AppTheme.bgTertiary,
-                  child: const Center(
-                    child: Icon(Icons.music_note_rounded,
-                        color: AppTheme.pink, size: 72),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: CachedNetworkImage(memCacheWidth: 400, 
+                    imageUrl: song.image,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      color: AppTheme.bgTertiary,
+                      child: const Center(
+                        child: Icon(Icons.music_note_rounded,
+                            color: AppTheme.pink, size: 72),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      decoration: const BoxDecoration(
+                          gradient: AppTheme.primaryGradient),
+                      child: const Center(
+                        child: Icon(Icons.music_note_rounded,
+                            color: Colors.white, size: 72),
+                      ),
+                    ),
                   ),
                 ),
-                errorWidget: (_, __, ___) => Container(
-                  decoration: const BoxDecoration(
-                      gradient: AppTheme.primaryGradient),
-                  child: const Center(
-                    child: Icon(Icons.music_note_rounded,
-                        color: Colors.white, size: 72),
+                // Premium Overlay
+                Positioned(
+                  top: 14,
+                  right: 14,
+                  child: const PremiumWatermark(
+                    fontSize: 10,
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -1770,12 +1795,11 @@ class _OptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isAdmin = ref.watch(isAdminProvider);
     final options = [
-      (Icons.playlist_add_rounded, 'Add to Playlist',
-          AppTheme.purple),
-
-      (Icons.timer_rounded, 'Sleep Timer',
-          AppTheme.pink),
+      (Icons.playlist_add_rounded, 'Add to Playlist', AppTheme.purple),
+      if (isAdmin) (Icons.download_rounded, 'Download', AppTheme.pink),
+      (Icons.timer_rounded, 'Sleep Timer', AppTheme.pink),
       (Icons.share_rounded, 'Share', Colors.white70),
     ];
 
