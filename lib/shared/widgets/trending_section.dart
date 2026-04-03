@@ -217,9 +217,7 @@ class _TrendingCardState extends State<_TrendingCard>
                   top: 10, left: 12,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
+                    child: Container(child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
@@ -263,9 +261,7 @@ class _TrendingCardState extends State<_TrendingCard>
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(
                       bottom: Radius.circular(20)),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
+                    child: Container(child: Container(
                         padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(

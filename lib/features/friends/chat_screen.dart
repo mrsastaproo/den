@@ -234,9 +234,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget _buildAppBar(
       String displayUser, String? displayPhoto, bool isOnline, dynamic nowPlaying) {
     return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.only(
             top: MediaQuery.of(context).padding.top + 8,
             bottom: 12,
@@ -762,9 +760,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildInputBar() {
     return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.fromLTRB(
               12, 10, 12, MediaQuery.of(context).padding.bottom + 10),
           decoration: BoxDecoration(

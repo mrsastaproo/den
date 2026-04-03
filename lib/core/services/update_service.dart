@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import '../models/update_info.dart';
 import '../../shared/widgets/update_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Result of an update check.
 enum UpdateStatus { upToDate, optionalUpdate, forceUpdate, error }
@@ -33,20 +34,31 @@ class UpdateCheckResult {
 }
 
 class UpdateService {
-  /// URL to your hosted update.json
+  /// URL to your hosted update.json (GitHub Raw link)
   static const String _updateJsonUrl =
-      'https://denmusic.in/update.json'; // ← change this
+      'https://raw.githubusercontent.com/mrsastaproo/website-apk/main/update.json'; 
 
   static const Duration _timeout = Duration(seconds: 10);
 
   /// Checks for updates and shows the dialog if needed.
   static Future<void> checkUpdate(BuildContext context) async {
     final result = await checkForUpdate();
+    
     if (result.status == UpdateStatus.optionalUpdate ||
         result.status == UpdateStatus.forceUpdate) {
       if (!context.mounted) return;
       
       final info = result.updateInfo!;
+      
+      // Check if user already dismissed this specific optional update
+      if (result.status == UpdateStatus.optionalUpdate) {
+        final prefs = await SharedPreferences.getInstance();
+        final dismissedVersion = prefs.getString('dismissed_update_version');
+        if (dismissedVersion == info.latestVersion) {
+          return; // Skip showing dialog
+        }
+      }
+
       showDialog(
         context: context,
         barrierDismissible: result.status != UpdateStatus.forceUpdate,
@@ -54,10 +66,17 @@ class UpdateService {
           title: info.title,
           message: info.message,
           updateUrl: info.updateUrl,
+          latestVersion: info.latestVersion,
           isForceUpdate: result.status == UpdateStatus.forceUpdate,
         ),
       );
     }
+  }
+
+  /// Mark this version as dismissed so we don't nag until the NEXT release
+  static Future<void> dismissUpdate(String version) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('dismissed_update_version', version);
   }
 
   /// Fetches the remote JSON and compares against the current app version.

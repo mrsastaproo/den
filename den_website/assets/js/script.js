@@ -16,10 +16,29 @@
       })
       .then(function (data) {
         var version = (data && data.latest_version) ? data.latest_version : null;
-        if (!version) return;
-        document.querySelectorAll('.app-version').forEach(function (el) {
-          el.textContent = version;
-        });
+        var downloadUrl = (data && data.apk_direct_url) ? data.apk_direct_url : null;
+        var apkSize = (data && data.apk_size) ? data.apk_size : null;
+        
+        if (version) {
+          document.querySelectorAll('.app-version').forEach(function (el) {
+            el.textContent = version;
+          });
+        }
+
+        if (apkSize) {
+          document.querySelectorAll('.app-size').forEach(function (el) {
+            el.textContent = apkSize;
+          });
+        }
+        
+        if (downloadUrl) {
+          document.querySelectorAll('a[download]').forEach(function(el) {
+             // Only update if it looks like an APK download button
+             if (el.href && el.href.includes('.apk')) {
+                 el.href = downloadUrl;
+             }
+          });
+        }
       })
       .catch(function () {
         // Silently fail — fallback text in HTML remains visible

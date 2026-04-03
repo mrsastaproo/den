@@ -61,9 +61,7 @@ class TopChartsSection extends ConsumerWidget {
           error: (e, _) => const SizedBox.shrink(),
           data: (songs) => ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+            child: Container(child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(

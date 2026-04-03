@@ -176,9 +176,7 @@ class _MixResult extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+        child: Container(child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [

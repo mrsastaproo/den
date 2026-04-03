@@ -5,7 +5,7 @@ import '../../features/home/home_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/settings/settings_screen.dart';
-import '../../features/settings/admin_screen.dart';
+import '../../features/admin/admin_layout.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/ai/ai_screen.dart';
 import '../../features/wrapped/wrapped_screen.dart';
@@ -16,12 +16,19 @@ import '../../features/splash/splash_screen.dart';
 import 'package:den/features/notifications/notification_inbox_screen.dart';
 import '../services/auth_service.dart';
 import '../services/admin_service.dart';
+import '../services/social_service.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ValueNotifier<bool>(false);
 
   ref.listen<AsyncValue<dynamic>>(authStateProvider, (prev, next) {
     refreshNotifier.value = !refreshNotifier.value;
+  });
+
+  ref.listen<AsyncValue<Map<String, dynamic>?>>(userProfileProvider, (prev, next) {
+    if (next.value?['isBanned'] == true) {
+      refreshNotifier.value = !refreshNotifier.value;
+    }
   });
 
   return GoRouter(
@@ -39,8 +46,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return null;
 
       final isLoggedIn  = authState.value != null;
+      final userProfile = ref.read(userProfileProvider).value;
+      final isBanned    = userProfile?['isBanned'] == true;
+
       final isLoginRoute = path == '/login';
       final isAdminRoute = path == '/admin';
+
+      if (isLoggedIn && isBanned) {
+        // Force the user out if they are banned
+        Future.microtask(() => ref.read(authServiceProvider).signOut());
+        return '/login';
+      }
 
       if (!isLoggedIn && !isLoginRoute) return '/login';
       if (isLoggedIn && isLoginRoute)   return '/home';
@@ -72,7 +88,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Admin (full screen, outside shell) ─────────────────────────────────
       GoRoute(
         path: '/admin',
-        builder: (c, s) => const AdminScreen(),
+        builder: (c, s) => const AdminLayout(),
       ),
 
       // ── Chat (full screen, outside shell) ──────────────────────────────────

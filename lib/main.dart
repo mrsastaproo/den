@@ -33,58 +33,39 @@ void main() async {
   await Hive.initFlutter();
   print('[DEN] Hive initialized');
 
-  // ── Firebase ──────────────────────────────────────────────────────────────
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 15));
-    print('[DEN] Firebase initialized');
-  } catch (e) {
-    print('[DEN] Firebase error: $e');
-  }
-
-  // ── AudioService ──────────────────────────────────────────────────────────
-  // Must be initialised BEFORE runApp().
-  // This is what powers:
-  //   - Notification bar media player (Spotify-style)
-  //   - Lock screen controls with album art
-  //   - Headset / Bluetooth buttons
-  //   - Background playback when app is minimised
+  // ── Parallel Boot ─────────────────────────────────────────────────────────
+  // Run Firebase and AudioService initializing natively parallel to halve boot delay.
   final sharedPlayer = AudioPlayer();
 
   try {
-    audioHandler = await AudioService.init(
-      builder: () => DenAudioHandler(
-        player:            sharedPlayer,
-        onSkipNext:        () {}, // real callbacks wired by PlayerService
-        onSkipPrev:        () {},
-        onTogglePlayPause: () {},
-      ),
-      config: const AudioServiceConfig(
-        // ── Android notification channel ──────────────────────────────────
-        androidNotificationChannelId:   'com.mrsastaproo.den.audio',
-        androidNotificationChannelName: 'DEN Music',
-        androidNotificationIcon:        'mipmap/ic_launcher',
-
-        // Keep notification alive while playing
-        androidNotificationOngoing: true,
-
-        // Stop foreground service when paused (saves battery, like Spotify)
-        androidStopForegroundOnPause: true,
-
-        // Show notification even before user interacts
-        androidShowNotificationBadge: true,
-
-        // Accent colour in the notification (DEN pink)
-        notificationColor: Color(0xFFFFB3C6),
-
-        // ── iOS ───────────────────────────────────────────────────────────
-        // Now Playing info on lock screen / Control Center
-      ),
-    ).timeout(const Duration(seconds: 10));
-    print('[DEN] AudioService initialized');
+    await Future.wait([
+      Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ).then((_) => print('[DEN] Firebase initialized')),
+      
+      AudioService.init(
+        builder: () => DenAudioHandler(
+          player:            sharedPlayer,
+          onSkipNext:        () {}, // real callbacks wired by PlayerService
+          onSkipPrev:        () {},
+          onTogglePlayPause: () {},
+        ),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId:   'com.mrsastaproo.den.audio',
+          androidNotificationChannelName: 'DEN Music',
+          androidNotificationIcon:        'mipmap/ic_launcher',
+          androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true,
+          androidShowNotificationBadge: true,
+          notificationColor: Color(0xFFFFB3C6),
+        ),
+      ).then((handler) {
+        audioHandler = handler;
+        print('[DEN] AudioService initialized');
+      }),
+    ]).timeout(const Duration(seconds: 25));
   } catch (e) {
-    print('[DEN] AudioService error: $e');
+    print('[DEN] Heavy Init Error via timeout or crash: $e');
   }
 
   runApp(const ProviderScope(child: DenApp()));

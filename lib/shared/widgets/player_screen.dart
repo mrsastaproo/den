@@ -118,11 +118,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
-    // Restore DynamicIsland visibility now that the player is closing.
-    // Using addPostFrameCallback so we never read a ref after unmount.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(playerScreenOpenProvider.notifier).state = false;
-    });
+    // Notify the app that the player is closing.
+    // We do this immediately before disposal to ensure 'ref' is valid.
+    ref.read(playerScreenOpenProvider.notifier).state = false;
+
     _bgPulse.dispose();
     _vinylSpin.dispose();
     _pc.dispose();
@@ -180,8 +179,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final showLyrics = ref.watch(showLyricsProvider);
     final isPlaying = ref.watch(isPlayingStreamProvider).value ?? false;
-    final position  = ref.watch(positionStreamProvider).value  ?? Duration.zero;
-    final duration  = ref.watch(durationStreamProvider).value  ?? Duration.zero;
     final playlist  = ref.watch(currentPlaylistProvider);
     final curIdx    = ref.watch(currentSongIndexProvider);
     final repeat    = ref.watch(repeatModeProvider);
@@ -200,14 +197,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       WidgetsBinding.instance.addPostFrameCallback(
           (_) => _extractPalette(song.image));
     }
-
-    // Page sync is handled by ref.listenManual in initState — not here.
-
-    final double seekMax =
-        duration.inSeconds.toDouble().clamp(1.0, double.infinity);
-    final double seekVal = _dragging
-        ? _dragVal
-        : position.inSeconds.toDouble().clamp(0.0, seekMax);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -316,10 +305,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       playlist: playlist,
                       curIdx: curIdx,
                       isPlaying: isPlaying,
-                      position: position,
-                      duration: duration,
-                      seekVal: seekVal,
-                      seekMax: seekMax,
                       repeat: repeat,
                       shuffle: shuffle,
                       liked: liked,
@@ -335,19 +320,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       onMore: () =>
                           _showOptionsSheet(context, song),
                       onPageSwipe: _onPageSwipe,
-                      onDragStart: (v) => setState(() {
-                        _dragging = true;
-                        _dragVal = v;
-                      }),
-                      onDragUpdate: (v) =>
-                          setState(() => _dragVal = v),
-                      onDragEnd: (v) {
-                        ref
-                            .read(playerServiceProvider)
-                            .seekTo(Duration(
-                                seconds: v.toInt()));
-                        setState(() => _dragging = false);
-                      },
                       onPlay: () {
                         HapticFeedback.mediumImpact();
                         ref
@@ -443,8 +415,6 @@ class _PlayerBody extends ConsumerWidget {
   final List<Song> playlist;
   final int curIdx;
   final bool isPlaying, shuffle, liked;
-  final Duration position, duration;
-  final double seekVal, seekMax;
   final RepeatMode repeat;
   final PageController pc;
   final AnimationController vinylSpin;
@@ -453,7 +423,6 @@ class _PlayerBody extends ConsumerWidget {
   final VoidCallback onClose, onMore, onPlay, onNext, onPrev,
       onShuffle, onRepeat, onLike, onLyricsToggle;
   final ValueChanged<int> onPageSwipe;
-  final ValueChanged<double> onDragStart, onDragUpdate, onDragEnd;
   final VoidCallback onScrollStart, onScrollEnd;
 
   const _PlayerBody({
@@ -464,10 +433,6 @@ class _PlayerBody extends ConsumerWidget {
     required this.isPlaying,
     required this.shuffle,
     required this.liked,
-    required this.position,
-    required this.duration,
-    required this.seekVal,
-    required this.seekMax,
     required this.repeat,
     required this.pc,
     required this.vinylSpin,
@@ -483,9 +448,6 @@ class _PlayerBody extends ConsumerWidget {
     required this.onLike,
     required this.onLyricsToggle,
     required this.onPageSwipe,
-    required this.onDragStart,
-    required this.onDragUpdate,
-    required this.onDragEnd,
     required this.onScrollStart,
     required this.onScrollEnd,
   });
@@ -623,14 +585,7 @@ class _PlayerBody extends ConsumerWidget {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22),
         child: _Seeker(
-          value: seekVal,
-          max: seekMax,
-          position: position,
-          duration: duration,
           fmt: fmt,
-          onStart: onDragStart,
-          onChanged: onDragUpdate,
-          onEnd: onDragEnd,
         ),
       ).animate().fadeIn(delay: 80.ms, duration: 300.ms),
 
@@ -1055,32 +1010,29 @@ class _DownloadButtonState extends ConsumerState<_DownloadButton> {
 // SEEKER
 // ─────────────────────────────────────────────────────────────
 
-class _Seeker extends StatefulWidget {
-  final double value, max;
-  final Duration position, duration;
+class _Seeker extends ConsumerStatefulWidget {
   final String Function(Duration) fmt;
-  final ValueChanged<double> onStart, onChanged, onEnd;
 
   const _Seeker({
-    required this.value,
-    required this.max,
-    required this.position,
-    required this.duration,
     required this.fmt,
-    required this.onStart,
-    required this.onChanged,
-    required this.onEnd,
   });
 
   @override
-  State<_Seeker> createState() => _SeekerState();
+  ConsumerState<_Seeker> createState() => _SeekerState();
 }
 
-class _SeekerState extends State<_Seeker> {
+class _SeekerState extends ConsumerState<_Seeker> {
   bool _active = false;
+  bool _dragging = false;
+  double _dragVal = 0.0;
 
   @override
   Widget build(BuildContext context) {
+    final position = ref.watch(positionStreamProvider).value ?? Duration.zero;
+    final duration = ref.watch(durationStreamProvider).value ?? Duration.zero;
+    final double seekMax = duration.inSeconds.toDouble().clamp(1.0, double.infinity);
+    final double seekVal = _dragging ? _dragVal : position.inSeconds.toDouble().clamp(0.0, seekMax);
+
     return Column(children: [
       SliderTheme(
         data: SliderTheme.of(context).copyWith(
@@ -1101,16 +1053,24 @@ class _SeekerState extends State<_Seeker> {
               const _RoundedTrackShape(),
         ),
         child: Slider(
-          value: widget.value.clamp(0.0, widget.max),
-          max: widget.max,
+          value: seekVal.clamp(0.0, seekMax),
+          max: seekMax,
           onChangeStart: (v) {
-            setState(() => _active = true);
-            widget.onStart(v);
+            setState(() {
+              _active = true;
+              _dragging = true;
+              _dragVal = v;
+            });
           },
-          onChanged: widget.onChanged,
+          onChanged: (v) {
+             setState(() => _dragVal = v);
+          },
           onChangeEnd: (v) {
-            setState(() => _active = false);
-            widget.onEnd(v);
+            setState(() {
+              _active = false;
+              _dragging = false;
+            });
+            ref.read(playerServiceProvider).seekTo(Duration(seconds: v.toInt()));
           },
         ),
       ),
@@ -1122,7 +1082,7 @@ class _SeekerState extends State<_Seeker> {
               MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              widget.fmt(widget.position),
+              widget.fmt(position),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.38),
                 fontSize: 11,
@@ -1133,7 +1093,7 @@ class _SeekerState extends State<_Seeker> {
               ),
             ),
             Text(
-              widget.fmt(widget.duration),
+              widget.fmt(duration),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.38),
                 fontSize: 11,

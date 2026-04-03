@@ -52,9 +52,7 @@ import '../../core/services/storage_service.dart';
 import '../../core/services/download_service.dart';
 import '../../core/services/appearance_service.dart';
 import 'equalizer_screen.dart';
-import 'admin_screen.dart';
 import '../../core/services/player_service.dart';
-
 
 // ─── SETTINGS SCREEN ──────────────────────────────────────────────────────────
 
@@ -103,9 +101,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.only(
             top: MediaQuery.of(context).padding.top + 16,
             left: 20,
@@ -161,9 +157,7 @@ class _ProfileCard extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        child: Container(child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
@@ -278,9 +272,7 @@ class _ProfileCard extends ConsumerWidget {
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
+                  child: Container(child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.1),
@@ -365,9 +357,7 @@ class _StatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
+      child: Container(child: Container(
           padding:
               const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
           decoration: BoxDecoration(
@@ -1299,7 +1289,7 @@ class _PrivacySection extends ConsumerWidget {
                     'Minimal — only what\'s needed'),
                 const SizedBox(height: 12),
                 const _InfoRow(
-                    'Third Parties', 'Den Driod API, Firebase'),
+                    'Third Parties', 'YouTube API, Firebase'),
                 const SizedBox(height: 12),
                 const _InfoRow(
                     'Data Storage', 'Encrypted on Firebase'),
@@ -1530,7 +1520,7 @@ class _AboutSection extends StatelessWidget {
           icon: Icons.info_rounded,
           label: 'About DEN',
           subtitle: 'Version, credits, open source',
-          value: 'v1.0.0',
+          value: 'v1.4.0',
           colors: [AppTheme.pink, AppTheme.purple],
           onTap: () => _showAboutSheet(context),
         ),
@@ -1578,7 +1568,7 @@ class _AboutSection extends StatelessWidget {
             const SizedBox(height: 20),
             const _InfoRow('Built with', 'DEN TEAM'),
             const SizedBox(height: 8),
-            const _InfoRow('Music API', 'Densi API'),
+            const _InfoRow('Music API', 'YouTube API'),
             const SizedBox(height: 8),
             const _InfoRow('Auth & Storage', 'Firebase'),
             const SizedBox(height: 8),
@@ -1658,9 +1648,7 @@ class _AdminPanelEntry extends ConsumerWidget {
         },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
+          child: Container(child: Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -1755,9 +1743,7 @@ class _SignOutButton extends ConsumerWidget {
         onTap: () => _confirmSignOut(context, ref),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
+          child: Container(child: Container(
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.06),
@@ -1882,9 +1868,7 @@ class _Section extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+        child: Container(child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.04),
               borderRadius: BorderRadius.circular(24),
@@ -2249,9 +2233,7 @@ class _GlassSheet extends StatelessWidget {
     return ClipRRect(
       borderRadius:
           const BorderRadius.vertical(top: Radius.circular(28)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.75),
           decoration: BoxDecoration(
@@ -2431,9 +2413,7 @@ class _ConfirmDialogState extends State<_ConfirmDialog> {
       backgroundColor: Colors.transparent,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        child: Container(child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.85),

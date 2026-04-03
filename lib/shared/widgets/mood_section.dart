@@ -266,10 +266,7 @@ class _MoodCardState extends State<_MoodCard>
                     // Frosted emoji pill
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: BackdropFilter(
-                        filter:
-                            ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                        child: Container(
+                      child: Container(child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(

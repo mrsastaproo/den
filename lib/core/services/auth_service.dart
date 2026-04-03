@@ -27,7 +27,7 @@ class AuthService {
       return result;
     } catch (e) {
       print('Google sign in error: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -140,17 +140,31 @@ class AuthService {
       'email': user.email ?? '',
       'displayName': user.displayName ?? '',
       'lastActive': FieldValue.serverTimestamp(),
-      'isOnline': true,
     };
 
-    if (!snap.exists) {
+    if (snap.exists) {
+      final existingData = snap.data() as Map<String, dynamic>;
+      if (existingData['isBanned'] == true) {
+        // Sign out immediately and block access
+        await signOut();
+        throw FirebaseAuthException(
+          code: 'user-banned',
+          message: 'This account has been banned.',
+        );
+      }
+      data['isOnline'] = true; // Only set online if not banned
+      await ref.update(data);
+    } else {
       data['createdAt'] = FieldValue.serverTimestamp();
+      data['isOnline'] = true;
+      data['isBanned'] = false;
       data['plan'] = 'free';
       data['photoUrl'] = user.photoURL ?? '';
       data['photoURL'] = user.photoURL ?? '';
+      data['likedSongs'] = 0;
+      data['playlists'] = 0;
+      data['totalPlays'] = 0;
       await ref.set(data);
-    } else {
-      await ref.update(data);
     }
   }
 

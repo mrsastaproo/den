@@ -368,7 +368,31 @@ class AdminService {
         return db.compareTo(da);
       });
       return users;
+    }).handleError((error) {
+      print('[ADMIN_SERVICE] getUsers error: $error');
+      return <AdminUser>[];
     });
+  }
+
+  /// Paginated fetch approach instead of streams for massive datasets
+  Future<Map<String, dynamic>> fetchUsersPaginated({DocumentSnapshot? startAfter, int limit = 50}) async {
+    _checkAdmin();
+    var query = _db.collection('users').orderBy('createdAt', descending: true).limit(limit);
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+    
+    try {
+      final snap = await query.get();
+      final users = snap.docs.map(AdminUser.fromFirestore).toList();
+      return {
+        'users': users,
+        'lastDoc': snap.docs.isNotEmpty ? snap.docs.last : null,
+      };
+    } catch (e) {
+      print('[ADMIN_SERVICE] fetchUsersPaginated error: $e');
+      throw Exception('Failed to load users: $e');
+    }
   }
 
   /// Server-side search by email prefix (Firestore range query).
@@ -383,7 +407,11 @@ class AdminService {
         .endAt(['$q\uf8ff'])
         .limit(30)
         .snapshots()
-        .map((snap) => snap.docs.map(AdminUser.fromFirestore).toList());
+        .map((snap) => snap.docs.map(AdminUser.fromFirestore).toList())
+        .handleError((error) {
+          print('[ADMIN_SERVICE] searchUsers error: $error');
+          return <AdminUser>[];
+        });
   }
 
   Future<void> banUser(String uid, String reason) async {
@@ -686,6 +714,62 @@ class AdminService {
     _checkAdmin();
     await _db.collection('broadcasts').doc(id).delete();
     await _logActivity('delete_broadcast', {'id': id});
+  }
+
+  // ── HANDLE RESCUE ──────────────────────────────────────────
+
+  Future<Map<String, dynamic>?> lookupHandle(String handle) async {
+    _checkAdmin();
+    final h = handle.trim().toLowerCase();
+    final userSnap = await _db.collection('usernames').doc(h).get();
+    if (!userSnap.exists) return null;
+
+    final uid = userSnap.data()?['uid'] as String?;
+    if (uid == null) return null;
+
+    final profileSnap = await _db.collection('users').doc(uid).get();
+    final profile = profileSnap.data() as Map<String, dynamic>? ?? {};
+
+    return {
+      'uid': uid,
+      'email': profile['email'] ?? 'Unknown',
+      'displayName': profile['displayName'] ?? 'No Name',
+      'hasProfile': profileSnap.exists,
+    };
+  }
+
+  Future<void> rescueHandle(String handle, String targetUid) async {
+    _checkAdmin();
+    final h = handle.trim().toLowerCase();
+    final lookup = await lookupHandle(h);
+    if (lookup == null) throw Exception('Handle not found');
+
+    final oldUid = lookup['uid'] as String;
+
+    final batch = _db.batch();
+
+    // 1. Update username pointer
+    batch.set(_db.collection('usernames').doc(h), {
+      'uid': targetUid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // 2. Update target user profile
+    batch.set(_db.collection('users').doc(targetUid), {
+      'username': h,
+    }, SetOptions(merge: true));
+
+    // 3. Optional: Try to migrate friends (Copy from old to new)
+    final oldFriends = await _db.collection('users').doc(oldUid).collection('friends').get();
+    for (final doc in oldFriends.docs) {
+      batch.set(
+        _db.collection('users').doc(targetUid).collection('friends').doc(doc.id),
+        doc.data(),
+      );
+    }
+
+    await batch.commit();
+    await _logActivity('rescue_handle', {'handle': h, 'oldUid': oldUid, 'newUid': targetUid});
   }
 
   // ── ADMIN ACTIVITY LOG ─────────────────────────────────────

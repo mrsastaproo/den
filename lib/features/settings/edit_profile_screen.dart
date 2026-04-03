@@ -264,9 +264,7 @@ class _EditProfileScreenState
                       const SizedBox(height: 8),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
+                        child: Container(child: Container(
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.04),
                               borderRadius: BorderRadius.circular(16),
@@ -422,9 +420,7 @@ class _InputFieldState extends State<_InputField> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
+            child: Container(child: Container(
                 color: Colors.white.withOpacity(
                     widget.readOnly ? 0.02 : _focused ? 0.06 : 0.04),
                 child: TextField(
@@ -584,9 +580,7 @@ class _DangerZone extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
+          child: Container(child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.85),

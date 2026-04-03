@@ -1,8 +1,0 @@
-{
-  "latest_version": "1.2",
-  "min_supported_version": "1.0.0",
-  "update_type": "optional",
-  "title": "Update Available",
-  "message": "We have added new features and fixed some bugs. Update now for a better experience!",
-  "update_url": "https://github.com/mrsastaproo/website-apk/releases/download/v1.2/app-release.apk"
-}

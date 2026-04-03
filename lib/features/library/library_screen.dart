@@ -132,14 +132,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final ctrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (_) => _CreatePlaylistDialog(
+      builder: (dialogCtx) => _CreatePlaylistDialog(
         controller: ctrl,
         onCreate: () async {
           if (ctrl.text.trim().isNotEmpty) {
-            await ref.read(databaseServiceProvider)
-                .createPlaylist(ctrl.text.trim());
-            if (context.mounted) Navigator.pop(context);
-            HapticFeedback.mediumImpact();
+            try {
+              await ref.read(databaseServiceProvider)
+                  .createPlaylist(ctrl.text.trim());
+            } catch (e) {
+              print('Error creating playlist: $e');
+              // This is likely a Firestore Rules Permission Denied error for non-admins!
+            } finally {
+              if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+              HapticFeedback.mediumImpact();
+            }
           }
         },
       ),
@@ -187,9 +193,7 @@ class _LibraryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.only(
             top: MediaQuery.of(context).padding.top + 12,
             left: 20, right: 20, bottom: 12,
@@ -289,9 +293,7 @@ class _HeaderBtn extends StatelessWidget {
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Container(
+        child: Container(child: Container(
             width: 34, height: 34,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.08),
@@ -345,9 +347,7 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: TextField(
+      child: Container(child: TextField(
           controller: controller,
           autofocus: true,
           onChanged: onChanged,
@@ -1479,9 +1479,7 @@ class _PlaylistDetailSheet extends ConsumerWidget {
       builder: (_, ctrl) => ClipRRect(
         borderRadius: const BorderRadius.vertical(
             top: Radius.circular(28)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        child: Container(child: Container(
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.85),
               borderRadius: const BorderRadius.vertical(
@@ -1717,9 +1715,7 @@ class _SongOptionsSheet extends StatelessWidget {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
@@ -1805,9 +1801,7 @@ class _SongOptionsSheet extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        child: Container(child: Container(
             constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
             padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
             decoration: BoxDecoration(
@@ -1903,9 +1897,7 @@ class _SongOptionsSheet extends StatelessWidget {
               backgroundColor: Colors.transparent,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                  child: Container(
+                child: Container(child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(color: Colors.black.withOpacity(0.8), borderRadius: BorderRadius.circular(24)),
                     child: Column(
@@ -2011,9 +2003,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
         backgroundColor: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
+          child: Container(child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.8),
@@ -2100,9 +2090,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
         backgroundColor: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
+          child: Container(child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.8),
@@ -2168,9 +2156,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
@@ -2252,9 +2238,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                       backgroundColor: Colors.transparent,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                          child: Container(
+                        child: Container(child: Container(
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.8),
@@ -2349,9 +2333,7 @@ class _AddSheet extends StatelessWidget {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
@@ -2504,9 +2486,7 @@ class _SortSheet extends StatelessWidget {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.75),
@@ -2612,9 +2592,7 @@ class _CreatePlaylistDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        child: Container(child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.8),

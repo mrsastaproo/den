@@ -16,8 +16,8 @@ import '../../core/services/player_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/notification_service.dart';
-
-
+import '../../core/services/update_service.dart';
+import 'announcement_dialog.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
   final Widget child;
@@ -42,6 +42,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
     Future.microtask(() {
       ref.read(socialServiceProvider).updateOnlineStatus(true);
       _startPresenceHeartbeat();
+      UpdateService.checkUpdate(context);
+      // Trigger the one-time announcement pop-up
+      AnnouncementDialog.showIfNeeded(context, ref);
     });
   }
 

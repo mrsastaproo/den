@@ -1,0 +1,10 @@
+{
+    "message":  "A new version of DEN is available! Update now for improved performance, new features, and the best music experience.",
+    "apk_size":  "79.9 MB",
+    "apk_direct_url":  "https://github.com/mrsastaproo/website-apk/releases/latest/download/DEN.apk",
+    "update_type":  "optional",
+    "min_supported_version":  "1.0.0",
+    "app_download_page":  "https://denmusic.in/download",
+    "latest_version":  "1.1.0",
+    "title":  "Update Available"
+}

@@ -22,7 +22,7 @@ class UpdateInfo {
       updateType: json['update_type'] as String,
       title: json['title'] as String,
       message: json['message'] as String,
-      updateUrl: json['update_url'] as String,
+      updateUrl: json['app_download_page'] as String,
     );
   }
 

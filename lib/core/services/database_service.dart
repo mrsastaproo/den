@@ -16,7 +16,11 @@ class DatabaseService {
     final batch = _db.batch();
     batch.set(_db.collection('users').doc(userId).collection('liked_songs').doc(song.id), 
       song.toJson()..['likedAt'] = FieldValue.serverTimestamp());
-    batch.update(_db.collection('users').doc(userId), {'likedSongs': FieldValue.increment(1)});
+    
+    // Using set(merge: true) instead of update to ensure the doc exists
+    batch.set(_db.collection('users').doc(userId), 
+      {'likedSongs': FieldValue.increment(1)}, SetOptions(merge: true));
+      
     await batch.commit();
   }
 
@@ -24,7 +28,10 @@ class DatabaseService {
     if (userId == null) return;
     final batch = _db.batch();
     batch.delete(_db.collection('users').doc(userId).collection('liked_songs').doc(songId));
-    batch.update(_db.collection('users').doc(userId), {'likedSongs': FieldValue.increment(-1)});
+    
+    batch.set(_db.collection('users').doc(userId), 
+      {'likedSongs': FieldValue.increment(-1)}, SetOptions(merge: true));
+      
     await batch.commit();
   }
 
@@ -71,7 +78,10 @@ class DatabaseService {
     final batch = _db.batch();
     batch.set(_db.collection('users').doc(userId).collection('history').doc(song.id), 
       song.toJson()..['playedAt'] = FieldValue.serverTimestamp());
-    batch.update(_db.collection('users').doc(userId), {'totalPlays': FieldValue.increment(1)});
+      
+    batch.set(_db.collection('users').doc(userId), 
+      {'totalPlays': FieldValue.increment(1)}, SetOptions(merge: true));
+      
     await batch.commit();
   }
 
@@ -141,7 +151,9 @@ class DatabaseService {
       'coverImage': '',
     });
     
-    batch.update(_db.collection('users').doc(userId), {'playlists': FieldValue.increment(1)});
+    batch.set(_db.collection('users').doc(userId), 
+      {'playlists': FieldValue.increment(1)}, SetOptions(merge: true));
+      
     await batch.commit();
     return playlistDoc.id;
   }
@@ -197,7 +209,8 @@ class DatabaseService {
         .doc(playlistId));
         
     // Decrement the counter
-    batch.update(_db.collection('users').doc(userId), {'playlists': FieldValue.increment(-1)});
+    batch.set(_db.collection('users').doc(userId), 
+      {'playlists': FieldValue.increment(-1)}, SetOptions(merge: true));
 
     await batch.commit();
   }
@@ -225,11 +238,12 @@ class DatabaseService {
         songRef,
         song.toJson()
           ..['addedAt'] = FieldValue.serverTimestamp());
-    batch.update(playlistRef, {
+          
+    batch.set(playlistRef, {
       'songCount': FieldValue.increment(1),
       'coverImage': song.image,
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
 
     await batch.commit();
   }
@@ -254,10 +268,10 @@ class DatabaseService {
         .doc(playlistId);
 
     batch.delete(songRef);
-    batch.update(playlistRef, {
+    batch.set(playlistRef, {
       'songCount': FieldValue.increment(-1),
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
 
     await batch.commit();
   }

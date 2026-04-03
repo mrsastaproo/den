@@ -253,9 +253,7 @@ class _WrappedCard extends StatelessWidget {
           ),
 
           // Glass overlay
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-            child: Container(
+          Container(child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(

@@ -72,10 +72,7 @@ class MiniPlayer extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter:
-                ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
+          child: Container(child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [

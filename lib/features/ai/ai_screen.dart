@@ -258,9 +258,7 @@ class _EmptyState extends StatelessWidget {
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
+                  child: Container(child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
@@ -373,9 +371,7 @@ class _AiBubble extends StatelessWidget {
                       bottomLeft: Radius.circular(18),
                       bottomRight: Radius.circular(18),
                     ),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
+                    child: Container(child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.07),
@@ -551,9 +547,7 @@ class _PlaylistCard extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
+      child: Container(child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -818,9 +812,7 @@ class _InputBar extends StatelessWidget {
           16, 12, 16, MediaQuery.of(context).padding.bottom + 20),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        child: Container(child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(28),

@@ -56,9 +56,7 @@ class TimeBasedSection extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 28, 16, 14),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+            child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -203,9 +201,7 @@ class _TimeBasedSongChip extends StatelessWidget {
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
+        child: Container(
             width: 200,
             margin: const EdgeInsets.only(right: 10),
             padding: const EdgeInsets.all(10),
@@ -265,8 +261,8 @@ class _TimeBasedSongChip extends StatelessWidget {
                   color: colors[0], size: 20),
               ],
             ),
+            ),
           ),
-        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -93,6 +94,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ? 'Sign up failed. Try a different email.'
             : 'Wrong email or password.');
       }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        if (e.code == 'user-banned') {
+          _showError('Your account has been banned. Please contact support.');
+        } else {
+          _showError(e.message ?? '$e');
+        }
+      }
     } catch (e) {
       if (mounted) _showError('$e');
     }
@@ -102,9 +111,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Future<void> _handleGoogle() async {
     setState(() => _loading = true);
     HapticFeedback.mediumImpact();
-    final result = await ref.read(authServiceProvider).signInWithGoogle();
-    if (result == null && mounted) {
-      _showError('Google sign-in failed. Check SHA-1 in Firebase.');
+    try {
+      final result = await ref.read(authServiceProvider).signInWithGoogle();
+      if (result == null && mounted) {
+        // Canceled by user — no error needed
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        if (e.code == 'user-banned') {
+          _showError('Your account has been banned. Please contact support.');
+        } else {
+          _showError(e.message ?? '$e');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        String msg = e.toString();
+        if (msg.contains('com.google.android.gms.common.api.ApiException: 10')) {
+          msg = 'Google sign-in failed (Developer Error 10). This is almost always due to a missing SHA-1 fingerprint in Firebase.';
+        } else if (msg.contains('network_error')) {
+          msg = 'Network error. Please check your internet connection.';
+        }
+        _showError(msg);
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -174,9 +203,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
 
         // Blur overlay
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-          child: Container(color: Colors.black.withOpacity(0.55))),
+        Container(child: Container(color: Colors.black.withOpacity(0.55))),
 
         // ── Content ──────────────────────────────────────────
         SafeArea(
@@ -396,9 +423,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             bottom: MediaQuery.of(context).viewInsets.bottom),
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
+          child: Container(child: Container(
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.8),
@@ -537,9 +562,7 @@ class _FieldState extends State<_Field> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
+            child: Container(child: Container(
                 color: Colors.white.withOpacity(_focused ? 0.06 : 0.04),
                 child: TextField(
                   controller: widget.controller,
@@ -650,9 +673,7 @@ class _GoogleBtn extends StatelessWidget {
       onTap: loading ? null : onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
+        child: Container(child: Container(
             width: double.infinity, height: 54,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.07),

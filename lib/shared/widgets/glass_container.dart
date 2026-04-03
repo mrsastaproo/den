@@ -84,9 +84,7 @@ class GlassContainer extends ConsumerWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         child: disableBlurs 
             ? innerContainer 
-            : BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                child: innerContainer,
+            : Container(child: innerContainer,
               ),
       ),
     );

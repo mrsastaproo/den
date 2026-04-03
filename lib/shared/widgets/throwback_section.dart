@@ -23,9 +23,7 @@ class ThrowbackSection extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 28, 16, 14),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+            child: Container(child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -175,9 +173,7 @@ class _ThrowbackCard extends StatelessWidget {
                 top: 10, left: 10,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
+                  child: Container(child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
@@ -202,9 +198,7 @@ class _ThrowbackCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(20)),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
+                  child: Container(child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(

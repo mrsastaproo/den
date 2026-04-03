@@ -2,7 +2,7 @@
   "project_info": {
     "project_number": "1060749102477",
     "project_id": "den-music",
-    "storage_bucket": "den-music.appspot.com"
+    "storage_bucket": "den-music.firebasestorage.app"
   },
   "client": [
     {

@@ -274,9 +274,7 @@ class _BannerCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(24)),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                  child: Container(
+                child: Container(child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -297,9 +295,7 @@ class _BannerCard extends StatelessWidget {
               top: 14, left: 14,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
+                child: Container(child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -332,9 +328,7 @@ class _BannerCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(24)),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
+                child: Container(child: Container(
                     padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(

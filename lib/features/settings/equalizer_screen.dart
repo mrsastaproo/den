@@ -175,9 +175,7 @@ class _Visualizer extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+        child: Container(child: Container(
             height: 130,
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
@@ -388,9 +386,7 @@ class _MasterGainCard extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+        child: Container(child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
@@ -503,9 +499,7 @@ class _BandSliders extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+        child: Container(child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
                 Colors.white.withOpacity(0.07),

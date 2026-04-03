@@ -297,9 +297,7 @@ class _SearchHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
     return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-        child: AnimatedContainer(
+      child: Container(child: AnimatedContainer(
           duration: const Duration(milliseconds: 240),
           padding: EdgeInsets.fromLTRB(20, top + 10, 20, 14),
           decoration: BoxDecoration(
@@ -559,9 +557,7 @@ class _SearchBarWidget extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
+        child: Container(child: Container(
             color: Colors.white.withOpacity(focused ? 0.10 : 0.06),
             child: TextField(
               controller: ctrl,
@@ -1568,9 +1564,7 @@ class _TopResultCardState extends State<_TopResultCard> {
               duration: const Duration(milliseconds: 130),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(22),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
+                child: Container(child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [
                         Colors.white.withOpacity(0.10),
@@ -1913,9 +1907,7 @@ class _SongOptionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
-        child: Container(
+      child: Container(child: Container(
           padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(context).padding.bottom + 24),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.84),

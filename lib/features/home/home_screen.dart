@@ -194,18 +194,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       body: Stack(
         children: [
           // Ambient background orbs
-          _AmbientBackground(
-            orbController: _orbController,
-            scrollOffset: _scrollOffset,
+          RepaintBoundary(
+            child: _AmbientBackground(
+              orbController: _orbController,
+              scrollOffset: _scrollOffset,
+            ),
           ),
 
           // Main scroll content
-          RefreshIndicator(
-            onRefresh: _onRefresh,
-            color: AppTheme.pink,
-            backgroundColor: Colors.black87,
-            child: CustomScrollView(
-              controller: _scrollController,
+          RepaintBoundary(
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: AppTheme.pink,
+              backgroundColor: Colors.black87,
+              child: CustomScrollView(
+                controller: _scrollController,
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
               ),
@@ -460,6 +463,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
           ),
+          ), // Closing RepaintBoundary
         ],
       ),
     );
