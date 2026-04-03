@@ -6,22 +6,22 @@
 
 /* ── Variables ── */
 :root {
-  --bg:          #080a0f;
-  --bg-2:        #0d1018;
-  --bg-3:        #111520;
-  --surface:     rgba(255,255,255,0.04);
-  --surface-2:   rgba(255,255,255,0.07);
-  --border:      rgba(255,255,255,0.08);
+  --bg:          #080808;
+  --bg-2:        #111111;
+  --bg-3:        #1A1A1A;
+  --surface:     rgba(255,255,255,0.08); /* glassWhite from app */
+  --surface-2:   rgba(255,255,255,0.12);
+  --border:      rgba(255,255,255,0.12); /* glassBorder from app */
   --border-2:    rgba(255,255,255,0.14);
 
-  --text:        #f0f2f7;
-  --text-2:      #8a909e;
-  --text-3:      #545b6a;
+  --text:        #ffffff;
+  --text-2:      #aaaaaa; /* textSecondary from app */
+  --text-3:      #555555; /* textMuted from app */
 
-  --accent:      #4f8eff;
-  --accent-soft: rgba(79,142,255,0.12);
-  --accent-glow: rgba(79,142,255,0.25);
-  --accent-2:    #a78bfa;
+  --accent:      #ffb3c6; /* pink from app */
+  --accent-soft: rgba(255,179,198,0.12);
+  --accent-glow: rgba(255,179,198,0.25);
+  --accent-2:    #d4b8ff; /* purple from app */
 
   --radius-sm:   8px;
   --radius:      14px;
@@ -251,7 +251,7 @@ section { padding: 100px 0; }
 
 .navbar.scrolled {
   padding: 14px 0;
-  background: rgba(8,10,15,0.85);
+  background: rgba(8,8,8,0.85); /* Matches --bg */
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
@@ -361,7 +361,7 @@ section { padding: 100px 0; }
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(8,10,15,0.97);
+  background: rgba(8,8,8,0.97); /* Matches --bg */
   backdrop-filter: blur(24px);
   z-index: 999;
   flex-direction: column;
@@ -499,7 +499,7 @@ section { padding: 100px 0; }
 }
 
 .device-frame {
-  background: linear-gradient(145deg, #1a1e2e 0%, #0d111c 100%);
+  background: linear-gradient(145deg, #1A1A1A 0%, #080808 100%); /* bgTertiary to bgPrimary */
   border: 1px solid var(--border-2);
   border-radius: 36px;
   padding: 20px 16px;
@@ -519,7 +519,7 @@ section { padding: 100px 0; }
 .device-notch {
   width: 80px;
   height: 24px;
-  background: #080a0f;
+  background: #000000;
   border-radius: 0 0 16px 16px;
   margin: 0 auto 20px;
 }
