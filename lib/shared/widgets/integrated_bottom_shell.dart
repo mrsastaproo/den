@@ -29,10 +29,10 @@ class IntegratedBottomShell extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 32),
-      child: ClipRRect(
+      child: RepaintBoundary(child: ClipRRect(
         borderRadius: BorderRadius.circular(40),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             height: 84,
             decoration: BoxDecoration(
@@ -135,7 +135,7 @@ class IntegratedBottomShell extends ConsumerWidget {
             ),
           ),
         ),
-      ),
+      )),
     ).animate()
       .fadeIn(duration: 600.ms, delay: 200.ms)
       .slideY(begin: 1, end: 0, duration: 600.ms,

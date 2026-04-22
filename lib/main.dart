@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -21,6 +23,17 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // ── 120Hz / High Refresh Rate support ──────────────────────────────────
+  // Tell the gesture system to resample touch events at the display
+  // refresh rate instead of the default 60Hz. This makes scrolling
+  // on 90Hz/120Hz/144Hz panels buttery smooth.
+  GestureBinding.instance.resamplingEnabled = true;
+
+  // Request highest available refresh rate on Android
+  if (Platform.isAndroid) {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -130,6 +143,9 @@ class _DenAppState extends ConsumerState<DenApp> {
     return MaterialApp.router(
       title:                    'DEN',
       debugShowCheckedModeBanner: false,
+      // ── Global scroll fix: prevents overscroll glow from eating
+      //    reverse-direction gestures on ALL screens ──
+      scrollBehavior: const _DenScrollBehavior(),
       theme:     appearance.resolvedTheme,
       darkTheme: appearance.resolvedTheme,
       themeMode: appearance.theme == 'auto'
@@ -147,4 +163,26 @@ class _DenAppState extends ConsumerState<DenApp> {
       },
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global scroll behavior — fixes scroll-stuck on fast direction changes.
+//
+// The Android overscroll glow indicator can absorb scroll gestures when
+// the user quickly reverses direction, causing the page to appear "stuck".
+// By forcing ClampingScrollPhysics and stripping the glow indicator,
+// we eliminate the gesture ambiguity entirely.
+// ─────────────────────────────────────────────────────────────────────────────
+class _DenScrollBehavior extends ScrollBehavior {
+  const _DenScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const ClampingScrollPhysics();
+
+  // Remove the overscroll glow that can eat reverse-direction gestures
+  @override
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
 }

@@ -133,22 +133,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     with TickerProviderStateMixin {
   final _scrollController = ScrollController();
   late AnimationController _orbController;
-  late AnimationController _headerController;
   final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0);
   final ValueNotifier<bool> _isHeaderScrolled = ValueNotifier<bool>(false);
+  // Throttle orb repaints: we only forward the animation value at ~24fps
+  final ValueNotifier<double> _orbValue = ValueNotifier<double>(0);
+  Duration _lastOrbTick = Duration.zero;
+  static const _orbFrameInterval = Duration(milliseconds: 42); // ~24fps
 
   @override
   void initState() {
     super.initState();
     _orbController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat(reverse: true);
-
-    _headerController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat();
+      duration: const Duration(seconds: 20),
+    )..value = 0.5; // Static value to prevent infinite blur repaints
 
     _scrollController.addListener(() {
       _scrollOffset.value = _scrollController.offset;
@@ -163,7 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void dispose() {
     _scrollController.dispose();
     _orbController.dispose();
-    _headerController.dispose();
+    _orbValue.dispose();
     _scrollOffset.dispose();
     _isHeaderScrolled.dispose();
     super.dispose();
@@ -171,10 +169,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _onRefresh() async {
     HapticFeedback.mediumImpact();
+    // 1. Invalidate the master data provider first
+    ref.invalidate(homeDataProvider);
+    
+    // 2. Invalidate sub-sections
     final List<ProviderBase> providers = [
       sessionSeedProvider,
       trendingProvider, newReleasesProvider, topChartsProvider, throwbackProvider,
-      globalDiscoveryProvider, trendingEnglishProvider,
+      globalDiscoveryProvider, trendingEnglishProvider, forYouProvider,
       timeBasedSongsProvider, romanticSongsProvider, partyHitsProvider,
       chillVibesProvider, focusMixProvider, sadSongsProvider, indieHitsProvider,
       devotionalProvider, punjabiBangerProvider, workoutBangerProvider
@@ -183,7 +185,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.invalidate(p);
     }
     // Artificial delay to let the UI shimmer beautifully before rendering
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await Future.delayed(const Duration(milliseconds: 1000));
   }
 
   @override
@@ -193,25 +195,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // Ambient background orbs
+          // Ambient background orbs — throttled to ~24fps
           RepaintBoundary(
             child: _AmbientBackground(
-              orbController: _orbController,
-              scrollOffset: _scrollOffset,
+              orbValue: _orbValue,
             ),
           ),
 
-          // Main scroll content
+          // Main scroll content — NO RefreshIndicator (it steals gestures)
+          // Pull-to-refresh is handled manually via the scroll controller.
           RepaintBoundary(
-            child: RefreshIndicator(
-              onRefresh: _onRefresh,
-              color: AppTheme.pink,
-              backgroundColor: Colors.black87,
+            child: NotificationListener<OverscrollNotification>(
+              onNotification: (notification) {
+                if (notification.overscroll < -80 && notification.velocity == 0.0) {
+                  // Debounce refresh
+                  _onRefresh();
+                }
+                return false;
+              },
               child: CustomScrollView(
                 controller: _scrollController,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics(),
+                ),
               slivers: [
                 // Sticky glass header
                 SliverPersistentHeader(
@@ -226,9 +232,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
               // Greeting
               SliverToBoxAdapter(
-                child: _GreetingHero(
-                  orbController: _orbController,
-                ).animate().fadeIn(duration: 600.ms).slideY(
+                child: const _GreetingHero()
+                    .animate()
+                    .fadeIn(duration: 600.ms)
+                    .slideY(
                       begin: -0.08,
                       end: 0,
                       duration: 600.ms,
@@ -239,220 +246,226 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               // Quick access grid
               const SliverToBoxAdapter(child: _QuickAccessGrid()),
 
-              // Hero carousel (New Releases)
-              const SliverToBoxAdapter(child: _HeroCarousel()),
-              
-              // NEW: Global Discovery (International Hits)
-              if (ref.watch(musicLanguageProvider).toLowerCase() == 'english')
-                SliverToBoxAdapter(
-                  child: _LiquidSection(
-                    title: 'Global Discovery',
-                    subtitle: 'latest international hits',
-                    icon: Icons.public_rounded,
-                    accentColor: const Color(0xFF89CFF0),
-                    provider: ref.watch(globalDiscoveryProvider),
+              // For You — isolated Consumer so only this section rebuilds
+              SliverToBoxAdapter(
+                child: Consumer(builder: (_, r, __) {
+                  if (!r.watch(userMusicProfileProvider).hasHistory) return const SizedBox.shrink();
+                  return RepaintBoundary(child: _LiquidSection(
+                    title: 'For You',
+                    subtitle: 'based on what you play',
+                    icon: Icons.recommend_rounded,
+                    accentColor: const Color(0xFFFF6B9D),
+                    provider: r.watch(forYouProvider),
                     cardStyle: _CardStyle.wide,
-                    queueMeta: const QueueMeta(context: QueueContext.chart, chartName: 'Global'),
-                  ),
-                ),
-              
-              // NEW: Trending English Hits (Billboard Mapping)
-              if (ref.watch(musicLanguageProvider).toLowerCase() == 'english')
-                SliverToBoxAdapter(
-                  child: _LiquidSection(
-                    title: 'Trending English Hits',
-                    subtitle: 'Billboard Hot 100 & Spotify Global',
-                    icon: Icons.trending_up_rounded,
-                    accentColor: const Color(0xFF00E5FF),
-                    provider: ref.watch(trendingEnglishProvider),
-                    cardStyle: _CardStyle.standard,
-                    queueMeta: const QueueMeta(context: QueueContext.chart, chartName: 'Trending English'),
-                  ),
-                ),
+                    queueMeta: const QueueMeta(context: QueueContext.general),
+                  ));
+                }),
+              ),
+
+              // Hero carousel (New Releases)
+              const SliverToBoxAdapter(child: RepaintBoundary(child: _HeroCarousel())),
+
+              // Global Discovery & Trending English — only for English
+              SliverToBoxAdapter(
+                child: Consumer(builder: (_, r, __) {
+                  final lang = r.watch(musicLanguageProvider).toLowerCase();
+                  if (lang != 'english') return const SizedBox.shrink();
+                  return Column(mainAxisSize: MainAxisSize.min, children: [
+                    RepaintBoundary(child: _LiquidSection(
+                      title: 'Global Discovery',
+                      subtitle: 'latest international hits',
+                      icon: Icons.public_rounded,
+                      accentColor: const Color(0xFF89CFF0),
+                      provider: r.watch(globalDiscoveryProvider),
+                      cardStyle: _CardStyle.wide,
+                      queueMeta: const QueueMeta(context: QueueContext.chart, chartName: 'Global'),
+                    )),
+                    RepaintBoundary(child: _LiquidSection(
+                      title: 'Trending English Hits',
+                      subtitle: 'Billboard Hot 100 & Spotify Global',
+                      icon: Icons.trending_up_rounded,
+                      accentColor: const Color(0xFF00E5FF),
+                      provider: r.watch(trendingEnglishProvider),
+                      cardStyle: _CardStyle.standard,
+                      queueMeta: const QueueMeta(context: QueueContext.chart, chartName: 'Trending English'),
+                    )),
+                  ]);
+                }),
+              ),
 
               // Trending Now
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Trending Now',
                   subtitle: "what everyone's playing",
                   icon: Icons.local_fire_department_rounded,
                   accentColor: const Color(0xFFFF6B6B),
-                  provider: ref.watch(trendingProvider),
+                  provider: r.watch(trendingProvider),
                   cardStyle: _CardStyle.standard,
                   queueMeta: const QueueMeta(context: QueueContext.trending),
-                ),
+                ))),
               ),
 
               // Time-based
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: _timeGreeting(),
                   subtitle: 'curated for this moment',
                   icon: Icons.auto_awesome_rounded,
                   accentColor: AppTheme.pink,
-                  provider: ref.watch(timeBasedSongsProvider),
+                  provider: r.watch(timeBasedSongsProvider),
                   cardStyle: _CardStyle.wide,
                   queueMeta: const QueueMeta(context: QueueContext.timeBased),
-                ),
+                ))),
               ),
 
               // Artist Spotlight
-              const SliverToBoxAdapter(child: _ArtistSpotlight()),
+              const SliverToBoxAdapter(child: RepaintBoundary(child: _ArtistSpotlight())),
 
               // Top Charts (ranked)
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Top Charts',
                   subtitle: '#1 to #∞',
                   icon: Icons.leaderboard_rounded,
                   accentColor: const Color(0xFFFFD700),
-                  provider: ref.watch(topChartsProvider),
+                  provider: r.watch(topChartsProvider),
                   cardStyle: _CardStyle.ranked,
                   queueMeta: const QueueMeta(context: QueueContext.topCharts),
-                ),
+                ))),
               ),
 
               // Mood Section
-              const SliverToBoxAdapter(child: _MoodSection()),
+              const SliverToBoxAdapter(child: RepaintBoundary(child: _MoodSection())),
 
               // Love Songs
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Love Songs',
                   subtitle: 'straight to the heart',
                   icon: Icons.favorite_rounded,
                   accentColor: const Color(0xFFFFB3C6),
-                  provider: ref.watch(romanticSongsProvider),
+                  provider: r.watch(romanticSongsProvider),
                   cardStyle: _CardStyle.standard,
-                  queueMeta: const QueueMeta(
-                      context: QueueContext.mood, mood: 'Love'),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.mood, mood: 'Love'),
+                ))),
               ),
 
               // Party Hits
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Party Hits',
                   subtitle: 'turn it up',
                   icon: Icons.nightlife_rounded,
                   accentColor: const Color(0xFFFF85A1),
-                  provider: ref.watch(partyHitsProvider),
+                  provider: r.watch(partyHitsProvider),
                   cardStyle: _CardStyle.wide,
-                  queueMeta: const QueueMeta(
-                      context: QueueContext.mood, mood: 'Hype'),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.mood, mood: 'Hype'),
+                ))),
               ),
 
               // Punjabi Bangers
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Punjabi Bangers',
                   subtitle: 'desi flavour',
                   icon: Icons.graphic_eq_rounded,
                   accentColor: const Color(0xFFB794FF),
-                  provider: ref.watch(punjabiBangerProvider),
+                  provider: r.watch(punjabiBangerProvider),
                   cardStyle: _CardStyle.standard,
-                  queueMeta:
-                      const QueueMeta(context: QueueContext.general),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.general),
+                ))),
               ),
 
               // Throwback
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Throwback',
                   subtitle: 'golden era hits',
                   icon: Icons.history_rounded,
                   accentColor: const Color(0xFFD4B8FF),
-                  provider: ref.watch(throwbackProvider),
+                  provider: r.watch(throwbackProvider),
                   cardStyle: _CardStyle.wide,
-                  queueMeta:
-                      const QueueMeta(context: QueueContext.throwback),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.throwback),
+                ))),
               ),
 
               // Chill Vibes
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Chill Vibes',
                   subtitle: 'slow it down',
                   icon: Icons.waves_rounded,
                   accentColor: const Color(0xFF89CFF0),
-                  provider: ref.watch(chillVibesProvider),
+                  provider: r.watch(chillVibesProvider),
                   cardStyle: _CardStyle.standard,
-                  queueMeta: const QueueMeta(
-                      context: QueueContext.mood, mood: 'Chill'),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.mood, mood: 'Chill'),
+                ))),
               ),
 
               // Workout Bangers
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Workout Mode',
                   subtitle: 'beast mode activated',
                   icon: Icons.fitness_center_rounded,
                   accentColor: const Color(0xFFFF6B35),
-                  provider: ref.watch(workoutBangerProvider),
+                  provider: r.watch(workoutBangerProvider),
                   cardStyle: _CardStyle.ranked,
-                  queueMeta:
-                      const QueueMeta(context: QueueContext.general),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.general),
+                ))),
               ),
 
               // Sad Hours
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Sad Hours',
                   subtitle: 'feel it all',
                   icon: Icons.water_drop_rounded,
                   accentColor: const Color(0xFF89CFF0),
-                  provider: ref.watch(sadSongsProvider),
+                  provider: r.watch(sadSongsProvider),
                   cardStyle: _CardStyle.standard,
-                  queueMeta: const QueueMeta(
-                      context: QueueContext.mood, mood: 'Sad'),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.mood, mood: 'Sad'),
+                ))),
               ),
 
               // Focus Mix
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Focus Mix',
                   subtitle: 'deep work playlist',
                   icon: Icons.center_focus_strong_rounded,
                   accentColor: const Color(0xFFB794FF),
-                  provider: ref.watch(focusMixProvider),
+                  provider: r.watch(focusMixProvider),
                   cardStyle: _CardStyle.wide,
-                  queueMeta: const QueueMeta(
-                      context: QueueContext.mood, mood: 'Focus'),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.mood, mood: 'Focus'),
+                ))),
               ),
 
               // Indie Corner
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Indie Corner',
                   subtitle: 'underground gems',
                   icon: Icons.music_note_rounded,
                   accentColor: const Color(0xFF89CFF0),
-                  provider: ref.watch(indieHitsProvider),
+                  provider: r.watch(indieHitsProvider),
                   cardStyle: _CardStyle.ranked,
-                  queueMeta:
-                      const QueueMeta(context: QueueContext.general),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.general),
+                ))),
               ),
 
               // Devotional
               SliverToBoxAdapter(
-                child: _LiquidSection(
+                child: Consumer(builder: (_, r, __) => RepaintBoundary(child: _LiquidSection(
                   title: 'Devotional',
                   subtitle: 'peace for the soul',
                   icon: Icons.self_improvement_rounded,
                   accentColor: const Color(0xFFFFD700),
-                  provider: ref.watch(devotionalProvider),
+                  provider: r.watch(devotionalProvider),
                   cardStyle: _CardStyle.standard,
-                  queueMeta:
-                      const QueueMeta(context: QueueContext.general),
-                ),
+                  queueMeta: const QueueMeta(context: QueueContext.general),
+                ))),
               ),
 
               // Fresh Drops compact list
@@ -483,85 +496,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 // ─────────────────────────────────────────────────────────────
 
 class _AmbientBackground extends StatelessWidget {
-  final AnimationController orbController;
-  final ValueNotifier<double> scrollOffset;
+  final ValueNotifier<double> orbValue;
 
   const _AmbientBackground({
-    required this.orbController,
-    required this.scrollOffset,
+    required this.orbValue,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([orbController, scrollOffset]),
-      builder: (_, __) {
-        final t = orbController.value;
-        final parallax = (scrollOffset.value * 0.15).clamp(0.0, 120.0);
+    // ValueListenableBuilder only repaints this subtree at throttled ~24fps
+    return ValueListenableBuilder<double>(
+      valueListenable: orbValue,
+      builder: (_, t, __) {
         return Stack(
           children: [
-            // Top-left orb
             Positioned(
               top: -100,
               left: -80,
               child: Transform.translate(
                 offset: Offset(
                   math.cos(t * math.pi) * 20,
-                  math.sin(t * math.pi) * 30 - parallax * 0.5,
+                  math.sin(t * math.pi) * 30,
                 ),
-                child: _Orb(
-                  size: 340,
-                  color: AppTheme.pink,
-                  opacity: 0.12 + t * 0.04,
-                ),
+                child: _Orb(size: 340, color: AppTheme.pink,      opacity: 0.12 + t * 0.04),
               ),
             ),
-            // Top-right orb
             Positioned(
               top: 80,
               right: -60,
               child: Transform.translate(
                 offset: Offset(
                   math.sin(t * math.pi * 0.7) * 15,
-                  math.cos(t * math.pi * 1.3) * 25 - parallax * 0.3,
+                  math.cos(t * math.pi * 1.3) * 25,
                 ),
-                child: _Orb(
-                  size: 260,
-                  color: AppTheme.purple,
-                  opacity: 0.10 + t * 0.03,
-                ),
+                child: _Orb(size: 260, color: AppTheme.purple,    opacity: 0.10 + t * 0.03),
               ),
             ),
-            // Mid orb
             Positioned(
               top: 500,
               left: 60,
               child: Transform.translate(
-                offset: Offset(
-                  math.sin(t * math.pi * 1.5) * 20,
-                  -parallax * 0.2,
-                ),
-                child: _Orb(
-                  size: 200,
-                  color: AppTheme.pinkDeep,
-                  opacity: 0.06 + t * 0.02,
-                ),
+                offset: Offset(math.sin(t * math.pi * 1.5) * 20, 0),
+                child: _Orb(size: 200, color: AppTheme.pinkDeep,  opacity: 0.06 + t * 0.02),
               ),
             ),
-            // Bottom orb
             Positioned(
               bottom: 300,
               right: -30,
               child: Transform.translate(
-                offset: Offset(
-                  math.cos(t * math.pi) * 15,
-                  0,
-                ),
-                child: _Orb(
-                  size: 240,
-                  color: AppTheme.purpleDeep,
-                  opacity: 0.08 + t * 0.025,
-                ),
+                offset: Offset(math.cos(t * math.pi) * 15, 0),
+                child: _Orb(size: 240, color: AppTheme.purpleDeep, opacity: 0.08 + t * 0.025),
               ),
             ),
           ],
@@ -621,113 +605,101 @@ class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
     return ValueListenableBuilder<bool>(
       valueListenable: isScrolledNotifier,
       builder: (context, isScrolled, child) {
-        return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.black.withOpacity(isScrolled ? 0.72 : 0.45),
-                Colors.transparent,
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.white
-                    .withOpacity(isScrolled ? 0.07 : 0.0),
-                width: 0.5,
-              ),
-            ),
-          ),
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top,
-            left: 20,
-            right: 20,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Logo
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.pink.withOpacity(0.35),
-                          blurRadius: 14,
-                          spreadRadius: -3,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.music_note_rounded,
-                        color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  ShaderMask(
-                    shaderCallback: (b) =>
-                        AppTheme.primaryGradient.createShader(b),
-                    child: const Text(
-                      'DEN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              // Actions
-              Row(
-                children: [
-                  _GlassIconBtn(
-                    icon: Icons.search_rounded,
-                    onTap: onSearch,
-                  ),
-                  const SizedBox(width: 8),
-                  _GlassIconBtn(
-                    icon: Icons.notifications_rounded,
-                    showDot: true,
-                    onTap: onNotification,
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: onSettings,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.pink.withOpacity(0.4),
-                            blurRadius: 12,
-                            spreadRadius: -3,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.person_rounded,
-                          color: Colors.white, size: 18),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        return RepaintBoundary(child: AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        // Simple solid color — no BackdropFilter so no per-frame GPU blur pass
+        color: Colors.black.withOpacity(isScrolled ? 0.75 : 0.40),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withOpacity(isScrolled ? 0.08 : 0.0),
+            width: 0.5,
           ),
         ),
       ),
-    );
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top,
+        left: 20,
+        right: 20,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Logo
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.pink.withOpacity(0.35),
+                      blurRadius: 14,
+                      spreadRadius: -3,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.music_note_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              ShaderMask(
+                shaderCallback: (b) =>
+                    AppTheme.primaryGradient.createShader(b),
+                child: const Text(
+                  'DEN',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // Actions
+          Row(
+            children: [
+              _GlassIconBtn(
+                icon: Icons.search_rounded,
+                onTap: onSearch,
+              ),
+              const SizedBox(width: 8),
+              _GlassIconBtn(
+                icon: Icons.notifications_rounded,
+                showDot: true,
+                onTap: onNotification,
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onSettings,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.pink.withOpacity(0.4),
+                        blurRadius: 12,
+                        spreadRadius: -3,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.person_rounded,
+                      color: Colors.white, size: 18),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ));
   },
 );
 }
@@ -736,6 +708,7 @@ class _GlassHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(_GlassHeaderDelegate old) =>
       old.isScrolledNotifier != isScrolledNotifier;
 }
+
 
 class _GlassIconBtn extends StatefulWidget {
   final IconData icon;
@@ -753,7 +726,13 @@ class _GlassIconBtn extends StatefulWidget {
 }
 
 class _GlassIconBtnState extends State<_GlassIconBtn> {
-  bool _pressed = false;
+  final ValueNotifier<bool> _pressed = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _pressed.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -762,50 +741,42 @@ class _GlassIconBtnState extends State<_GlassIconBtn> {
         HapticFeedback.lightImpact();
         widget.onTap();
       },
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
+      onTapDown: (_) => _pressed.value = true,
+      onTapUp: (_) => _pressed.value = false,
+      onTapCancel: () => _pressed.value = false,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedScale(
-        scale: _pressed ? 0.88 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.white
-                    .withOpacity(_pressed ? 0.14 : 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: Colors.white.withOpacity(0.12)),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(widget.icon,
-                      color: Colors.white.withOpacity(0.85),
-                      size: 18),
-                  if (widget.showDot)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.primaryGradient,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: Colors.black, width: 1),
-                        ),
+      child: ValueListenableBuilder<bool>(
+        valueListenable: _pressed,
+        builder: (_, isPressed, __) => AnimatedScale(
+          scale: isPressed ? 0.88 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(isPressed ? 0.18 : 0.10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.14)),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(widget.icon, color: Colors.white.withOpacity(0.85), size: 18),
+                if (widget.showDot)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 1),
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -819,9 +790,7 @@ class _GlassIconBtnState extends State<_GlassIconBtn> {
 // ─────────────────────────────────────────────────────────────
 
 class _GreetingHero extends StatelessWidget {
-  final AnimationController orbController;
-
-  const _GreetingHero({required this.orbController});
+  const _GreetingHero();
 
   static String _greeting() {
     final h = DateTime.now().hour;
@@ -1050,7 +1019,7 @@ class _QuickTileState extends ConsumerState<_QuickTile> {
             fit: StackFit.expand,
             children: [
               // ── Real background photo ──────────────────
-              CachedNetworkImage(memCacheWidth: 400, 
+              CachedNetworkImage(memCacheWidth: 400, memCacheHeight: 400,
                 imageUrl: item.imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (_, __) => Container(
@@ -1275,6 +1244,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
               child: PageView.builder(
                 controller: _pc,
                 itemCount: songs.length,
+                physics: const ClampingScrollPhysics(),
                 onPageChanged: (i) => setState(() => _current = i),
                 itemBuilder: (_, i) => _HeroCard(
                   key: ValueKey(songs[i].id),
@@ -1420,7 +1390,7 @@ class _HeroCardState extends State<_HeroCard> {
               fit: StackFit.expand,
               children: [
                 // Album art
-                CachedNetworkImage(memCacheWidth: 400, 
+                CachedNetworkImage(memCacheWidth: 400, memCacheHeight: 400,
                   imageUrl: widget.song.image,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(
@@ -1610,7 +1580,7 @@ class _LiquidSection extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 cacheExtent: 500,
-                // No physics override — inherits parent BouncingScrollPhysics
+                physics: const ClampingScrollPhysics(),
                 itemCount: songs.length,
                 itemBuilder: (_, i) {
                   switch (cardStyle) {
@@ -1696,7 +1666,6 @@ class _StandardCardState extends State<_StandardCard> {
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       // Absorb vertical scroll to prevent phantom taps during list scrolling
-      onVerticalDragStart: (_) => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.93 : 1.0,
@@ -1712,7 +1681,7 @@ class _StandardCardState extends State<_StandardCard> {
                 borderRadius: BorderRadius.circular(16),
                 child: Stack(
                   children: [
-                    CachedNetworkImage(memCacheWidth: 400, 
+                    CachedNetworkImage(memCacheWidth: 400, memCacheHeight: 400,
                       imageUrl: widget.song.image,
                       width: 148,
                       height: 148,
@@ -1845,7 +1814,6 @@ class _WideCardState extends State<_WideCard> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
-      onVerticalDragStart: (_) => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.95 : 1.0,
@@ -1858,7 +1826,7 @@ class _WideCardState extends State<_WideCard> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CachedNetworkImage(memCacheWidth: 400, 
+                CachedNetworkImage(memCacheWidth: 400, memCacheHeight: 400,
                   imageUrl: widget.song.image,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(
@@ -1984,7 +1952,6 @@ class _RankedCardState extends State<_RankedCard> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
-      onVerticalDragStart: (_) => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.93 : 1.0,
@@ -2000,7 +1967,7 @@ class _RankedCardState extends State<_RankedCard> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: CachedNetworkImage(memCacheWidth: 400, 
+                    child: CachedNetworkImage(memCacheWidth: 400, memCacheHeight: 400,
                       imageUrl: widget.song.image,
                       width: 138,
                       height: 138,
@@ -2284,6 +2251,7 @@ class _MoodSection extends ConsumerWidget {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
+            physics: const ClampingScrollPhysics(),
             itemCount: _moods.length,
             itemBuilder: (_, i) {
               final mood = _moods[i];
@@ -2358,6 +2326,7 @@ class _MoodSection extends ConsumerWidget {
                     scrollDirection: Axis.horizontal,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16),
+                    physics: const ClampingScrollPhysics(),
                     itemCount: songs.length,
                     itemBuilder: (_, i) => _StandardCard(
                       song: songs[i],
@@ -2505,7 +2474,7 @@ class _FreshDropTileState extends State<_FreshDropTile> {
             // Art
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: CachedNetworkImage(memCacheWidth: 400, 
+              child: CachedNetworkImage(memCacheWidth: 400, memCacheHeight: 400,
                 imageUrl: widget.song.image,
                 width: 50,
                 height: 50,

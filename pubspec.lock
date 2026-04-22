@@ -1269,6 +1269,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  soundcloud_explode_dart:
+    dependency: "direct main"
+    description:
+      name: soundcloud_explode_dart
+      sha256: "47fe77a738d0a31a6e18ddd8bc5668c5452b965c115f4f5d9dfc4f1153678036"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   source_gen:
     dependency: transitive
     description:

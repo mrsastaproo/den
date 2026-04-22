@@ -29,7 +29,7 @@ class Song {
   String get source {
     if (id.startsWith('jamendo_')) return 'JAMENDO';
     if (id.startsWith('audius_')) return 'AUDIUS';
-    if (id.startsWith('yt_')) return 'YOUTUBE';
+    if (id.startsWith('sc_')) return 'SOUNDCLOUD';
     return 'JIOSAAVN';
   }
 
@@ -73,29 +73,71 @@ class Song {
   }
 
   factory Song.fromSumitApi(Map<String, dynamic> json) {
-    // Get highest quality image
-    final images = json['image'] as List?;
-    final image = images != null && images.isNotEmpty
-        ? (images.last['url'] ?? '')
-        : '';
+    // 1. Robust Image Parsing (handles String URL or List of objects)
+    String imageUrl = '';
+    final rawImage = json['image'];
+    if (rawImage is String) {
+      imageUrl = rawImage;
+    } else if (rawImage is List && rawImage.isNotEmpty) {
+      final last = rawImage.last;
+      if (last is Map) {
+        imageUrl = (last['url'] ?? last['link'] ?? '').toString();
+      } else if (last is String) {
+        imageUrl = last;
+      }
+    }
 
-    // Get primary artists
-    final primaryArtists = json['artists']?['primary'] as List?;
-    final artistName = primaryArtists != null && primaryArtists.isNotEmpty
-        ? primaryArtists.map((a) => a['name']).join(', ')
-        : '';
+    // 2. Robust Artist Parsing
+    String artistName = '';
+    
+    // Format A: { artists: { primary: [{name: ...}] } }  (saavn.dev style)
+    final artistsObj = json['artists'];
+    if (artistsObj is Map) {
+      final primary = artistsObj['primary'];
+      if (primary is List && primary.isNotEmpty) {
+        artistName = primary.map((a) => (a is Map ? a['name'] : a).toString()).join(', ');
+      }
+    }
+    
+    // Format B: { primaryArtists: [{name: ...}] }  (Vercel mirror style)
+    if (artistName.isEmpty) {
+      final pa = json['primaryArtists'];
+      if (pa is List && pa.isNotEmpty) {
+        artistName = pa
+            .where((a) => a is Map && a['name'] != null)
+            .map((a) => a['name'].toString())
+            .join(', ');
+      } else if (pa is String && pa.isNotEmpty) {
+        artistName = pa;
+      }
+    }
+    
+    // Format C: simple 'artist' string
+    if (artistName.isEmpty) {
+      final a = json['artist'];
+      if (a is String && a.isNotEmpty) artistName = a;
+    }
+
+    // 3. Fallback for album name
+    final albumName = json['album'] is Map 
+        ? (json['album']['name'] ?? '') 
+        : (json['album'] ?? '');
+
+    // 4. Parse explicitContent (can be bool, string '0'/'1', or int)
+    final ec = json['explicitContent'] ?? json['explicit'];
+    final isExplicit = ec == true || ec == 1 || ec == '1';
 
     return Song(
-      id: json['id'] ?? '',
-      title: _sanitize(json['name'] ?? ''),
-      artist: _sanitize(artistName),
-      album: _sanitize(json['album']?['name'] ?? ''),
-      image: image,
-      url: '',
+      id: json['id']?.toString() ?? '',
+      title: _sanitize(json['name'] ?? json['title'] ?? 'Unknown'),
+      artist: _sanitize(artistName.isEmpty ? 'Unknown Artist' : artistName),
+      album: _sanitize(albumName.toString()),
+      image: imageUrl,
+      url: '', // Fetched on demand by PlayerService
       duration: json['duration']?.toString() ?? '0',
       year: json['year']?.toString() ?? '',
-      language: json['language'] ?? '',
-      isExplicit: json['explicitContent'] == true || json['explicit'] == true,
+      language: json['language']?.toString() ?? '',
+      isExplicit: isExplicit,
       playCount: json['playCount'] != null ? (int.tryParse(json['playCount'].toString()) ?? 0) : 0,
     );
   }

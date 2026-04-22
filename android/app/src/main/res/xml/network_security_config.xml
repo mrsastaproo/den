@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Place this file at:
-    android/app/src/main/res/xml/network_security_config.xml
-
-    Allows HTTPS to all domains (default for release).
-    JioSaavn + Audius + Firebase all use HTTPS so no cleartext needed.
--->
 <network-security-config>
+    <!--
+        Allow cleartext (http://) traffic ONLY to localhost / 127.0.0.1.
+        soundcloud_explode_dart uses a local proxy or direct streams.
+        Without this, ExoPlayer might throw:
+        "Cleartext HTTP traffic to 127.0.0.1 not permitted"
+        All other traffic (saavncdn, HF space, etc.) remains HTTPS only.
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+
+    <!-- Everything else: HTTPS only (safe default) -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system"/>

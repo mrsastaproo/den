@@ -18,7 +18,7 @@ import 'download_service.dart';
 import 'settings_service.dart';
 import 'social_service.dart';
 import 'audio_handler.dart';
-import 'youtube_service.dart';
+import 'soundcloud_service.dart';
 
 void _log(String msg) => print('[DEN] $msg');
 
@@ -303,8 +303,8 @@ class PlayerService {
             url = await _audius.getStreamUrl(song.id);
           } else if (song.id.startsWith('jamendo_')) {
              url = await _api.getStreamUrl(song.id, quality: quality);
-          } else if (song.id.startsWith('yt_')) {
-             url = await _ref.read(youtubeServiceProvider).getStreamUrl(song.id);
+          } else if (song.id.startsWith('sc_')) {
+             url = await _ref.read(soundcloudServiceProvider).getStreamUrl(song.id);
           } else {
             // Saavn track — check if we should apply the "Best Legal Match" engine
             // for English songs to avoid the 30s preview trap.
@@ -312,28 +312,40 @@ class PlayerService {
             if (isEnglish) {
                _log('English track detected — enforcing legal matching engine');
                final bestMatch = await _api.findBestLegalMatch(song.title, song.artist);
-               
+
                // If we found a match, check if it's full length (> 60s)
                final matchDur = bestMatch != null ? (int.tryParse(bestMatch.duration) ?? 0) : 0;
-               
+
                if (matchDur > 60) {
                  _log('Found superior full-length match: ${bestMatch!.id}');
                  url = await _api.getStreamUrl(bestMatch.id, quality: quality);
                } else {
-                 // Final fallback: YouTube (guaranteed full song)
-                 _log('No legal full version found. Using YouTube fallback…');
-                 final ytResults = await _ref.read(youtubeServiceProvider).search('${song.title} ${song.artist}');
-                 if (ytResults.isNotEmpty) {
-                    final yt = ytResults.first;
-                    url = await _ref.read(youtubeServiceProvider).getStreamUrl(yt.id);
-                    _log('Resolved via YouTube Proxy: ${yt.id}');
+                  // Final fallback: SoundCloud (guaranteed full song)
+                  _log('No legal full version found. Using SoundCloud fallback…');
+                  final scResults = await _ref.read(soundcloudServiceProvider)
+                      .searchByMeta(song.title, song.artist);
+                  if (scResults.isNotEmpty) {
+                     final sc = scResults.first;
+                     url = await _ref.read(soundcloudServiceProvider).getStreamUrl(sc.id);
+                     _log('Resolved via SoundCloud: ${sc.id}');
                  } else {
-                    // Last ditch: just play the Saavn version (even if preview)
                     url = await _api.getStreamUrl(song.id, quality: quality);
                  }
                }
             } else {
               url = await _api.getStreamUrl(song.id, quality: quality);
+              // If JioSaavn has no stream URL (geo-restricted / unavailable),
+              // fall back to SoundCloud so the song still plays.
+              if (url.isEmpty) {
+                _log('JioSaavn URL empty for ${song.title} — trying SoundCloud fallback');
+                final scResults = await _ref.read(soundcloudServiceProvider)
+                    .searchByMeta(song.title, song.artist);
+                if (scResults.isNotEmpty) {
+                  final sc = scResults.first;
+                  url = await _ref.read(soundcloudServiceProvider).getStreamUrl(sc.id);
+                  _log('Resolved via SoundCloud fallback: ${sc.id}');
+                }
+              }
             }
           }
         }
@@ -344,13 +356,25 @@ class PlayerService {
           return;
         }
 
-        _log('URL ok, setting source…');
-        source = AudioSource.uri(Uri.parse(url));
+        _log('URL ok: $url');
+        if (song.id.startsWith('sc_')) {
+          source = AudioSource.uri(
+            Uri.parse(url),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              'Referer': 'https://soundcloud.com/',
+              'Origin': 'https://soundcloud.com',
+            },
+          );
+        } else {
+          source = AudioSource.uri(Uri.parse(url));
+        }
       }
 
       // ── CONCATENATION MGMT ────────────────────────────────
       _playlistSource = ConcatenatingAudioSource(children: [source]);
       await _player.setAudioSource(_playlistSource);
+
 
       if (startAt != null) {
         await _player.seek(startAt);
@@ -455,15 +479,22 @@ class PlayerService {
     _skipInProgress    = false; // force-release so button always works
 
     final isShuffle = _ref.read(isShuffleProvider);
-    final int next;
+    
     if (isShuffle && playlist.length > 1) {
       final pool = List.generate(playlist.length, (i) => i)
         ..remove(idx)..shuffle();
-      next = pool.first;
+      final next = pool.first;
+      _doSkip(playlist[next], next);
     } else {
-      next = (idx + 1) % playlist.length;
+      final next = idx + 1;
+      if (next < playlist.length) {
+        _doSkip(playlist[next], next);
+      } else {
+        // End of playlist — fetch more similar songs!
+        _log('End of playlist reached via Skip Next → Fetching Smart Queue');
+        _fetchSmartQueue();
+      }
     }
-    _doSkip(playlist[next], next);
   }
 
   void skipPrev() {

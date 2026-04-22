@@ -1289,7 +1289,7 @@ class _PrivacySection extends ConsumerWidget {
                     'Minimal — only what\'s needed'),
                 const SizedBox(height: 12),
                 const _InfoRow(
-                    'Third Parties', 'YouTube API, Firebase'),
+                    'Third Parties', 'SoundCloud API, Firebase'),
                 const SizedBox(height: 12),
                 const _InfoRow(
                     'Data Storage', 'Encrypted on Firebase'),
@@ -1568,7 +1568,7 @@ class _AboutSection extends StatelessWidget {
             const SizedBox(height: 20),
             const _InfoRow('Built with', 'DEN TEAM'),
             const SizedBox(height: 8),
-            const _InfoRow('Music API', 'YouTube API'),
+            const _InfoRow('Music API', 'SoundCloud API'),
             const SizedBox(height: 8),
             const _InfoRow('Auth & Storage', 'Firebase'),
             const SizedBox(height: 8),

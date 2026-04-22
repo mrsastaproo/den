@@ -738,7 +738,7 @@ class _BrowseBodyState extends State<_BrowseBody> {
 
     return CustomScrollView(
       controller: widget.scrollController,
-      physics: const BouncingScrollPhysics(),
+      physics: const ClampingScrollPhysics(),
       slivers: [
         // ── Recent Searches Header ────────────────────────
         if (recents.isNotEmpty)
@@ -1329,7 +1329,7 @@ class _ResultsBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return CustomScrollView(
       controller: scrollController,
-      physics: const BouncingScrollPhysics(),
+      physics: const ClampingScrollPhysics(),
       slivers: [
         results.when(
           loading: () => SliverList(

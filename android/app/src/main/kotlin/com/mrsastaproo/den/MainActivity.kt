@@ -10,6 +10,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
+import android.os.Build
+import android.os.Bundle
+import android.view.WindowManager
 
 class MainActivity : AudioServiceActivity() {
 
@@ -17,6 +20,31 @@ class MainActivity : AudioServiceActivity() {
     private var equalizer: Equalizer? = null
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var currentSessionId: Int = 0
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableHighRefreshRate()
+    }
+
+    /**
+     * Request the highest available display refresh rate (120Hz / 90Hz / 60Hz).
+     * On Android 6+ we iterate supported display modes and pick the one with
+     * the highest refresh rate matching the current resolution.
+     */
+    private fun enableHighRefreshRate() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val display = windowManager.defaultDisplay
+            val supportedModes = display.supportedModes
+            // Pick the mode with the highest refresh rate
+            val bestMode = supportedModes.maxByOrNull { it.refreshRate }
+            if (bestMode != null) {
+                val params: WindowManager.LayoutParams = window.attributes
+                params.preferredDisplayModeId = bestMode.modeId
+                window.attributes = params
+            }
+        }
+    }
+
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

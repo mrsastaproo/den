@@ -40,7 +40,7 @@ class PremiumWatermark extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            'YouTube',
+            'SoundCloud',
             style: TextStyle(
               color: Colors.white,
               fontSize: fontSize,

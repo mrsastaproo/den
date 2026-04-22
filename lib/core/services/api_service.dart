@@ -4,31 +4,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 
 class ApiService {
-  static const String baseUrl =
-    'https://jiosaavn-api-angv.onrender.com/api';
+  // JioSaavn API — using working Vercel-hosted mirror
+  // (saavn.dev is dead as of April 2026)
+  static const String baseUrl = 'https://jiosaavn-api-privatecvc2.vercel.app';
 
-  // ── Primary client — generous timeouts for Render.com cold start ──
-  // Render free tier can take 30-60s on cold start. We give it 45s.
+  // ── Primary client ──
   final Dio _dio = Dio(BaseOptions(
     baseUrl: baseUrl,
-    connectTimeout: const Duration(seconds: 45),
-    receiveTimeout: const Duration(seconds: 45),
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+    headers: {'Accept': 'application/json'},
   ));
 
-  // ── Stream URL cache ──────────────────────────────────────────────
-  // Caches resolved URLs so re-playing the same song is instant.
-  // Key: songId  Value: url
+  // ── Cache ────────────────────────────────────────────────────────
+  // Caches search results and stream URLs for instant retrieval
+  final Map<String, List<Song>> _searchCache = {};
   final Map<String, String> _urlCache = {};
 
   // ─── HELPER ───────────────────────────────────────────────────────
 
   Future<List<Song>> _search(String query, {int limit = 20}) async {
+    final cacheKey = '$query|$limit';
+    if (_searchCache.containsKey(cacheKey)) return _searchCache[cacheKey]!;
+
     try {
       final res = await _dio.get('/search/songs',
         queryParameters: {'query': query, 'limit': limit});
-      final results = res.data['data']?['results'] as List? ?? [];
+      
+      // Robust data extraction
+      final dynamic rawData = res.data is Map ? (res.data['data'] ?? res.data) : res.data;
+      final List results = (rawData is Map ? (rawData['results'] ?? []) : (rawData is List ? rawData : []));
+      
       final songs = results.map((e) => Song.fromSumitApi(e)).toList();
-      return songs..sort((a, b) => b.playCount.compareTo(a.playCount));
+      songs.sort((a, b) => b.playCount.compareTo(a.playCount));
+      _searchCache[cacheKey] = songs;
+      return songs;
     } catch (e) {
       print('Search error [$query]: $e');
       return [];
@@ -38,8 +48,17 @@ class ApiService {
   Future<List<Song>> _multiSearch(List<String> queries,
       {int limitEach = 10}) async {
     try {
-      final futures = queries.map((q) => _search(q, limit: limitEach));
-      final results = await Future.wait(futures);
+      final List<List<Song>> results = [];
+      for (final q in queries) {
+        // Use a short timeout per sub-query to prevent one slow query from blocking everything
+        try {
+          final s = await _search(q, limit: limitEach).timeout(const Duration(seconds: 4));
+          results.add(s);
+        } catch (_) {}
+        // Small delay to prevent hitting the server too fast
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+      
       final songs = results.expand((s) => s).toList();
       final seen = <String>{};
       final uniqueSongs = songs.where((s) => seen.add(s.id)).toList();
@@ -69,6 +88,72 @@ class ApiService {
     return results;
   }
 
+  // ─── SMART RELEVANCE SCORER ───────────────────────────────────────
+  // Multi-factor scoring that puts the real/popular version on top.
+  // Higher score = better match.
+  int _relevanceScore(Song song, String rawQuery) {
+    final query = rawQuery.trim().toLowerCase();
+    final tokens = query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final title  = song.title.toLowerCase();
+    final artist = song.artist.toLowerCase();
+    final album  = song.album.toLowerCase();
+    int score = 0;
+
+    // ── 1. EXACT TITLE MATCH (highest weight) ──────────────────────
+    if (title == query) score += 600;
+    else if (title.startsWith(query)) score += 400;
+    else if (title.contains(query)) score += 260;
+    else {
+      // Partial token matches
+      final matched = tokens.where((t) => title.contains(t)).length;
+      score += matched * 60;
+    }
+
+    // ── 2. ARTIST MATCH ────────────────────────────────────────────
+    if (tokens.any((t) => artist.contains(t))) score += 180;
+    if (tokens.any((t) => album.contains(t))) score += 60;
+
+    // ── 3. PENALISE FAKE / COVER / KARAOKE / TRIBUTE VERSIONS ─────
+    final fakePhrases = [
+      'cover', 'karaoke', 'tribute', 'remake', 'recreation',
+      'unplugged version', 'piano version', 'lofi version',
+      'instrumental version', 'reprise', 'female version',
+      'male version', 'slowed', 'reverb', 'mashup', 'remix version',
+      'originally', 'recreated', 'recreation by', 'imitation',
+      'unofficial', 'hindi version', 'english version', 'dj version',
+    ];
+    for (final phrase in fakePhrases) {
+      if (title.contains(phrase) || artist.contains(phrase)) {
+        score -= 400;
+        break;
+      }
+    }
+
+    // Allow "remix" if user explicitly searched for it
+    if (title.contains('remix') && !query.contains('remix')) score -= 250;
+
+    // ── 4. TITLE LENGTH PENALTY (shorter = more likely original) ──
+    // A song titled "Bandook 2 (Cover by XYZ)" is much longer
+    // than the original "Bandook 2".
+    final expectedLen = query.length;
+    final excess = (title.length - expectedLen - 4).clamp(0, 999);
+    score -= (excess * 1.2).toInt();
+
+    // ── 5. PLAY COUNT (popularity signal) ──────────────────────────
+    // Log-scale so 10M plays vs 1M plays is meaningful but
+    // doesn't drown out relevance.
+    if (song.playCount > 0) {
+      score += (math.log(song.playCount + 1) * 18).toInt();
+    }
+
+    // ── 6. YEAR RECENCY BONUS (newer = likely original on charts) ─
+    final year = int.tryParse(song.year) ?? 0;
+    if (year >= 2023) score += 30;
+    else if (year >= 2020) score += 15;
+
+    return score;
+  }
+
   Future<List<Song>> searchSongs(String query,
       {int page = 1, int limit = 20, bool showExplicit = true}) async {
     final q = query.trim().toLowerCase();
@@ -85,7 +170,11 @@ class ApiService {
         });
       final results = res.data['data']?['results'] as List? ?? [];
       final songs = results.map((e) => Song.fromSumitApi(e)).toList();
-      songs.sort((a, b) => b.playCount.compareTo(a.playCount));
+
+      // Smart ranking: relevance score descending
+      songs.sort((a, b) =>
+          _relevanceScore(b, query).compareTo(_relevanceScore(a, query)));
+
       if (!showExplicit) return songs.where((s) => !s.isExplicit).toList();
       return songs;
     } catch (e) {
@@ -93,6 +182,8 @@ class ApiService {
       return [];
     }
   }
+
+  // ─── SEARCH BROAD ─────────────────────────────────────────────────
 
   Future<List<Song>> searchBroad(String query, {bool showExplicit = true}) async {
     final q = query.trim().toLowerCase();
@@ -121,83 +212,97 @@ class ApiService {
     return noise[math.Random().nextInt(noise.length)];
   }
 
-  Future<List<Song>> getTrending({String language = 'Hindi'}) async {
-    final year = DateTime.now().year;
-    final lang = language.toLowerCase();
-    
-    // Choose a random pool on every call for maximum freshness
-    final pools = [
-      ['trending $lang $_getRandomNoise()', 'top $lang songs $year'],
-      ['viral $lang hits', 'popular $lang $_getRandomNoise()'],
-      ['top $lang $_getRandomNoise()', '$lang pop viral'],
-      ['$lang romance $year', 'non stop $lang hits'],
-      ['latest $lang releases', 'india viral $lang hits'],
-    ];
+  // ─── HOME MODULES (OPTIMIZED) ──────────────────────────────────
+  // Uses /modules for trending songs + new album/song items.
+  // Charts in this API are playlist references (no embedded songs),
+  // so we always use search fallback for charts.
+  Future<Map<String, List<Song>>> getHomeData({String language = 'Hindi'}) async {
+    try {
+      final langs = language.toLowerCase().split(RegExp(r'[+,&]')).map((e) => e.trim()).join(',');
+      _log('Fetching Home Modules for languages: $langs');
+      
+      final res = await _dio.get('/modules', queryParameters: {'language': langs}).timeout(const Duration(seconds: 12));
+      final data = res.data['data'] ?? res.data ?? {};
+      
+      final Map<String, List<Song>> result = {
+        'trending': [],
+        'charts': [],
+        'new_releases': [],
+      };
+      
+      // 1. Trending — data['trending']['songs'] contains actual song objects
+      final trendingObj = data['trending'];
+      if (trendingObj is Map) {
+        final List songs = trendingObj['songs'] ?? [];
+        for (final s in songs) {
+          if (s is Map) {
+            try { result['trending']!.add(Song.fromSumitApi(s as Map<String, dynamic>)); } catch (_) {}
+          }
+        }
+        // Also grab trending albums as songs (they have song metadata)
+        final List albums = trendingObj['albums'] ?? [];
+        for (final a in albums) {
+          if (a is Map && a['type'] != 'album') {
+            try { result['trending']!.add(Song.fromSumitApi(a as Map<String, dynamic>)); } catch (_) {}
+          }
+        }
+      }
+      
+      // 2. New Releases — data['albums'] are individual song/album items
+      //    In this API, each item has type:'song' with songs:[] (empty).
+      //    The item itself IS the song data.
+      final List albumsData = data['albums'] is List ? data['albums'] : [];
+      for (final item in albumsData) {
+        if (item is Map) {
+          try {
+            final song = Song.fromSumitApi(item as Map<String, dynamic>);
+            if (song.title.isNotEmpty && song.title != 'Unknown') {
+              result['new_releases']!.add(song);
+            }
+          } catch (_) {}
+        }
+      }
 
-    // IF English, we add Global Charts focus
-    if (lang == 'english') {
-      pools.add(['Billboard Hot 100', 'Spotify Global Top 50']);
-      pools.add(['UK Top 40', 'Global Viral Hits 2025']);
-      pools.add(['Apple Music Top English', 'Tiktok Viral English']);
+      // 3. Charts — the API only returns playlist references (id + title),
+      //    NOT actual songs. So we always fill charts via search.
+      result['charts'] = await getTopCharts(language: language);
+
+      // Fill trending via search if modules returned too few
+      if (result['trending']!.length < 5) {
+        _log('Trending has only ${result['trending']!.length} songs — supplementing with search');
+        final extra = await getTrending(language: language);
+        final seen = result['trending']!.map((s) => s.id).toSet();
+        result['trending']!.addAll(extra.where((s) => !seen.contains(s.id)));
+      }
+      
+      _log('Home data loaded: trending=${result['trending']!.length}, new_releases=${result['new_releases']!.length}, charts=${result['charts']!.length}');
+      return result;
+    } catch (e) {
+      _log('Home Data Error: $e — using search fallback');
+      return {
+        'trending': await getTrending(language: language),
+        'charts': await getTopCharts(language: language),
+        'new_releases': await getNewReleases(language: language),
+      };
     }
-    
-    final selectedPool = pools[math.Random().nextInt(pools.length)];
-    
-    return _multiSearch([
-      ...selectedPool,
-      if (lang != 'english') 'top indian $lang songs',
-      'trending now $lang',
-    ], limitEach: 25);
   }
 
-  // ─── GLOBAL DISCOVERY (NEW) ───────────────────────────────────────
-  // Focuses on latest international English hits without previews
-  
-  Future<List<Song>> getGlobalDiscovery() async {
-    _log('Fetching Global Discovery (Latest English Hits)...');
-    
-    final globalQueries = [
-      'trending hollywood songs 2025',
-      'latest english pop hits',
-      'billboard top songs 2025',
-      'viral global hits spotify',
-      'new english rap 2025',
-    ];
-
-    final results = await _multiSearch(globalQueries, limitEach: 15);
-    
-    // Filter out results that are likely just previews (Saavn sometimes marks them)
-    // For now, we trust the multiSearch relevance.
-    return results;
+  Future<List<Song>> getTrending({String language = 'Hindi'}) async {
+    final langs = language.toLowerCase().split(RegExp(r'[+,&]')).map((e) => e.trim()).toList();
+    final queries = langs.map((l) => 'trending $l').toList();
+    return _multiSearch(queries, limitEach: 15);
   }
 
   Future<List<Song>> getNewReleases({String language = 'Hindi'}) async {
-    final year = DateTime.now().year;
-    final lang = language.toLowerCase();
-
-    final genrePools = [
-      ['new $lang releases $year', 'fresh indie $lang'],
-      ['latest $lang hits', 'fresh $lang $_getRandomNoise()'],
-      ['fresh $lang pop', 'latest soul $lang'],
-      ['new romantic $lang', 'fresh acoustic $lang'],
-    ];
-
-    final selectedGenre = genrePools[math.Random().nextInt(genrePools.length)];
-
-    return _multiSearch([
-      ...selectedGenre,
-      'new songs $lang $year',
-      'latest and greatest $lang',
-    ], limitEach: 15);
+    final langs = language.toLowerCase().split(RegExp(r'[+,&]')).map((e) => e.trim()).toList();
+    final queries = langs.map((l) => 'latest $l hits').toList();
+    return _multiSearch(queries, limitEach: 15);
   }
 
   Future<List<Song>> getTopCharts({String language = 'Hindi'}) async {
-    final lang = language.toLowerCase();
-    return _multiSearch([
-      'top 50 $lang songs',
-      '$lang number one charts',
-      'trending $lang top songs',
-    ], limitEach: 15);
+    final langs = language.toLowerCase().split(RegExp(r'[+,&]')).map((e) => e.trim()).toList();
+    final queries = langs.map((l) => 'top 50 $l songs').toList();
+    return _multiSearch(queries, limitEach: 15);
   }
 
 
@@ -354,15 +459,17 @@ class ApiService {
       try {
         _log('getStreamUrl attempt $attempt for $songId ($quality)');
         final res = await _dio.get('/songs',
-          queryParameters: {'ids': songId});
+          queryParameters: {'id': songId});
 
-        final data = res.data['data'] as List?;
-        if (data == null || data.isEmpty) {
+        final dynamic rawData = res.data is Map ? (res.data['data'] ?? res.data) : res.data;
+        final List data = rawData is List ? rawData : (rawData is Map ? [rawData] : []);
+        
+        if (data.isEmpty) {
           _log('getStreamUrl: empty data for $songId');
           continue;
         }
 
-        final song          = data[0];
+        final song = data[0];
         final downloadUrls  = song['downloadUrl'] as List?;
         if (downloadUrls == null || downloadUrls.isEmpty) {
           _log('getStreamUrl: no downloadUrl for $songId');
@@ -370,13 +477,13 @@ class ApiService {
         }
 
         // Find the URL that matches the requested quality
-        // downloadUrl objects look like: { "quality": "320kbps", "url": "..." }
+        // downloadUrl objects: { "quality": "320kbps", "url"|"link": "..." }
         final best = downloadUrls.firstWhere(
           (u) => u['quality'] == quality,
-          orElse: () => downloadUrls.last, // Fallback to highest available if requested not found
+          orElse: () => downloadUrls.last, // Fallback to highest available
         );
 
-        final url = best['url'] as String? ?? '';
+        final url = (best['url'] ?? best['link'] ?? '') as String;
         if (url.isEmpty) continue;
 
         // Cache it for instant re-play

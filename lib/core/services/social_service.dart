@@ -192,19 +192,28 @@ class SocialService {
         .asyncMap((snap) async {
           final List<Map<String, dynamic>> results = [];
           for (var d in snap.docs) {
-            final data = d.data();
-            final fromUid = data['fromUid'] ?? d.id;
-            final userDoc = await _db.collection('users').doc(fromUid).get();
-            final userData = userDoc.data() ?? {};
-            results.add({
-              'uid': fromUid,
-              ...data,
-              'username': userData['username'] ?? fromUid,
-              'displayName': userData['displayName'] ?? 'User',
-              'photoUrl': userData['photoUrl'],
-            });
+            try {
+              final data = d.data();
+              final fromUid = data['fromUid'] ?? d.id;
+              final userDoc = await _db.collection('users').doc(fromUid).get();
+              final userData = userDoc.data() ?? {};
+              results.add({
+                'uid': fromUid,
+                ...data,
+                'username': userData['username'] ?? fromUid,
+                'displayName': userData['displayName'] ?? 'User',
+                'photoUrl': userData['photoUrl'],
+              });
+            } catch (e) {
+              print('[Social] Error fetching request detail: $e');
+              // Add minimal info if profile is restricted
+              results.add({'uid': d.id, 'username': 'Restricted User', ...d.data()});
+            }
           }
           return results;
+        }).handleError((e) {
+          print('[Social] Incoming Requests Stream Error: $e');
+          return <Map<String, dynamic>>[];
         });
   }
 
@@ -218,18 +227,25 @@ class SocialService {
         .asyncMap((snap) async {
           final List<Map<String, dynamic>> results = [];
           for (var d in snap.docs) {
-            final friendUid = d.id;
-            final userDoc = await _db.collection('users').doc(friendUid).get();
-            final userData = userDoc.data() ?? {};
-            results.add({
-              'uid': friendUid,
-              ...d.data(),
-              'username': userData['username'] ?? userData['displayName'] ?? 'User',
-              'displayName': userData['displayName'],
-              'photoUrl': userData['photoUrl'],
-            });
+            try {
+              final friendUid = d.id;
+              final userDoc = await _db.collection('users').doc(friendUid).get();
+              final userData = userDoc.data() ?? {};
+              results.add({
+                'uid': friendUid,
+                ...d.data(),
+                'username': userData['username'] ?? userData['displayName'] ?? 'Friend',
+                'displayName': userData['displayName'] ?? 'Friend',
+                'photoUrl': userData['photoUrl'],
+              });
+            } catch (e) {
+              results.add({'uid': d.id, 'username': 'Private Profile', ...d.data()});
+            }
           }
           return results;
+        }).handleError((e) {
+          print('[Social] Friends Stream Error: $e');
+          return <Map<String, dynamic>>[];
         });
   }
 

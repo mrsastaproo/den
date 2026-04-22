@@ -7,6 +7,8 @@ import '../models/song.dart';
 import 'settings_service.dart';
 import 'api_service.dart';
 
+import 'soundcloud_service.dart';
+
 class DownloadService {
   final Dio _dio = Dio();
   final Ref _ref;
@@ -51,9 +53,21 @@ class DownloadService {
       String downloadUrl = resolvedUrl ?? '';
       
       if (downloadUrl.isEmpty) {
-        final quality = _ref.read(downloadQualityProvider);
-        _log('Resolving $quality URL for download: ${song.title}');
-        downloadUrl = await _ref.read(apiServiceProvider).getStreamUrl(song.id, quality: quality);
+        if (song.id.startsWith('sc_')) {
+          downloadUrl = await _ref.read(soundcloudServiceProvider).getStreamUrl(song.id);
+        } else {
+          final quality = _ref.read(downloadQualityProvider);
+          _log('Resolving $quality URL for download: ${song.title}');
+          downloadUrl = await _ref.read(apiServiceProvider).getStreamUrl(song.id, quality: quality);
+          
+          if (downloadUrl.isEmpty) {
+            _log('JioSaavn URL empty — falling back to SoundCloud for download');
+            final scResults = await _ref.read(soundcloudServiceProvider).searchByMeta(song.title, song.artist);
+            if (scResults.isNotEmpty) {
+              downloadUrl = await _ref.read(soundcloudServiceProvider).getStreamUrl(scResults.first.id);
+            }
+          }
+        }
       }
 
       if (downloadUrl.isEmpty) {

@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 
 void main() async {
   final dio = Dio(BaseOptions(
-    baseUrl: 'https://jiosaavn-api-angv.onrender.com/api',
+    baseUrl: 'https://mrsastapro-jiosaavn.hf.space/api',
     connectTimeout: const Duration(seconds: 30),
   ));
 

@@ -1,19 +1,11 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEN — SPLASH SCREEN v8
-// Premium · Balanced · Breathing
+// DEN — SPLASH SCREEN  (premium · glass · minimal · iOS-feel)
 // ─────────────────────────────────────────────────────────────────────────────
-
-const _bg          = Color(0xFF06060F);
-const _purple      = Color(0xFF7C3AED);
-const _purpleMid   = Color(0xFF5B21B6);
-const _purpleDark  = Color(0xFF2E1065);
-const _pink        = Color(0xFFDB2777);
-const _teal        = Color(0xFF0D9488);
-const _white       = Color(0xFFFFFFFF);
 
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -25,259 +17,276 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
 
-  // Background particle drift
-  late final AnimationController _particleCtrl;
-
-  // Icon entrance + breathe
-  late final AnimationController _iconEnterCtrl;
+  // ── Icon entrance
+  late final AnimationController _iconCtrl;
   late final Animation<double>   _iconScale;
   late final Animation<double>   _iconFade;
-  late final AnimationController _breatheCtrl;
-  late final Animation<double>   _breatheScale;
-  late final Animation<double>   _breatheGlow;
+  late final Animation<double>   _iconBlur;
 
-  // Outer ring — slow rotation
+  // ── Orbs / background lights drift
+  late final AnimationController _orbCtrl;
+
+  // ── Glass ring pulse
   late final AnimationController _ringCtrl;
+  late final Animation<double>   _ringScale;
+  late final Animation<double>   _ringOpacity;
 
-  // Text stagger
-  late final AnimationController _denCtrl;
-  late final Animation<double>   _denFade;
-  late final Animation<double>   _denY;
+  // ── Text reveal
+  late final AnimationController _textCtrl;
+  late final Animation<double>   _textFade;
+  late final Animation<double>   _textSpacing;
+
+  // ── Tagline
   late final AnimationController _tagCtrl;
   late final Animation<double>   _tagFade;
+  late final Animation<double>   _tagY;
 
-  // Progress
-  late final AnimationController _progressCtrl;
-  late final Animation<double>   _progressVal;
+  // ── Loading dots
+  late final AnimationController _dotCtrl;
 
-  // Exit
+  // ── Exit
   late final AnimationController _exitCtrl;
   late final Animation<double>   _exitFade;
-
-  // Particles
-  final List<_Particle> _particles = [];
+  late final Animation<double>   _exitScale;
 
   @override
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _buildParticles();
-    _initControllers();
-    _runSequence();
+    _init();
+    _run();
   }
 
-  void _buildParticles() {
-    final rng = math.Random(7);
-    for (int i = 0; i < 38; i++) {
-      _particles.add(_Particle(
-        x:      rng.nextDouble(),
-        y:      rng.nextDouble(),
-        radius: rng.nextDouble() * 1.2 + 0.4,
-        speed:  rng.nextDouble() * 0.18 + 0.04,
-        phase:  rng.nextDouble() * math.pi * 2,
-        drift:  (rng.nextDouble() - 0.5) * 0.06,
-        color:  i % 5 == 0 ? _teal
-              : i % 3 == 0 ? _pink
-              : _purple,
-      ));
-    }
-  }
+  void _init() {
+    // Icon
+    _iconCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1100));
+    _iconScale = Tween(begin: 0.72, end: 1.0).animate(
+        CurvedAnimation(parent: _iconCtrl, curve: Curves.easeOutQuint));
+    _iconFade = Tween(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _iconCtrl,
+            curve: const Interval(0.0, 0.65, curve: Curves.easeOut)));
+    _iconBlur = Tween(begin: 12.0, end: 0.0).animate(
+        CurvedAnimation(parent: _iconCtrl, curve: Curves.easeOutQuint));
 
-  void _initControllers() {
-    _particleCtrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 6))
+    // Orbs drift
+    _orbCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 8))
       ..repeat();
 
-    _iconEnterCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1000));
-    _iconScale = Tween(begin: 0.75, end: 1.0).animate(
-        CurvedAnimation(parent: _iconEnterCtrl, curve: Curves.easeOutCubic));
-    _iconFade = CurvedAnimation(
-        parent: _iconEnterCtrl,
-        curve: const Interval(0.0, 0.65, curve: Curves.easeOut));
-
-    _breatheCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 3200))
-      ..repeat(reverse: true);
-    _breatheScale = Tween(begin: 0.94, end: 1.06).animate(
-        CurvedAnimation(parent: _breatheCtrl, curve: Curves.easeInOut));
-    _breatheGlow = Tween(begin: 0.30, end: 0.55).animate(
-        CurvedAnimation(parent: _breatheCtrl, curve: Curves.easeInOut));
-
+    // Ring pulse
     _ringCtrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 18))
+        vsync: this, duration: const Duration(milliseconds: 2400))
+      ..repeat();
+    _ringScale = Tween(begin: 0.88, end: 1.12).animate(
+        CurvedAnimation(parent: _ringCtrl, curve: Curves.easeInOut));
+    _ringOpacity = Tween(begin: 0.18, end: 0.04).animate(
+        CurvedAnimation(parent: _ringCtrl, curve: Curves.easeInOut));
+
+    // Text
+    _textCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800));
+    _textFade = Tween(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut));
+    _textSpacing = Tween(begin: 20.0, end: 12.0).animate(
+        CurvedAnimation(parent: _textCtrl, curve: Curves.easeOutCubic));
+
+    // Tagline
+    _tagCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _tagFade = Tween(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _tagCtrl, curve: Curves.easeOut));
+    _tagY = Tween(begin: 10.0, end: 0.0).animate(
+        CurvedAnimation(parent: _tagCtrl, curve: Curves.easeOutCubic));
+
+    // Dots
+    _dotCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat();
 
-    _denCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 750));
-    _denFade = CurvedAnimation(parent: _denCtrl, curve: Curves.easeOut);
-    _denY    = Tween(begin: 20.0, end: 0.0).animate(
-        CurvedAnimation(parent: _denCtrl, curve: Curves.easeOutCubic));
-
-    _tagCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 600));
-    _tagFade = CurvedAnimation(parent: _tagCtrl, curve: Curves.easeOut);
-
-    _progressCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2800))
-      ..forward();
-    _progressVal = Tween(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _progressCtrl, curve: Curves.easeInOut));
-
+    // Exit
     _exitCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 550));
+        vsync: this, duration: const Duration(milliseconds: 600));
     _exitFade = Tween(begin: 1.0, end: 0.0).animate(
+        CurvedAnimation(parent: _exitCtrl, curve: Curves.easeInCubic));
+    _exitScale = Tween(begin: 1.0, end: 1.06).animate(
         CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn));
   }
 
-  Future<void> _runSequence() async {
-    await Future.delayed(const Duration(milliseconds: 160));
-    _iconEnterCtrl.forward();
+  Future<void> _run() async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _iconCtrl.forward();
 
-    await Future.delayed(const Duration(milliseconds: 580));
-    _denCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 650));
+    _textCtrl.forward();
 
     await Future.delayed(const Duration(milliseconds: 320));
     _tagCtrl.forward();
 
-    await Future.delayed(const Duration(milliseconds: 2000));
+    await Future.delayed(const Duration(milliseconds: 1800));
+    _dotCtrl.stop();
     await _exitCtrl.forward();
+
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     widget.onComplete();
   }
 
   @override
   void dispose() {
-    _particleCtrl.dispose();
-    _iconEnterCtrl.dispose();
-    _breatheCtrl.dispose();
+    _iconCtrl.dispose();
+    _orbCtrl.dispose();
     _ringCtrl.dispose();
-    _denCtrl.dispose();
+    _textCtrl.dispose();
     _tagCtrl.dispose();
-    _progressCtrl.dispose();
+    _dotCtrl.dispose();
     _exitCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final sw = MediaQuery.of(context).size.width;
-    final sh = MediaQuery.of(context).size.height;
-    final iconSize  = math.min(sw * 0.28, 116.0);
-    // Push cluster to visual center accounting for status bar
-    final clusterTop = sh * 0.34;
+    final size     = MediaQuery.of(context).size;
+    final w        = size.width;
+    final h        = size.height;
+    final iconSize = math.min(w * 0.22, 96.0);
 
     return AnimatedBuilder(
       animation: _exitCtrl,
-      builder: (_, child) =>
-          Opacity(opacity: _exitFade.value, child: child),
+      builder: (_, child) => Opacity(
+        opacity: _exitFade.value,
+        child: Transform.scale(scale: _exitScale.value, child: child),
+      ),
       child: Scaffold(
-        backgroundColor: _bg,
+        backgroundColor: const Color(0xFF080810),
         body: Stack(
-          clipBehavior: Clip.hardEdge,
           children: [
 
-            // ── 1. BG GRADIENT ───────────────────────────────────────────
+            // ── 1. DEEP BG ────────────────────────────────────────────────
             Positioned.fill(
-              child: CustomPaint(painter: _BgPainter(w: sw, h: sh)),
-            ),
-
-            // ── 2. PARTICLES ─────────────────────────────────────────────
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _particleCtrl,
-                builder: (_, __) => CustomPaint(
-                  painter: _ParticlePainter(
-                    particles: _particles,
-                    t: _particleCtrl.value,
-                    w: sw, h: sh,
-                  ),
-                ),
+              child: CustomPaint(
+                painter: _BgPainter(w: w, h: h),
               ),
             ),
 
-            // ── 3. ICON CLUSTER ──────────────────────────────────────────
-            Positioned(
-              left: 0, right: 0,
-              top: clusterTop - iconSize * 0.5 - 32,
-              child: AnimatedBuilder(
-                animation: Listenable.merge([
-                  _iconEnterCtrl, _breatheCtrl, _ringCtrl,
-                ]),
-                builder: (_, __) => _IconCluster(
-                  iconSize:     iconSize,
-                  iconScale:    _iconScale.value,
-                  iconFade:     _iconFade.value,
-                  breatheScale: _breatheScale.value,
-                  breatheGlow:  _breatheGlow.value,
-                  ringAngle:    _ringCtrl.value * 2 * math.pi,
-                ),
-              ),
+            // ── 2. ANIMATED ORBS ─────────────────────────────────────────
+            AnimatedBuilder(
+              animation: _orbCtrl,
+              builder: (_, __) {
+                final t = _orbCtrl.value;
+                return Stack(
+                  children: [
+                    // Top left orb
+                    Positioned(
+                      left: w * 0.08 + math.sin(t * math.pi * 2) * 18,
+                      top:  h * 0.12 + math.cos(t * math.pi * 2) * 14,
+                      child: _Orb(
+                        size: w * 0.52,
+                        color: const Color(0xFF6D28D9),
+                        opacity: 0.13,
+                      ),
+                    ),
+                    // Bottom right orb
+                    Positioned(
+                      right: w * 0.04 + math.cos(t * math.pi * 2) * 16,
+                      bottom: h * 0.18 + math.sin(t * math.pi * 2) * 12,
+                      child: _Orb(
+                        size: w * 0.44,
+                        color: const Color(0xFF0EA5E9),
+                        opacity: 0.09,
+                      ),
+                    ),
+                    // Center soft pink
+                    Positioned(
+                      left: w * 0.28,
+                      top:  h * 0.34 + math.sin(t * math.pi * 2 + 1) * 10,
+                      child: _Orb(
+                        size: w * 0.48,
+                        color: const Color(0xFFDB2777),
+                        opacity: 0.06,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
 
-            // ── 4. DEN + TAGLINE ─────────────────────────────────────────
-            Positioned(
-              left: 0, right: 0,
-              top: clusterTop + iconSize * 0.5 + 36,
+            // ── 3. CENTER CONTENT ─────────────────────────────────────────
+            Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
 
-                  // DEN
+                  // Icon block with glass ring
                   AnimatedBuilder(
-                    animation: _denCtrl,
+                    animation: Listenable.merge(
+                        [_iconCtrl, _ringCtrl]),
+                    builder: (_, __) => _IconBlock(
+                      size:         iconSize,
+                      scale:        _iconScale.value,
+                      fade:         _iconFade.value,
+                      blur:         _iconBlur.value,
+                      ringScale:    _ringScale.value,
+                      ringOpacity:  _ringOpacity.value,
+                    ),
+                  ),
+
+                  SizedBox(height: h * 0.048),
+
+                  // DEN wordmark
+                  AnimatedBuilder(
+                    animation: _textCtrl,
                     builder: (_, __) => Opacity(
-                      opacity: _denFade.value,
-                      child: Transform.translate(
-                        offset: Offset(0, _denY.value),
-                        child: _DenWordmark(sw: sw),
+                      opacity: _textFade.value,
+                      child: Text(
+                        'DEN',
+                        style: TextStyle(
+                          fontSize:     math.min(w * 0.155, 68.0),
+                          fontWeight:   FontWeight.w200,
+                          letterSpacing: _textSpacing.value,
+                          color:        Colors.white,
+                          height:       1,
+                        ),
                       ),
                     ),
                   ),
 
-                  SizedBox(height: sh * 0.018),
+                  SizedBox(height: h * 0.014),
 
-                  // Divider line
+                  // Tagline
                   AnimatedBuilder(
                     animation: _tagCtrl,
                     builder: (_, __) => Opacity(
                       opacity: _tagFade.value,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _LineDivider(),
-                          const SizedBox(width: 14),
-                          Text(
-                            'feel every beat',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w300,
-                              color: _white.withOpacity(0.30),
-                              letterSpacing: 4.5,
-                            ),
+                      child: Transform.translate(
+                        offset: Offset(0, _tagY.value),
+                        child: Text(
+                          'FEEL EVERY BEAT',
+                          style: TextStyle(
+                            fontSize:     9.5,
+                            fontWeight:   FontWeight.w300,
+                            letterSpacing: 5.5,
+                            color:        Colors.white.withOpacity(0.22),
                           ),
-                          const SizedBox(width: 14),
-                          _LineDivider(),
-                        ],
+                        ),
                       ),
                     ),
                   ),
 
-                ],
-              ),
-            ),
+                  SizedBox(height: h * 0.072),
 
-            // ── 5. PROGRESS BAR ──────────────────────────────────────────
-            Positioned(
-              bottom: sh * 0.09,
-              left: sw * 0.34,
-              right: sw * 0.34,
-              child: AnimatedBuilder(
-                animation: Listenable.merge([_tagCtrl, _progressCtrl]),
-                builder: (_, __) => Opacity(
-                  opacity: _tagFade.value,
-                  child: _ProgressBar(progress: _progressVal.value),
-                ),
+                  // Loading dots
+                  AnimatedBuilder(
+                    animation: _tagCtrl,
+                    builder: (_, child) => Opacity(
+                      opacity: _tagFade.value,
+                      child: child,
+                    ),
+                    child: AnimatedBuilder(
+                      animation: _dotCtrl,
+                      builder: (_, __) => _LoadingDots(t: _dotCtrl.value),
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -289,211 +298,129 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ICON CLUSTER
+// ICON BLOCK — glassmorphism card + breathing ring
 // ─────────────────────────────────────────────────────────────────────────────
-class _IconCluster extends StatelessWidget {
-  final double iconSize, iconScale, iconFade;
-  final double breatheScale, breatheGlow, ringAngle;
-
-  const _IconCluster({
-    required this.iconSize,
-    required this.iconScale, required this.iconFade,
-    required this.breatheScale, required this.breatheGlow,
-    required this.ringAngle,
+class _IconBlock extends StatelessWidget {
+  final double size, scale, fade, blur, ringScale, ringOpacity;
+  const _IconBlock({
+    required this.size, required this.scale, required this.fade,
+    required this.blur, required this.ringScale, required this.ringOpacity,
   });
 
   @override
   Widget build(BuildContext context) {
-    final clusterSize = iconSize + 90.0;
+    final pad = size * 0.18;
 
-    return SizedBox(
-      height: clusterSize,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
+    return Opacity(
+      opacity: fade,
+      child: Transform.scale(
+        scale: scale,
+        child: ImageFiltered(
+          imageFilter: ImageFilter.blur(
+            sigmaX: blur, sigmaY: blur, tileMode: TileMode.decal),
+          child: SizedBox(
+            width:  size + 100,
+            height: size + 100,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
 
-          // Outer breathing aura
-          Transform.scale(
-            scale: breatheScale,
-            child: Container(
-              width: clusterSize,
-              height: clusterSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    _purple.withOpacity(breatheGlow * 0.45),
-                    _purpleDark.withOpacity(breatheGlow * 0.15),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // Rotating thin ring
-          Transform.rotate(
-            angle: ringAngle,
-            child: SizedBox(
-              width: iconSize + 52,
-              height: iconSize + 52,
-              child: CustomPaint(
-                painter: _RingPainter(
-                  color: _purple.withOpacity(0.22),
-                  dashCount: 40,
-                  strokeWidth: 0.6,
-                ),
-              ),
-            ),
-          ),
-
-          // Counter-rotating inner ring
-          Transform.rotate(
-            angle: -ringAngle * 1.5,
-            child: SizedBox(
-              width: iconSize + 28,
-              height: iconSize + 28,
-              child: CustomPaint(
-                painter: _RingPainter(
-                  color: _pink.withOpacity(0.14),
-                  dashCount: 24,
-                  strokeWidth: 0.5,
-                ),
-              ),
-            ),
-          ),
-
-          // Icon
-          Opacity(
-            opacity: iconFade,
-            child: Transform.scale(
-              scale: iconScale * breatheScale * 0.5 + iconScale * 0.5,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-
-                  // Glow behind icon
-                  Container(
-                    width: iconSize + 12,
-                    height: iconSize + 12,
+                // Outer breathing ring
+                Transform.scale(
+                  scale: ringScale,
+                  child: Container(
+                    width:  size + 80,
+                    height: size + 80,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular((iconSize + 12) * 0.25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _purple.withOpacity(0.60),
-                          blurRadius: 40,
-                          spreadRadius: 4,
-                        ),
-                        BoxShadow(
-                          color: _pink.withOpacity(0.22),
-                          blurRadius: 56,
-                          spreadRadius: 0,
-                        ),
-                      ],
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(ringOpacity),
+                        width: 1.0,
+                      ),
                     ),
                   ),
+                ),
 
-                  // App icon image
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(iconSize * 0.24),
-                    child: Image.asset(
-                      'assets/icons/app_icon.png',
-                      width: iconSize,
-                      height: iconSize,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _FallbackIcon(size: iconSize),
+                // Second inner ring (static, subtle)
+                Container(
+                  width:  size + 32,
+                  height: size + 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.06),
+                      width: 0.8,
                     ),
                   ),
+                ),
 
-                ],
-              ),
+                // Glass card behind icon
+                ClipRRect(
+                  borderRadius: BorderRadius.circular((size + pad * 2) * 0.28),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      width:  size + pad * 2,
+                      height: size + pad * 2,
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.circular((size + pad * 2) * 0.28),
+                        color: Colors.white.withOpacity(0.06),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.10),
+                          width: 0.8,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6D28D9).withOpacity(0.35),
+                            blurRadius: 48,
+                            spreadRadius: -4,
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.40),
+                            blurRadius: 32,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                      padding: EdgeInsets.all(pad),
+                      child: ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(size * 0.22),
+                        child: Image.asset(
+                          'assets/icons/app_icon.png',
+                          width:  size,
+                          height: size,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _FallbackIcon(size: size),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Top-left shine on glass card
+                Positioned(
+                  top:  size * 0.04 + pad * 0.4,
+                  left: size * 0.04 + pad * 0.4,
+                  child: Container(
+                    width:  size * 0.38,
+                    height: size * 0.14,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(40),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.18),
+                          Colors.white.withOpacity(0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              ],
             ),
-          ),
-
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DEN WORDMARK
-// ─────────────────────────────────────────────────────────────────────────────
-class _DenWordmark extends StatelessWidget {
-  final double sw;
-  const _DenWordmark({required this.sw});
-
-  @override
-  Widget build(BuildContext context) {
-    final fs = math.min(sw * 0.17, 72.0);
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Glow
-        Text('DEN', style: TextStyle(
-          fontSize: fs,
-          fontWeight: FontWeight.w200,
-          letterSpacing: 18,
-          height: 1,
-          foreground: Paint()
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22)
-            ..color = _purple.withOpacity(0.50),
-        )),
-        // Pink accent glow
-        Text('DEN', style: TextStyle(
-          fontSize: fs,
-          fontWeight: FontWeight.w200,
-          letterSpacing: 18,
-          height: 1,
-          foreground: Paint()
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-            ..color = _pink.withOpacity(0.20),
-        )),
-        // Crisp white
-        Text('DEN', style: TextStyle(
-          fontSize: fs,
-          fontWeight: FontWeight.w200,
-          color: _white.withOpacity(0.95),
-          letterSpacing: 18,
-          height: 1,
-        )),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PROGRESS BAR
-// ─────────────────────────────────────────────────────────────────────────────
-class _ProgressBar extends StatelessWidget {
-  final double progress;
-  const _ProgressBar({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1.5,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(1),
-        color: _white.withOpacity(0.06),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: progress.clamp(0.0, 1.0),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(1),
-            gradient: const LinearGradient(
-              colors: [_purple, _pink],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _purple.withOpacity(0.60),
-                blurRadius: 8,
-              ),
-            ],
           ),
         ),
       ),
@@ -502,149 +429,114 @@ class _ProgressBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
+// LOADING DOTS
 // ─────────────────────────────────────────────────────────────────────────────
+class _LoadingDots extends StatelessWidget {
+  final double t;
+  const _LoadingDots({required this.t});
 
-class _LineDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: 0.5,
-      color: _white.withOpacity(0.18),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        // Each dot pulses with a phase offset
+        final phase = (t - i * 0.28).clamp(0.0, 1.0);
+        final pulse = math.sin(phase * math.pi);
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3.5),
+          width:  3.5,
+          height: 3.5,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withOpacity(0.15 + pulse * 0.45),
+          ),
+        );
+      }),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PAINTERS
+// ORB
 // ─────────────────────────────────────────────────────────────────────────────
+class _Orb extends StatelessWidget {
+  final double size, opacity;
+  final Color color;
+  const _Orb({required this.size, required this.color, required this.opacity});
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width:  size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            color.withOpacity(opacity),
+            color.withOpacity(opacity * 0.3),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.4, 1.0],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BG PAINTER
+// ─────────────────────────────────────────────────────────────────────────────
 class _BgPainter extends CustomPainter {
   final double w, h;
   const _BgPainter({required this.w, required this.h});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Base fill
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, h),
-        Paint()..color = _bg);
+    // Deep dark base
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()..color = const Color(0xFF080810),
+    );
 
-    // Subtle deep purple mass — top center, tight
+    // Subtle center vignette lift
     final cx = w / 2;
-    final cy = h * 0.38;
-    final r  = w * 0.68;
+    final cy = h * 0.44;
     canvas.drawCircle(
-      Offset(cx, cy), r,
-      Paint()..shader = RadialGradient(
-        colors: [
-          _purpleDark.withOpacity(0.55),
-          _purpleDark.withOpacity(0.10),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.55, 1.0],
-      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r)),
+      Offset(cx, cy),
+      w * 0.68,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFF1A0A2E).withOpacity(0.55),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 1.0],
+        ).createShader(
+            Rect.fromCircle(center: Offset(cx, cy), radius: w * 0.68)),
     );
 
-    // Tiny pink hint — bottom right
-    canvas.drawCircle(
-      Offset(w * 0.85, h * 0.78), w * 0.28,
-      Paint()..shader = RadialGradient(
-        colors: [_pink.withOpacity(0.06), Colors.transparent],
-      ).createShader(Rect.fromCircle(
-          center: Offset(w * 0.85, h * 0.78), radius: w * 0.28)),
-    );
-
-    // Tiny teal hint — top left
-    canvas.drawCircle(
-      Offset(w * 0.10, h * 0.18), w * 0.22,
-      Paint()..shader = RadialGradient(
-        colors: [_teal.withOpacity(0.06), Colors.transparent],
-      ).createShader(Rect.fromCircle(
-          center: Offset(w * 0.10, h * 0.18), radius: w * 0.22)),
-    );
+    // Very subtle grid lines (iOS-feel)
+    final gridPaint = Paint()
+      ..color = Colors.white.withOpacity(0.018)
+      ..strokeWidth = 0.5;
+    const step = 36.0;
+    for (double x = 0; x < w; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, h), gridPaint);
+    }
+    for (double y = 0; y < h; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(w, y), gridPaint);
+    }
   }
 
   @override
   bool shouldRepaint(_BgPainter _) => false;
 }
 
-class _Particle {
-  final double x, y, radius, speed, phase, drift;
-  final Color color;
-  const _Particle({
-    required this.x, required this.y,
-    required this.radius, required this.speed,
-    required this.phase, required this.drift,
-    required this.color,
-  });
-}
-
-class _ParticlePainter extends CustomPainter {
-  final List<_Particle> particles;
-  final double t, w, h;
-  const _ParticlePainter(
-      {required this.particles, required this.t,
-       required this.w, required this.h});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final p in particles) {
-      // Slow upward drift + horizontal sine
-      final dy    = (t * p.speed) % 1.0;
-      final yPos  = ((p.y - dy + 1.0) % 1.0) * h;
-      final xPos  = p.x * w + math.sin(t * 2 * math.pi + p.phase) * w * p.drift;
-      final twink = math.sin(t * 2 * math.pi * 1.3 + p.phase);
-      final op    = (0.06 + 0.18 * ((twink + 1) / 2)).clamp(0.0, 1.0);
-
-      canvas.drawCircle(
-        Offset(xPos, yPos),
-        p.radius,
-        Paint()..color = p.color.withOpacity(op),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ParticlePainter o) => o.t != t;
-}
-
-class _RingPainter extends CustomPainter {
-  final Color color;
-  final int dashCount;
-  final double strokeWidth;
-  const _RingPainter(
-      {required this.color,
-       required this.dashCount,
-       required this.strokeWidth});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-    final cx   = size.width / 2;
-    final cy   = size.height / 2;
-    final r    = math.min(cx, cy);
-    final step = (2 * math.pi) / dashCount;
-    const gap  = 0.07;
-    for (int i = 0; i < dashCount; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(cx, cy), radius: r),
-        i * step + gap,
-        step - gap * 2,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter _) => false;
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// FALLBACK ICON
+// ─────────────────────────────────────────────────────────────────────────────
 class _FallbackIcon extends StatelessWidget {
   final double size;
   const _FallbackIcon({required this.size});
@@ -652,19 +544,20 @@ class _FallbackIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.24),
+        borderRadius: BorderRadius.circular(size * 0.22),
         gradient: const LinearGradient(
-          colors: [_purpleDark, _purple, _pink],
+          colors: [Color(0xFF3B0764), Color(0xFF6D28D9), Color(0xFFDB2777)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
       child: Icon(
         Icons.music_note_rounded,
-        color: _white.withOpacity(0.90),
-        size: size * 0.44,
+        color: Colors.white.withOpacity(0.9),
+        size: size * 0.46,
       ),
     );
   }

@@ -71,7 +71,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _bgPulse = AnimationController(
         vsync: this, duration: const Duration(seconds: 6))
-      ..repeat(reverse: true);
+      ..value = 0.5; // Static value to prevent infinite blur repaints
 
     _vinylSpin = AnimationController(
         vsync: this, duration: const Duration(seconds: 10))
@@ -138,12 +138,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           pg.vibrantColor?.color ?? const Color(0xFF1A0A2E);
       final c2 = pg.darkMutedColor?.color ??
           pg.mutedColor?.color ?? const Color(0xFF080810);
-      if (mounted) {
-        ref.read(_paletteProvider.notifier).state = [
-          Color.lerp(c1, Colors.black, 0.4)!,
-          Color.lerp(c2, Colors.black, 0.6)!,
-        ];
-      }
+      if (!mounted) return;
+final colors = [
+  Color.lerp(c1, Colors.black, 0.4)!,
+  Color.lerp(c2, Colors.black, 0.6)!,
+];
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (mounted) ref.read(_paletteProvider.notifier).state = colors;
+});
     } catch (_) {}
   }
 
@@ -230,7 +232,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
           BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
             child: Container(color: Colors.transparent)),
           Container(color: Colors.black.withOpacity(0.45)),
 
@@ -1769,7 +1771,7 @@ class _OptionsSheet extends ConsumerWidget {
           top: Radius.circular(28)),
       child: BackdropFilter(
         filter:
-            ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+            ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           padding:
               const EdgeInsets.fromLTRB(24, 12, 24, 32),

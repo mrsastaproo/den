@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/audius_service.dart';
-import '../services/youtube_service.dart';
+import '../services/soundcloud_service.dart';
 import '../services/player_service.dart';
 import '../services/database_service.dart' as db;
 import '../services/settings_service.dart';
@@ -16,39 +16,151 @@ final audiusServiceProvider = Provider<AudiusService>((ref) => AudiusService());
 // Seed that changes on every app restart to provide variety
 final sessionSeedProvider = Provider<int>((ref) => math.Random().nextInt(1000000));
 
-// ─── JIOSAAVN SECTIONS ────────────────────────────────────────
+// ─── USER MUSIC PROFILE ───────────────────────────────────────
+// Analyzes history + liked songs to understand user's taste
 
-final trendingProvider = FutureProvider<List<Song>>((ref) async {
-  final seed = ref.watch(sessionSeedProvider);
-  final lang = ref.watch(musicLanguageProvider);
-  final showExplicit = ref.watch(explicitContentProvider);
-  
-  final timer = Timer(const Duration(minutes: 30), () => ref.invalidateSelf());
-  ref.onDispose(() => timer.cancel());
+class UserMusicProfile {
+  final List<String> topArtists;
+  final String preferredLanguage;
+  final bool hasHistory;
 
-  final api = ref.read(apiServiceProvider);
-  
-  // 1. Fetch Global Trending
-  final globalSongs = await api.getTrending(language: lang);
-  
-  // 2. Personalize: Watch history
-  final historyAsync = ref.watch(db.historyProvider);
-  final history = historyAsync.value ?? [];
-  final List<Song> personalizedSongs = [];
-  
-  if (history.isNotEmpty) {
-    final topArtists = history.map((s) => s.artist).toSet().take(4).toList();
-    for (final artist in topArtists) {
-      final extra = await api.getArtistSongs(artist);
-      personalizedSongs.addAll(extra.take(10));
+  const UserMusicProfile({
+    required this.topArtists,
+    required this.preferredLanguage,
+    required this.hasHistory,
+  });
+}
+
+final userMusicProfileProvider = Provider<UserMusicProfile>((ref) {
+  final history = ref.watch(db.historyProvider).value ?? [];
+  final liked   = ref.watch(db.likedSongsProvider).value ?? [];
+
+  final all = [...history, ...liked];
+  if (all.isEmpty) {
+    return const UserMusicProfile(
+      topArtists: [], preferredLanguage: 'Hindi', hasHistory: false);
+  }
+
+  final artistCounts = <String, int>{};
+  final langCounts   = <String, int>{};
+
+  for (int i = 0; i < all.length; i++) {
+    final s = all[i];
+    // Recently played items get double weight
+    final w = i < history.length ? 2 : 1;
+    for (final a in s.artist.split(',').map((x) => x.trim())) {
+      if (a.length > 1) artistCounts[a] = (artistCounts[a] ?? 0) + w;
+    }
+    if (s.language.isNotEmpty && s.language.toLowerCase() != 'unknown') {
+      langCounts[s.language] = (langCounts[s.language] ?? 0) + w;
     }
   }
 
-  // 3. Merge, Filter and Shuffle
+  final topArtists = (artistCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value)))
+      .take(8)
+      .map((e) => e.key)
+      .toList();
+
+  final topLang = (langCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value)))
+      .firstOrNull
+      ?.key ?? 'Hindi';
+
+  return UserMusicProfile(
+    topArtists: topArtists,
+    preferredLanguage: topLang,
+    hasHistory: true,
+  );
+});
+
+// ─── FOR YOU ──────────────────────────────────────────────────
+// Fully personalized section — songs from user's most played artists
+
+final forYouProvider = FutureProvider<List<Song>>((ref) async {
+  final profile     = ref.watch(userMusicProfileProvider);
+  final api         = ref.read(apiServiceProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+
+  if (!profile.hasHistory) return [];
+
+  final artists = profile.topArtists.take(5).toList();
+  final results = await Future.wait(
+    artists.map((a) => api.getArtistSongs(a)),
+  );
+
+  final seen = <String>{};
+  final songs = results.expand((s) => s).toList()
+    ..shuffle(math.Random(DateTime.now().hour));
+
+  return songs
+      .where((s) => seen.add(s.id))
+      .where((s) => showExplicit || !s.isExplicit)
+      .take(30)
+      .toList();
+});
+
+// ─── JIOSAAVN SECTIONS ────────────────────────────────────────
+
+// ─── MASTER HOME DATA PROVIDER ────────────────────────────────
+// Fetches everything for the home page in a single request to prevent rate-limiting.
+final homeDataProvider = FutureProvider<Map<String, List<Song>>>((ref) async {
+  final lang = ref.watch(musicLanguageProvider);
+  final api = ref.read(apiServiceProvider);
+  
+  // Cache for 10 mins but clear if data is suspiciously empty
+  final link = ref.keepAlive();
+  Timer? timer;
+  ref.onDispose(() => timer?.cancel());
+  ref.onCancel(() {
+    timer = Timer(const Duration(minutes: 10), () => link.close());
+  });
+
+  final data = await api.getHomeData(language: lang);
+  
+  // SELF-HEALING: If data is empty, force a refresh in 30 seconds
+  if (data.values.every((list) => list.isEmpty)) {
+    Timer(const Duration(seconds: 30), () => ref.invalidateSelf());
+  }
+  
+  return data;
+});
+
+final trendingProvider = FutureProvider<List<Song>>((ref) async {
+  final seed = ref.watch(sessionSeedProvider);
+  final showExplicit = ref.watch(explicitContentProvider);
+  
+  // 1. Get base data from the Master Provider (cached/shared)
+  final homeData = await ref.watch(homeDataProvider.future);
+  final List<Song> globalSongs = [...(homeData['trending'] ?? [])];
+
+  final profile = ref.watch(userMusicProfileProvider);
+
+  // 2. Personalize: fetch from top artists in history
+  final List<Song> personalizedSongs = [];
+  if (profile.hasHistory) {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final topArtists = profile.topArtists.take(2).toList();
+      for (final a in topArtists) {
+        final r = await api.getArtistSongs(a).timeout(const Duration(seconds: 4));
+        personalizedSongs.addAll(r.take(5));
+      }
+    } catch (_) {}
+  }
+
+  // 3. HARD FALLBACK: If still empty, use a broad search
+  if (globalSongs.isEmpty && personalizedSongs.isEmpty) {
+    final lang = ref.read(musicLanguageProvider);
+    final fallback = await ref.read(apiServiceProvider).searchSongs('trending $lang hits 2025', limit: 15);
+    globalSongs.addAll(fallback);
+  }
+
+  // 4. Merge, deduplicate, filter, shuffle
   final allSongs = [...personalizedSongs, ...globalSongs];
   final filtered = showExplicit ? allSongs : allSongs.where((s) => !s.isExplicit).toList();
   filtered.shuffle(math.Random(seed));
-  
+
   final seen = <String>{};
   return filtered.where((s) => seen.add(s.id)).take(30).toList();
 });
@@ -94,26 +206,23 @@ final trendingEnglishProvider = FutureProvider<List<Song>>((ref) async {
 
 final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
   final seed = ref.watch(sessionSeedProvider);
-  final lang = ref.watch(musicLanguageProvider);
   final showExplicit = ref.watch(explicitContentProvider);
   
-  final timer = Timer(const Duration(minutes: 30), () => ref.invalidateSelf());
-  ref.onDispose(() => timer.cancel());
-
-  final api = ref.read(apiServiceProvider);
+  final homeData = await ref.watch(homeDataProvider.future);
+  final globalSongs = homeData['new_releases'] ?? [];
   
-  final globalSongs = await api.getNewReleases(language: lang);
-  
-  final likedAsync = ref.watch(db.likedSongsProvider);
-  final liked = likedAsync.value ?? [];
+  final profile = ref.watch(userMusicProfileProvider);
   final List<Song> personalizedSongs = [];
 
-  if (liked.isNotEmpty) {
-    final topArtists = liked.map((s) => s.artist).toSet().take(3).toList();
-    for (final artist in topArtists) {
-       final extra = await api.getArtistSongs(artist);
-       personalizedSongs.addAll(extra.take(8));
-    }
+  if (profile.hasHistory) {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final topArtists = profile.topArtists.skip(2).take(2).toList();
+      for (final artist in topArtists) {
+         final extra = await api.getArtistSongs(artist).timeout(const Duration(seconds: 3));
+         personalizedSongs.addAll(extra.take(5));
+      }
+    } catch (_) {}
   }
 
   final allSongs = [...personalizedSongs, ...globalSongs];
@@ -121,15 +230,17 @@ final newReleasesProvider = FutureProvider<List<Song>>((ref) async {
   filtered.shuffle(math.Random(seed + 777));
   
   final seen = <String>{};
-  return filtered.where((s) => seen.add(s.id)).take(20).toList();
+  return filtered.where((s) => seen.add(s.id)).take(25).toList();
 });
 
 
 final topChartsProvider = FutureProvider<List<Song>>((ref) async {
   final seed = ref.watch(sessionSeedProvider);
-  final lang = ref.watch(musicLanguageProvider);
   final showExplicit = ref.watch(explicitContentProvider);
-  final songs = await ref.read(apiServiceProvider).getTopCharts(language: lang);
+  
+  final homeData = await ref.watch(homeDataProvider.future);
+  final songs = homeData['charts'] ?? [];
+  
   final filtered = showExplicit ? songs : songs.where((s) => !s.isExplicit).toList();
   filtered.shuffle(math.Random(seed + 2));
   return filtered;
@@ -414,26 +525,35 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
   }
 
 
-  // Audius & Jamendo parallel fetch
+  // Audius, Jamendo & SoundCloud parallel fetch
   Future<List<Song>> audiusFuture = Future.value([]);
   Future<List<Song>> jamendoFuture = Future.value([]);
-  
+  Future<List<Song>> soundcloudFuture = Future.value([]);
+
   if (useAudius || query.length >= 3) {
     audiusFuture = audius.searchTracks(query, limit: 20);
     jamendoFuture = api.searchJamendo(query, limit: 20);
   }
 
-  // ── Await everything ─────────────────────────────────────────
+  // Always search SoundCloud for specific song/title queries
+  if (query.length >= 2) {
+    final sc = ref.read(soundcloudServiceProvider);
+    soundcloudFuture = sc.search(query);
+  }
+
+  // ── Await everything with strict timeouts ────────────────────
   final allResults = await Future.wait([
-    Future.wait(jioFutures),
-    audiusFuture,
-    jamendoFuture,
+    Future.wait(jioFutures).timeout(const Duration(seconds: 4), onTimeout: () => []),
+    audiusFuture.timeout(const Duration(seconds: 3), onTimeout: () => []),
+    jamendoFuture.timeout(const Duration(seconds: 3), onTimeout: () => []),
+    soundcloudFuture.timeout(const Duration(seconds: 3), onTimeout: () => []),
   ]);
 
   // ── Unified Smart Ranking Engine ──────────────────────────
-  final jioResults = (allResults[0] as List<List<Song>>).expand((l) => l).toList();
+  final jioResults    = (allResults[0] as List<List<Song>>).expand((l) => l).toList();
   final audiusResults = allResults[1] as List<Song>;
-  final jamResults  = allResults[2] as List<Song>;
+  final jamResults    = allResults[2] as List<Song>;
+  final scResults     = allResults[3] as List<Song>;
 
   final Map<String, Song> uniqueSongs = {};
   final Map<String, double> scores = {};
@@ -443,6 +563,7 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
     ...jioResults,
     ...audiusResults,
     ...jamResults,
+    ...scResults,   // ← SoundCloud results now included
   ];
 
   final qNormal = query.toLowerCase().trim();
@@ -471,14 +592,22 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
       if (sArtist.contains(word)) score += 20;
     }
 
-    // ── B. QUALITY & OFFICIAL STATUS ────────────────────────────
-    bool isOfficial = sTitle.contains('official') || 
-                      sTitle.contains('original') || 
+    // ── B. ARTIST IN QUERY MATCH ────────────────────────────────
+    // If the user typed an artist name and this song matches → big boost
+    for (final word in qWords) {
+      if (word.length > 3 && sArtist.contains(word)) score += 100;
+    }
+    // Full artist name match in query → extra boost
+    if (qNormal.contains(firstArtist) && firstArtist.length > 3) score += 150;
+
+    // ── C. QUALITY & OFFICIAL STATUS ────────────────────────────
+    bool isOfficial = sTitle.contains('official') ||
+                      sTitle.contains('original') ||
                       sTitle.contains('vevo') ||
                       sTitle.contains('music video');
     if (isOfficial) score += 150;
 
-    // ── C. MODIFIED VERSION PENALTIES ───────────────────────────
+    // ── D. MODIFIED VERSION PENALTIES ───────────────────────────
     final modifiedTags = {
       'slowed': -400,
       'reverb': -400,
@@ -500,12 +629,12 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) async {
       }
     });
 
-    // ── D. POPULARITY & SOURCE RELIABILITY ─────────────────────
-    // Play count bonus (scaled)
-    score += (s.playCount / 2000000).clamp(0, 100); 
+    // ── E. POPULARITY — heavily weighted so real popular songs rise to top
+    // Max +400 pts so a song with 100M+ plays always beats low-play covers
+    score += (s.playCount / 300000).clamp(0, 400);
 
-    // JioSaavn/Platform source bonus for quality
-    if (s.id.startsWith('saavn_') || !s.id.contains('_')) score += 50;
+    // JioSaavn source bonus (most reliable metadata)
+    if (!s.id.contains('_')) score += 60;
 
     // ── E. UPDATE UNIQUE LIST ──────────────────────────────────
     final existingScore = scores[key] ?? -99999.0;
@@ -558,18 +687,15 @@ void playQueue(
   // Save context so PlayerService knows how to continue
   ref.read(queueMetaProvider.notifier).state = meta;
 
+  // FIX: For search results, we SHOULD load the full list so "Next" works.
+  // We no longer strip the playlist to 1 song.
   List<Song> finalPlaylist = playlist;
   int finalIndex = index;
 
-  if (meta.context == QueueContext.search) {
-    // For search, play ONLY the selected song initially.
-    // This forces smart queue continuation when it ends.
-    finalPlaylist = [playlist[index]];
-    finalIndex = 0;
-  }
-
-  ref.read(currentPlaylistProvider.notifier).state  = finalPlaylist;
-  ref.read(currentSongIndexProvider.notifier).state = finalIndex;
-  ref.read(currentSongProvider.notifier).state      = finalPlaylist[finalIndex];
-  ref.read(playerServiceProvider).playSong(finalPlaylist[finalIndex]);
+  Future.microtask(() {
+    ref.read(currentPlaylistProvider.notifier).state  = finalPlaylist;
+    ref.read(currentSongIndexProvider.notifier).state = finalIndex;
+    ref.read(currentSongProvider.notifier).state      = finalPlaylist[finalIndex];
+    ref.read(playerServiceProvider).playSong(finalPlaylist[finalIndex]);
+  });
 }

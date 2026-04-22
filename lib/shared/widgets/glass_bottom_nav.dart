@@ -18,10 +18,10 @@ class GlassBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-      child: ClipRRect(
+      child: RepaintBoundary(child: ClipRRect(
         borderRadius: BorderRadius.circular(36),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             height: 72,
             decoration: BoxDecoration(
@@ -80,7 +80,7 @@ class GlassBottomNav extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      )),
     ).animate()
       .fadeIn(duration: 600.ms, delay: 200.ms)
       .slideY(begin: 1, end: 0, duration: 600.ms,
